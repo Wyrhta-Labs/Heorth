@@ -1,0 +1,26 @@
+import { useEvents } from '@/hooks/use-calendar';
+import { formatTime, dayLabel } from '@/lib/format';
+
+export default function Agenda() {
+  const today = dayLabel(new Date()).iso;
+  const from = `${today}T00:00:00.000Z`;
+  const to = `${today}T23:59:59.999Z`;
+  const { data, isLoading } = useEvents({ from, to });
+  const events = data?.data ?? [];
+
+  if (isLoading) return <div className="text-sm text-ash py-4 text-center">Loading…</div>;
+  if (events.length === 0) return <div className="text-sm text-ash py-4 text-center">No events today.</div>;
+
+  return (
+    <ul className="space-y-2">
+      {events.map((e) => (
+        <li key={`${e.id}-${e.occurrenceStart}`} className="flex items-center gap-3 rounded-lg border border-tan bg-card px-3 py-2">
+          <span className="text-xs font-medium text-ember w-16 shrink-0">
+            {e.allDay ? 'All day' : formatTime(e.occurrenceStart)}
+          </span>
+          <span className="text-sm text-ink truncate">{e.title}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}

@@ -82,3 +82,27 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ## Deferred MINOR findings rolled up above -> feed to final whole-branch review.
 ## NEXT: Phase 6 (MCP-over-HTTP assembly/entrypoint, plan lines 4356+), Phase 7 (React SPA 7.1-7.7), Phase 8 (integration/release).
 ## Per user DECISION: check in at each phase boundary -> PAUSED for check-in before Phase 6.
+##
+## PHASE 5 WHOLE-PHASE REVIEW (user-requested, opus reviewer) + FIX:
+## Found CRITICAL cross-surface hole: posting-reference invariant ("account OR envelope") was only in the REST
+## validator, so MCP record_transaction (adult) + CSV empty-name rows could commit balanced-but-ORPHANED postings.
+## FIXED @ 4a1cf8f: enforce in service.recordTransaction (throw ORPHAN_POSTING) -> all 3 surfaces inherit; mapped
+## on MCP+REST. CSV import now validate-all-then-write over ALL rows (date format+CALENDAR validity via
+## isValidCalendarDate, amount finite, non-orphan) so malformed rows abort before any write (true all-or-nothing);
+## missing required header column -> 400 CSV_INVALID_HEADER. +5 tests (now 60 green). Re-review: all resolved, approved.
+## DEFERRED for USER DECISION (not auto-fixed): (a) CSV export lossy for >2-posting txns (exports first env+acct only)
+## -> plan's CSV format is inherently single-envelope; document or accept for 0.1; (b) CSV formula-injection on export
+## (=/+/-/@ prefixes not neutralized) -> low risk single-tenant; (c) accepted-for-0.1 minors per triage (FK indexes,
+## accounts CRUD tests, bills tests, summary counts debits-only, export trailing-zero). HEAD now 4a1cf8f.
+##
+## USER DECISION on the two deferred items (2026-07-12): FIX BOTH.
+## @ 3d4ffa1: (a) CSV formula-injection guard sanitizeCsvText() prefixes ' to free-text fields starting with
+##   =+-@/tab/CR (payee/memo/envelope/account only; NOT date/amount); (b) export now emits one row per
+##   envelope-posting (amount=that posting's debit) so multi-envelope txns don't drop legs. 62 tests green.
+##   CAVEAT: multi-envelope txns re-import as SEPARATE 2-posting txns (no data loss; grouping not round-tripped,
+##   would need a transaction-id column - out of scope). Re-review approved.
+##
+## ===== PHASE 5 FULLY DONE + REVIEWED + HARDENED. HEAD 3d4ffa1. 62 tests green, typecheck+build clean. =====
+## USER STOPPED HERE (did NOT start Phase 6). Branch feat/heorth-0.1 NOT pushed.
+## RESUME: Phase 6 (MCP-over-HTTP assembly, plan lines 4356+; wire StreamableHTTPServerTransport on Hono,
+##   extract src/mcp/, add @modelcontextprotocol/sdk dep), then Phase 7 (React 18 SPA 7.1-7.7), Phase 8.

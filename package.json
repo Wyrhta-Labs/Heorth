@@ -1,0 +1,42 @@
+{
+  "name": "heorth",
+  "version": "0.1.0",
+  "description": "The flagship self-hosted household system",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "dev:api": "tsx watch src/index.ts",
+    "dev:web": "cd web && npm run dev",
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "build": "tsc --project tsconfig.json",
+    "build:web": "cd web && npm run build",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "tsx node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "tsx node_modules/drizzle-kit/bin.cjs migrate",
+    "db:studio": "tsx node_modules/drizzle-kit/bin.cjs studio",
+    "db:push": "tsx node_modules/drizzle-kit/bin.cjs push",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v && docker compose up -d"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@wyrhta/core": "github:Wyrhta-Labs/wyrhta-core#v0.1.1",
+    "drizzle-orm": "^0.39.3",
+    "hono": "^4.7.4",
+    "postgres": "^3.4.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@vitest/coverage-v8": "^3.0.8",
+    "concurrently": "^9.2.1",
+    "drizzle-kit": "^0.30.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

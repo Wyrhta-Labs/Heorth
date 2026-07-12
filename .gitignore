@@ -1,0 +1,8 @@
+node_modules/
+dist/
+web/dist/
+.env
+*.log
+
+# Force-track Drizzle migration SQL (global core.excludesFile has *.sql)
+!src/db/migrations/*.sql

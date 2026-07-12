@@ -106,4 +106,21 @@ feohRouter.delete('/bills/:id', canWrite, async (c) => {
   return ok(c, { id: row.id });
 });
 
+feohRouter.get('/export', async (c) => {
+  const format = c.req.query('format') ?? 'csv';
+  if (format === 'ledger') {
+    const ledger = await service.exportLedger();
+    return c.text(ledger, 200, { 'Content-Type': 'text/plain; charset=utf-8' });
+  }
+  const csv = await service.exportTransactionsCsv();
+  return c.text(csv, 200, { 'Content-Type': 'text/csv; charset=utf-8' });
+});
+
+feohRouter.post('/import', canWrite, async (c) => {
+  const text = await c.req.text();
+  if (!text.trim()) return err(c, 'VALIDATION_ERROR', 'CSV body is empty', 400);
+  const result = await service.importTransactionsCsv(text, c.get('auth').userId);
+  return ok(c, result, undefined, 201);
+});
+
 export { canWrite };

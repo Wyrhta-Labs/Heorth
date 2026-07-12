@@ -2,6 +2,7 @@ import { db } from '../../db/index.js';
 import { accounts, envelopes, transactions, postings, expenseSplits, recurringBills, type Account, type Envelope, type Transaction, type RecurringBill } from './schema.js';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput, CreateBillInput } from './validators.js';
+import { toCsv, parseCsv } from './csv.js';
 
 export function listAccounts(): Promise<Account[]> {
   return db.select().from(accounts).orderBy(accounts.name);
@@ -177,4 +178,82 @@ export async function updateBill(id: string, i: Partial<CreateBillInput>): Promi
 export async function deleteBill(id: string): Promise<RecurringBill | null> {
   const [row] = await db.delete(recurringBills).where(eq(recurringBills.id, id)).returning();
   return row ?? null;
+}
+
+const CSV_HEADER = ['date', 'payee', 'memo', 'amount', 'envelope', 'account'];
+
+export async function exportTransactionsCsv(): Promise<string> {
+  const txns = await db.select().from(transactions).orderBy(transactions.date);
+  const allPostings = await db.select().from(postings);
+  const accountRows = await db.select().from(accounts);
+  const envelopeRows = await db.select().from(envelopes);
+  const accountName = new Map(accountRows.map((a) => [a.id, a.name]));
+  const envelopeName = new Map(envelopeRows.map((e) => [e.id, e.name]));
+
+  const rows: string[][] = [CSV_HEADER];
+  for (const t of txns) {
+    const ps = allPostings.filter((p) => p.transactionId === t.id);
+    const envPosting = ps.find((p) => p.envelopeId);
+    const acctPosting = ps.find((p) => p.accountId);
+    rows.push([
+      t.date, t.payee, t.memo ?? '', String(Number(t.amount)),
+      envPosting?.envelopeId ? (envelopeName.get(envPosting.envelopeId) ?? '') : '',
+      acctPosting?.accountId ? (accountName.get(acctPosting.accountId) ?? '') : '',
+    ]);
+  }
+  return toCsv(rows);
+}
+
+export async function importTransactionsCsv(text: string, createdBy: string): Promise<{ imported: number }> {
+  const matrix = parseCsv(text);
+  if (matrix.length === 0) return { imported: 0 };
+  const [header, ...dataRows] = matrix;
+  const idx = (name: string) => header!.indexOf(name);
+  const di = idx('date'), pi = idx('payee'), mi = idx('memo'), ai = idx('amount'), ei = idx('envelope'), aci = idx('account');
+
+  const envelopeRows = await db.select().from(envelopes);
+  const accountRows = await db.select().from(accounts);
+  const envByName = new Map(envelopeRows.map((e) => [e.name, e.id]));
+  const acctByName = new Map(accountRows.map((a) => [a.name, a.id]));
+
+  let imported = 0;
+  for (const r of dataRows) {
+    const amount = Number(r[ai]);
+    const envelopeId = ei >= 0 ? envByName.get(r[ei] ?? '') ?? null : null;
+    const accountId = aci >= 0 ? acctByName.get(r[aci] ?? '') ?? null : null;
+    await recordTransaction({
+      date: r[di]!, payee: r[pi]!, memo: r[mi] || null, amount,
+      postings: [
+        { envelopeId, accountId: null, debit: amount, credit: 0 },
+        { accountId, envelopeId: null, debit: 0, credit: amount },
+      ],
+      splits: [],
+    }, createdBy);
+    imported += 1;
+  }
+  return { imported };
+}
+
+export async function exportLedger(): Promise<string> {
+  const txns = await db.select().from(transactions).orderBy(transactions.date);
+  const allPostings = await db.select().from(postings);
+  const accountRows = await db.select().from(accounts);
+  const envelopeRows = await db.select().from(envelopes);
+  const accountName = new Map(accountRows.map((a) => [a.id, a.name]));
+  const envelopeName = new Map(envelopeRows.map((e) => [e.id, e.name]));
+
+  const blocks: string[] = [];
+  for (const t of txns) {
+    const lines: string[] = [`${t.date} * ${t.payee}`];
+    if (t.memo) lines.push(`    ; ${t.memo}`);
+    for (const p of allPostings.filter((x) => x.transactionId === t.id)) {
+      const label = p.envelopeId
+        ? `Envelopes:${envelopeName.get(p.envelopeId) ?? 'Unknown'}`
+        : `Accounts:${p.accountId ? accountName.get(p.accountId) ?? 'Unknown' : 'Unknown'}`;
+      const net = Number(p.debit) - Number(p.credit);
+      lines.push(`    ${label}  ${net >= 0 ? '' : '-'}$${Math.abs(net).toFixed(2)}`);
+    }
+    blocks.push(lines.join('\n'));
+  }
+  return blocks.join('\n\n');
 }

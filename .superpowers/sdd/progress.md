@@ -50,3 +50,35 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ##  - Phase 6 decision (user-approved): wire MCP-over-HTTP via @modelcontextprotocol/sdk StreamableHTTPServerTransport
 ##    on the Hono app (bootstrap() currently returns {app}; extend to mount the MCP server + add the SDK as a dep).
 ##  - Commit per task; NO Co-Authored-By trailer; branch not yet pushed.
+
+## ===== PHASE 5 (Feoh) execution log =====
+- Task 5.1: complete (commit 5e5704c, review clean). Schema+migration 0003. 41 tests green.
+##   MINOR (deferred to final review, both plan-mandated): (a) feoh-schema.test only exercises envelopes,
+##   not the 6 tables' FK cascade/CHECK behavior; (b) no indexes on FK columns (postings.*, expenseSplits.*).
+- Task 5.2: complete (commit a5b64e3, review clean). Accounts+envelopes service/routes, module registered. 43 tests green.
+##   Auth reconciliation applied: guards imported from '../../wiring.js' (NOT @wyrhta/core/auth). validators.ts
+##   forward-declares txn/bill schemas for 5.3-5.5. MINOR (plan-mandated, defer): unused `export {canWrite}`;
+##   update* sets updatedAt even on empty patch; accounts CRUD untested (only envelopes+role gating).
+- Task 5.3: complete (commits 0bee058 impl, 25a8708 fix, re-review clean). Double-entry txns + splits + routes.
+##   IMPORTANT finding fixed: added mid-tx FK-violation rollback test proving atomicity (5th test, genuine 23503).
+##   Dropped unused `type Posting` import. 48 tests green. MINOR (defer): count query trusts ::int cast.
+- Task 5.4: complete (commit 75370a7, review clean). getMonthSummary + GET /summary. 49 tests green.
+##   MINOR (plan-mandated/defer): extra `tone` field in summary output (in brief code); zero-postings envelope
+##   coverage gap; redundant lte+< upper bound (plan-mandated, < is authoritative).
+- Task 5.5: complete (commit f6c4c47, review clean). Recurring bills CRUD. Imports merged cleanly. 50 tests green.
+##   MINOR (defer): bills test only happy path (no update/delete/404/child-gating tests).
+- Task 5.6: complete (commits 630cdb4 impl, 3a48713 fix, re-review clean). CSV import/export + ledger + csv.ts parser.
+##   acctByName name->id correction applied. IMPORTANT fixed: import now validate-all-then-write, throws
+##   UNKNOWN_REFERENCE (route->400) on unresolved non-empty envelope/account names (no floating postings). 53 tests.
+##   MINOR (defer, plan-locked): export amount uses String(Number(x)) dropping trailing zeros (test expects '50'/'4.5').
+- Task 5.7: complete (commit 552b2a3, review clean). Feoh MCP tools (6 tools, child write-guard).
+##   RECONCILED: brief's mcp.ts used stale interface; shipped version matches live calendar/mcp.ts pattern
+##   (ZodRawShape inputSchema, result()->McpToolResult, ctx.principal.*). UNBALANCED->'Postings do not balance'.
+##   MINOR (defer): import_csv/export_ledger MCP gating not directly tested (assertCanWrite shared, proven via record_transaction).
+##
+## ========== PHASE 5 COMPLETE (2026-07-12) ==========
+## Feoh module fully landed on feat/heorth-0.1. HEAD 552b2a3. 55 tests green, typecheck+build clean.
+## Commits: 5e5704c(5.1) a5b64e3(5.2) 0bee058+25a8708(5.3) 75370a7(5.4) f6c4c47(5.5) 630cdb4+3a48713(5.6) 552b2a3(5.7).
+## Deferred MINOR findings rolled up above -> feed to final whole-branch review.
+## NEXT: Phase 6 (MCP-over-HTTP assembly/entrypoint, plan lines 4356+), Phase 7 (React SPA 7.1-7.7), Phase 8 (integration/release).
+## Per user DECISION: check in at each phase boundary -> PAUSED for check-in before Phase 6.

@@ -65,6 +65,9 @@ feohRouter.post('/transactions', canWrite, async (c) => {
     if (e instanceof Error && e.message === 'UNBALANCED') {
       return err(c, 'UNBALANCED', 'Postings do not balance (sum of debits must equal sum of credits)', 400);
     }
+    if (e instanceof Error && e.message === 'ORPHAN_POSTING') {
+      return err(c, 'VALIDATION_ERROR', 'Each posting must reference an account or envelope', 400);
+    }
     throw e;
   }
 });
@@ -125,6 +128,12 @@ feohRouter.post('/import', canWrite, async (c) => {
   } catch (e: unknown) {
     if (e instanceof Error && e.message === 'UNKNOWN_REFERENCE') {
       return err(c, 'UNKNOWN_REFERENCE', 'CSV references an unknown envelope or account name', 400);
+    }
+    if (e instanceof Error && e.message === 'CSV_INVALID_ROW') {
+      return err(c, 'VALIDATION_ERROR', 'CSV contains an invalid row (bad date, non-numeric amount, or no envelope/account reference)', 400);
+    }
+    if (e instanceof Error && e.message === 'CSV_INVALID_HEADER') {
+      return err(c, 'VALIDATION_ERROR', 'CSV header is missing required columns (date, payee, amount)', 400);
     }
     throw e;
   }

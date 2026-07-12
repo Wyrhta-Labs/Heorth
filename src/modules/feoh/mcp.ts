@@ -42,6 +42,7 @@ export const feohTools: McpTool[] = [
         return result(await service.recordTransaction(input as never, ctx.principal.userId));
       } catch (e) {
         if (e instanceof Error && e.message === 'UNBALANCED') throw new Error('Postings do not balance');
+        if (e instanceof Error && e.message === 'ORPHAN_POSTING') throw new Error('Each posting must reference an account or envelope');
         throw e;
       }
     },

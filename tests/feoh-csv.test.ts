@@ -46,6 +46,72 @@ describe('feoh CSV & ledger', () => {
     expect(rows.length).toBe(0);
   });
 
+  it('rejects import rows with both envelope and account empty and writes nothing', async () => {
+    const { admin } = await seedTestHousehold();
+    await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });
+    await service.createEnvelope({ name: 'Groceries', monthlyBudget: 400 });
+
+    const inputCsv = [
+      'date,payee,memo,amount,envelope,account',
+      '2026-07-05,Market,Weekly shop,50,,',
+    ].join('\n');
+
+    await expect(service.importTransactionsCsv(inputCsv, admin.user.id)).rejects.toThrow('CSV_INVALID_ROW');
+
+    const { rows } = await service.listTransactions({});
+    expect(rows.length).toBe(0);
+  });
+
+  it('rejects import when a later row has a malformed date and writes nothing (all-or-nothing)', async () => {
+    const { admin } = await seedTestHousehold();
+    await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });
+    await service.createEnvelope({ name: 'Groceries', monthlyBudget: 400 });
+
+    const inputCsv = [
+      'date,payee,memo,amount,envelope,account',
+      '2026-07-05,Market,Weekly shop,50,Groceries,Checking',
+      '2026-99-99,Market2,Bad date,10,Groceries,Checking',
+    ].join('\n');
+
+    await expect(service.importTransactionsCsv(inputCsv, admin.user.id)).rejects.toThrow('CSV_INVALID_ROW');
+
+    const { rows } = await service.listTransactions({});
+    expect(rows.length).toBe(0);
+  });
+
+  it('rejects import when a later row has a non-numeric amount and writes nothing (all-or-nothing)', async () => {
+    const { admin } = await seedTestHousehold();
+    await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });
+    await service.createEnvelope({ name: 'Groceries', monthlyBudget: 400 });
+
+    const inputCsv = [
+      'date,payee,memo,amount,envelope,account',
+      '2026-07-05,Market,Weekly shop,50,Groceries,Checking',
+      '2026-07-06,Market2,Bad amount,NaN,Groceries,Checking',
+    ].join('\n');
+
+    await expect(service.importTransactionsCsv(inputCsv, admin.user.id)).rejects.toThrow('CSV_INVALID_ROW');
+
+    const { rows } = await service.listTransactions({});
+    expect(rows.length).toBe(0);
+  });
+
+  it('rejects a CSV missing the date column in the header and writes nothing', async () => {
+    const { admin } = await seedTestHousehold();
+    await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });
+    await service.createEnvelope({ name: 'Groceries', monthlyBudget: 400 });
+
+    const inputCsv = [
+      'payee,memo,amount,envelope,account',
+      'Market,Weekly shop,50,Groceries,Checking',
+    ].join('\n');
+
+    await expect(service.importTransactionsCsv(inputCsv, admin.user.id)).rejects.toThrow('CSV_INVALID_HEADER');
+
+    const { rows } = await service.listTransactions({});
+    expect(rows.length).toBe(0);
+  });
+
   it('exports a readable plaintext ledger', async () => {
     const { admin } = await seedTestHousehold();
     const account = await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });

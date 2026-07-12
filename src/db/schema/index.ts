@@ -5,5 +5,5 @@ export { household } from '@wyrhta/core/household';
 // Module tables are appended here as each module lands:
 // export * from './../../household/schema.js';  (Heorth-local, if any)
 export * from '../../modules/calendar/schema.js';
-// export * from './../../modules/meals/schema.js';
+export * from '../../modules/meals/schema.js';
 // export * from './../../modules/feoh/schema.js';

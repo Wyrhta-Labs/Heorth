@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../../wiring.js';
 import * as service from './service.js';
-import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema } from './validators.js';
+import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema } from './validators.js';
 
 export const feohRouter = new Hono();
 feohRouter.use('*', requireAuth);
@@ -79,6 +79,12 @@ feohRouter.delete('/transactions/:id', canWrite, async (c) => {
   const row = await service.deleteTransaction(c.req.param('id'));
   if (!row) return err(c, 'NOT_FOUND', 'Transaction not found', 404);
   return ok(c, { id: row.id });
+});
+
+feohRouter.get('/summary', async (c) => {
+  const q = monthQuerySchema.safeParse(c.req.query());
+  if (!q.success) return err(c, 'VALIDATION_ERROR', 'month (YYYY-MM) is required', 400);
+  return ok(c, await service.getMonthSummary(q.data.month));
 });
 
 export { canWrite };

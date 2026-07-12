@@ -116,3 +116,37 @@ export async function deleteTransaction(id: string): Promise<Transaction | null>
   const [row] = await db.delete(transactions).where(eq(transactions.id, id)).returning();
   return row ?? null;
 }
+
+export async function getMonthSummary(month: string) {
+  const from = `${month}-01`;
+  // exclusive upper bound = first day of next month
+  const [y, m] = month.split('-').map(Number);
+  const next = m === 12 ? `${y! + 1}-01-01` : `${y}-${String(m! + 1).padStart(2, '0')}-01`;
+
+  const envRows = await db.select().from(envelopes).orderBy(envelopes.name);
+
+  const spendRows = await db
+    .select({
+      envelopeId: postings.envelopeId,
+      spent: sql<string>`coalesce(sum(${postings.debit}), 0)`,
+    })
+    .from(postings)
+    .innerJoin(transactions, eq(postings.transactionId, transactions.id))
+    .where(and(gte(transactions.date, from), lte(transactions.date, next), sql`${transactions.date} < ${next}`))
+    .groupBy(postings.envelopeId);
+
+  const spentByEnvelope = new Map(spendRows.map((r) => [r.envelopeId, Number(r.spent)]));
+
+  const envelopesOut = envRows.map((e) => {
+    const budget = Number(e.monthlyBudget);
+    const spent = spentByEnvelope.get(e.id) ?? 0;
+    return { envelopeId: e.id, name: e.name, tone: e.tone, budget, spent, remaining: budget - spent };
+  });
+
+  const totals = envelopesOut.reduce(
+    (acc, e) => ({ budget: acc.budget + e.budget, spent: acc.spent + e.spent, remaining: acc.remaining + e.remaining }),
+    { budget: 0, spent: 0, remaining: 0 },
+  );
+
+  return { month, envelopes: envelopesOut, totals };
+}

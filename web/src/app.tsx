@@ -10,7 +10,7 @@ import DashboardPage from '@/pages/dashboard';
 import CalendarPage from '@/pages/calendar';
 import MealsPage from '@/pages/meals';
 import FeohPage from '@/pages/feoh';
-import { HouseholdPage } from '@/pages/placeholder';
+import HouseholdPage from '@/pages/household';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },

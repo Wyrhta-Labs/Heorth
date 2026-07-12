@@ -152,3 +152,10 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
   agenda, members row, reserved chores placeholder). Brand hex VERIFIED end-to-end in index.css + MEMBER_COLORS.
   8/8 web tests (day-strip asserts real per-day text), build green. MINOR (defer, cosmetic/plan-inherited): split
   imports in supper-card.tsx; qs() cast in calendar.ts.
+- Task 7.4: complete (commit 3511516; review APPROVED by sonnet reviewer). Calendar page: week+month views,
+  event create/edit form (RHF+zod), attendees via MemberAvatar, recurrence. Reuses 7.3 calendar hooks/api (no dup).
+  10 web tests (calendar-grid asserts real leading date 2026-06-29 + sort), build green. attendeeIds `as never`
+  concern TRACED end-to-end: benign - submit explicitly re-injects closure `selected`, zod key-strip bypassed,
+  reaches EventInput.attendeeIds correctly. MINOR (defer to final): (a) 4x `as never` casts in event-form.tsx
+  (type-safety hole if renamed); (b) no component/render tests for EventForm/WeekView/MonthView (brief scoped tests
+  to grid helper only) -> attendeeIds wiring has no test evidence beyond type-level reasoning; close at whole-branch review.

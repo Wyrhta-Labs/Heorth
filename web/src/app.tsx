@@ -8,7 +8,8 @@ import AppShell from '@/components/layout/app-shell';
 import LoginPage from '@/pages/login';
 import DashboardPage from '@/pages/dashboard';
 import CalendarPage from '@/pages/calendar';
-import { MealsPage, FeohPage, HouseholdPage } from '@/pages/placeholder';
+import MealsPage from '@/pages/meals';
+import { FeohPage, HouseholdPage } from '@/pages/placeholder';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },

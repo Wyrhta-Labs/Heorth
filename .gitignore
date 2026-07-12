@@ -3,6 +3,7 @@ dist/
 web/dist/
 .env
 *.log
+*.tsbuildinfo
 
 # Force-track Drizzle migration SQL (global core.excludesFile has *.sql)
 !src/db/migrations/*.sql

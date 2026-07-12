@@ -1,7 +1,7 @@
 import { db } from '../../db/index.js';
-import { accounts, envelopes, transactions, postings, expenseSplits, type Account, type Envelope, type Transaction } from './schema.js';
+import { accounts, envelopes, transactions, postings, expenseSplits, recurringBills, type Account, type Envelope, type Transaction, type RecurringBill } from './schema.js';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
-import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput } from './validators.js';
+import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput, CreateBillInput } from './validators.js';
 
 export function listAccounts(): Promise<Account[]> {
   return db.select().from(accounts).orderBy(accounts.name);
@@ -149,4 +149,32 @@ export async function getMonthSummary(month: string) {
   );
 
   return { month, envelopes: envelopesOut, totals };
+}
+
+export function listBills(): Promise<RecurringBill[]> {
+  return db.select().from(recurringBills).orderBy(recurringBills.nextDue);
+}
+
+export async function createBill(i: CreateBillInput): Promise<RecurringBill> {
+  const [row] = await db.insert(recurringBills).values({
+    payee: i.payee, amount: String(i.amount), cadence: i.cadence,
+    nextDue: i.nextDue, envelopeId: i.envelopeId ?? null,
+  }).returning();
+  return row!;
+}
+
+export async function updateBill(id: string, i: Partial<CreateBillInput>): Promise<RecurringBill | null> {
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if (i.payee !== undefined) patch['payee'] = i.payee;
+  if (i.amount !== undefined) patch['amount'] = String(i.amount);
+  if (i.cadence !== undefined) patch['cadence'] = i.cadence;
+  if (i.nextDue !== undefined) patch['nextDue'] = i.nextDue;
+  if (i.envelopeId !== undefined) patch['envelopeId'] = i.envelopeId;
+  const [row] = await db.update(recurringBills).set(patch).where(eq(recurringBills.id, id)).returning();
+  return row ?? null;
+}
+
+export async function deleteBill(id: string): Promise<RecurringBill | null> {
+  const [row] = await db.delete(recurringBills).where(eq(recurringBills.id, id)).returning();
+  return row ?? null;
 }

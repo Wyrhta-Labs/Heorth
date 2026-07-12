@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../../wiring.js';
 import * as service from './service.js';
-import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema } from './validators.js';
+import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema } from './validators.js';
 
 export const feohRouter = new Hono();
 feohRouter.use('*', requireAuth);
@@ -85,6 +85,25 @@ feohRouter.get('/summary', async (c) => {
   const q = monthQuerySchema.safeParse(c.req.query());
   if (!q.success) return err(c, 'VALIDATION_ERROR', 'month (YYYY-MM) is required', 400);
   return ok(c, await service.getMonthSummary(q.data.month));
+});
+
+feohRouter.get('/bills', async (c) => ok(c, await service.listBills()));
+feohRouter.post('/bills', canWrite, async (c) => {
+  const body = createBillSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  return ok(c, await service.createBill(body.data), undefined, 201);
+});
+feohRouter.patch('/bills/:id', canWrite, async (c) => {
+  const body = updateBillSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  const row = await service.updateBill(c.req.param('id'), body.data);
+  if (!row) return err(c, 'NOT_FOUND', 'Bill not found', 404);
+  return ok(c, row);
+});
+feohRouter.delete('/bills/:id', canWrite, async (c) => {
+  const row = await service.deleteBill(c.req.param('id'));
+  if (!row) return err(c, 'NOT_FOUND', 'Bill not found', 404);
+  return ok(c, { id: row.id });
 });
 
 export { canWrite };

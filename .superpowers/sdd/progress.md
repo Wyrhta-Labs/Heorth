@@ -140,3 +140,10 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ##   NON-ISSUES confirmed by reviewer: MONTH_SLOTS/apiText prose-only typos in brief (real names MEAL_SLOTS +
 ##   apiGetText/apiPostText, used correctly by later tasks). MINOR (defer to final): tsconfig.node.json emit artifacts
 ##   must stay gitignored (fixer handled).
+- Task 7.2: complete (commit 56e1a2b; review APPROVED by sonnet reviewer). shadcn ui primitives, auth flow
+  (use-auth, TOKEN_KEY he_jwt), app shell + TanStack Router with beforeLoad redirect guard (genuine nav block),
+  member avatars (MEMBER_COLORS exact brand hex), api/{auth,household}.ts + hooks reusing 7.1 client (no dup).
+  `npm run build` now GREEN (dist/index.html). 7/7 web tests (avatar test asserts real backgroundColor). 24 files verbatim.
+##   MINOR (defer to final, both plan-inherited/verbatim from brief): (a) login.tsx always navigates to '/' after
+##   login, ignoring the guard's redirect search param -> deep-link-after-login lands on Dashboard not original page;
+##   (b) useSetMemberRole re-types role union inline instead of importing Role from @/lib/types.

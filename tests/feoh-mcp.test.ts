@@ -21,6 +21,22 @@ describe('feoh MCP tools', () => {
     expect(summary.totals.spent).toBe(60);
   });
 
+  it('rejects an orphaned posting (no account or envelope) from an adult and writes nothing', async () => {
+    const { adult } = await seedTestHousehold();
+
+    await expect(
+      invokeTool(feohTools, 'feoh.record_transaction',
+        { userId: adult.user.id, role: 'adult' },
+        {
+          date: '2026-07-05', payee: 'Market', amount: 50,
+          postings: [{ debit: 50, credit: 0 }, { debit: 0, credit: 50 }],
+        }),
+    ).rejects.toThrow(/reference an account or envelope/);
+
+    const { rows } = await service.listTransactions({});
+    expect(rows.length).toBe(0);
+  });
+
   it('forbids a child from recording a transaction', async () => {
     const { child } = await seedTestHousehold();
     await expect(

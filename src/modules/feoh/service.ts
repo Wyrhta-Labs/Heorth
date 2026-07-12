@@ -66,6 +66,9 @@ export async function recordTransaction(input: RecordTransactionInput, createdBy
   if (!postingsBalance(input.postings)) {
     throw new Error('UNBALANCED');
   }
+  if (input.postings.some((p) => !p.accountId && !p.envelopeId)) {
+    throw new Error('ORPHAN_POSTING');
+  }
   return db.transaction(async (tx) => {
     const [txn] = await tx.insert(transactions).values({
       date: input.date, payee: input.payee, memo: input.memo ?? null,
@@ -204,6 +207,13 @@ export async function exportTransactionsCsv(): Promise<string> {
   return toCsv(rows);
 }
 
+/** Verify a YYYY-MM-DD string is a real calendar date (rejects e.g. 2026-99-99, 2026-02-30). */
+function isValidCalendarDate(date: string): boolean {
+  const [y, m, d] = date.split('-').map(Number);
+  const dt = new Date(Date.UTC(y!, m! - 1, d!));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m! - 1 && dt.getUTCDate() === d;
+}
+
 export async function importTransactionsCsv(text: string, createdBy: string): Promise<{ imported: number }> {
   const matrix = parseCsv(text);
   if (matrix.length === 0) return { imported: 0 };
@@ -211,16 +221,27 @@ export async function importTransactionsCsv(text: string, createdBy: string): Pr
   const idx = (name: string) => header!.indexOf(name);
   const di = idx('date'), pi = idx('payee'), mi = idx('memo'), ai = idx('amount'), ei = idx('envelope'), aci = idx('account');
 
+  if (di < 0 || pi < 0 || ai < 0) {
+    throw new Error('CSV_INVALID_HEADER');
+  }
+
   const envelopeRows = await db.select().from(envelopes);
   const accountRows = await db.select().from(accounts);
   const envByName = new Map(envelopeRows.map((e) => [e.name, e.id]));
   const acctByName = new Map(accountRows.map((a) => [a.name, a.id]));
 
-  // Validation/resolution pass: resolve every row's envelope/account names up
-  // front and throw before writing anything, so a bad name never leaves a
+  // Validation/resolution pass: resolve every row's envelope/account names,
+  // validate date/amount, and confirm at least one reference is present up
+  // front, throwing before writing anything, so a bad row never leaves a
   // partial import committed.
   const resolved = dataRows.map((r) => {
-    const amount = Number(r[ai]);
+    const date = r[di]!;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !isValidCalendarDate(date)) throw new Error('CSV_INVALID_ROW');
+
+    const rawAmount = r[ai];
+    if (rawAmount === undefined || !Number.isFinite(Number(rawAmount))) throw new Error('CSV_INVALID_ROW');
+    const amount = Number(rawAmount);
+
     const envelopeName = ei >= 0 ? r[ei] ?? '' : '';
     const accountName = aci >= 0 ? r[aci] ?? '' : '';
 
@@ -236,8 +257,10 @@ export async function importTransactionsCsv(text: string, createdBy: string): Pr
       if (accountId === null) throw new Error('UNKNOWN_REFERENCE');
     }
 
+    if (!envelopeId && !accountId) throw new Error('CSV_INVALID_ROW');
+
     return {
-      date: r[di]!, payee: r[pi]!, memo: r[mi] || null, amount,
+      date, payee: r[pi]!, memo: r[mi] || null, amount,
       envelopeId, accountId,
     };
   });

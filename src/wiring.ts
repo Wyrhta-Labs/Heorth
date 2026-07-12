@@ -35,6 +35,14 @@ import { config } from './config/env.js';
 
 export const API_KEY_PREFIX = 'he_';
 
+/** A user row safe to return over the API / MCP (no password hash). */
+export type PublicUser = Omit<User, 'passwordHash'>;
+
+function stripPassword(row: User): PublicUser {
+  const { passwordHash: _omit, ...pub } = row;
+  return pub;
+}
+
 /** Validate a raw `he_` key and resolve its owning user + role (REST api-key path). */
 async function resolveApiKey(raw: string): Promise<Principal | null> {
   const keyRow = await coreValidateApiKey(raw, async (hash: string) => {
@@ -58,26 +66,28 @@ export const identity = {
   revokeApiKey: (userId: string, keyId: string) => coreRevokeApiKey(db, userId, keyId),
   validateApiKey: resolveApiKey,
 
-  // Core has no getUser/updateUser/deleteUser — implement directly on the users table.
-  async getUser(id: string): Promise<User | null> {
+  // Core has no getUser/updateUser/deleteUser — implement directly on the users
+  // table. All three strip passwordHash so routes never leak it (core's own
+  // createUser/listMembers already return password-free shapes).
+  async getUser(id: string): Promise<PublicUser | null> {
     const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    return row ?? null;
+    return row ? stripPassword(row) : null;
   },
   async updateUser(
     id: string,
     patch: { displayName?: string; avatarColor?: string; email?: string; password?: string },
-  ): Promise<User | null> {
+  ): Promise<PublicUser | null> {
     const set: Record<string, unknown> = { updatedAt: new Date() };
     if (patch.displayName !== undefined) set['displayName'] = patch.displayName;
     if (patch.avatarColor !== undefined) set['avatarColor'] = patch.avatarColor;
     if (patch.email !== undefined) set['email'] = patch.email;
     if (patch.password !== undefined) set['passwordHash'] = await hashPassword(patch.password);
     const [row] = await db.update(users).set(set).where(eq(users.id, id)).returning();
-    return row ?? null;
+    return row ? stripPassword(row) : null;
   },
-  async deleteUser(id: string): Promise<User | null> {
+  async deleteUser(id: string): Promise<PublicUser | null> {
     const [row] = await db.delete(users).where(eq(users.id, id)).returning();
-    return row ?? null;
+    return row ? stripPassword(row) : null;
   },
 
   isUniqueViolation,

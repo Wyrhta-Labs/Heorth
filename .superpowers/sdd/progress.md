@@ -165,3 +165,13 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
   re-themed to real brand tokens; state wiring traced sound. 12 web tests (shopping-list RED->GREEN; sortItems unit),
   build green. MINOR (defer to final): (a) shopping-list render test thin (only asserts count, not names/strikethrough/
   callbacks); (b) NEW shared tabs.tsx primitive has NO switch-behavior test though other pages may depend on it.
+- Task 7.6: complete (commit 0c28bb9; review APPROVED by sonnet reviewer, extra money/double-entry scrutiny).
+  Feoh api/feoh.ts + hooks/use-feoh.ts (NEW - didn't exist) + Feoh page (summary, envelope progress cards, bills,
+  transaction entry, CSV import/export via apiGetText/apiPostText). MONEY string-vs-number VERIFIED: raw entities
+  string, summary numbers; formatMoney at every site, progressPercent only on numeric summary fields, no unsafe
+  string arithmetic. Postings BALANCED + non-orphan BY CONSTRUCTION (single parsed amount, fixed 2-posting shape).
+  ENVELOPE_TONES amber #a07535 verbatim. 14 web tests (envelope-card RED->GREEN), build green. MINOR (defer to
+  final): (a) posting-balance logic verified by inspection only, no test (brief scoped tests to envelope-card);
+  (b) child user: New-transaction button always enabled, relies on backend reject+toast (no sibling page gates either,
+  backend enforces - consistent pattern but global constraint flags child-write gating); (c) ad-hoc ['summary']
+  invalidation key vs QUERY_KEYS helper (cosmetic).

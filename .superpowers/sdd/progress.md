@@ -175,3 +175,15 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
   (b) child user: New-transaction button always enabled, relies on backend reject+toast (no sibling page gates either,
   backend enforces - consistent pattern but global constraint flags child-write gating); (c) ad-hoc ['summary']
   invalidation key vs QUERY_KEYS helper (cosmetic).
+- Task 7.7: complete (commits 92c4df2 impl, 9f6b7cc fix; review APPROVED by sonnet reviewer). Household page:
+  members table + role controls (admin-gated), member form, household settings, API-key panel (show-once raw key
+  he_ with copy+warning, list metadata-only - type-enforced ApiKey vs ApiKeyCreated). Admin gating verified
+  backend-enforced (403s). Reuses 7.2 household hooks/api. 16 web tests (members-table RED->GREEN).
+  FIXED (Important): household-settings.tsx render-time conditional setState never resynced to refetched data
+  (staleness/overwrite risk) -> replaced with useEffect keyed on query data `h` + added resync test (9f6b7cc). 17 tests.
+  MINOR (defer to final): member-form.tsx inline 'adult'|'child' union vs Role type (verbatim from brief).
+##
+## ========== PHASE 7 COMPLETE (2026-07-12) ==========
+## React 18 web SPA fully landed on feat/heorth-0.1. HEAD 9f6b7cc. 17 web tests green, `npm run build` green,
+## backend 67 tests still green. Pages: Dashboard, Calendar, Meals, Feoh, Household + auth/shell/router.
+## All 7 tasks reviewed+approved. Running whole-Phase-7 review next, then PAUSE for user check-in (phase-boundary rule).

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,10 +14,17 @@ export default function HouseholdSettings({ canManage }: { canManage: boolean })
   const [timezone, setTimezone] = useState('');
   const [locale, setLocale] = useState('');
 
-  // Initialize local fields from the loaded household once.
-  if (h && name === '' && timezone === '' && locale === '') {
-    setName(h.name); setTimezone(h.timezone); setLocale(h.locale);
-  }
+  // Resync local fields whenever the underlying household query data changes
+  // (initial load, refetch after another admin's edit, etc). `Household` has
+  // no updatedAt/version field, so the query object identity (which changes
+  // on every successful fetch) is the most correct signal available.
+  useEffect(() => {
+    if (h) {
+      setName(h.name);
+      setTimezone(h.timezone);
+      setLocale(h.locale);
+    }
+  }, [h]);
 
   const save = async () => {
     await update.mutateAsync({ name, timezone, locale });

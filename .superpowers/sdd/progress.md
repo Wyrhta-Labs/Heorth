@@ -147,3 +147,8 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ##   MINOR (defer to final, both plan-inherited/verbatim from brief): (a) login.tsx always navigates to '/' after
 ##   login, ignoring the guard's redirect search param -> deep-link-after-login lands on Dashboard not original page;
 ##   (b) useSetMemberRole re-types role union inline instead of importing Role from @/lib/types.
+- Task 7.3: complete (commit a81fae5; review APPROVED by sonnet reviewer). Calendar+Meals api modules + hooks
+  (reuse 7.1 client + QUERY_KEYS, no envelope re-parse), Dashboard "this week at home" (day strip, supper card,
+  agenda, members row, reserved chores placeholder). Brand hex VERIFIED end-to-end in index.css + MEMBER_COLORS.
+  8/8 web tests (day-strip asserts real per-day text), build green. MINOR (defer, cosmetic/plan-inherited): split
+  imports in supper-card.tsx; qs() cast in calendar.ts.

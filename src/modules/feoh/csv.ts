@@ -10,6 +10,12 @@ function escapeField(field: string): string {
   return field;
 }
 
+/** Neutralize spreadsheet formula-injection: prefix a single quote to text that a
+ *  spreadsheet would evaluate as a formula. Applied to free-text fields only. */
+export function sanitizeCsvText(field: string): string {
+  return /^[=+\-@\t\r]/.test(field) ? `'${field}` : field;
+}
+
 /** Parse CSV text into a matrix. Handles quoted fields with commas/quotes/newlines. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];

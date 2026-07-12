@@ -1,7 +1,7 @@
 import { db } from '../../db/index.js';
-import { accounts, envelopes, type Account, type Envelope } from './schema.js';
-import { eq } from 'drizzle-orm';
-import type { CreateAccountInput, CreateEnvelopeInput } from './validators.js';
+import { accounts, envelopes, transactions, postings, expenseSplits, type Account, type Envelope, type Transaction, type Posting } from './schema.js';
+import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
+import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput } from './validators.js';
 
 export function listAccounts(): Promise<Account[]> {
   return db.select().from(accounts).orderBy(accounts.name);
@@ -50,5 +50,69 @@ export async function updateEnvelope(id: string, i: Partial<CreateEnvelopeInput>
 
 export async function deleteEnvelope(id: string): Promise<Envelope | null> {
   const [row] = await db.delete(envelopes).where(eq(envelopes.id, id)).returning();
+  return row ?? null;
+}
+
+const TOLERANCE = 0.005;
+
+export function postingsBalance(rows: Array<{ debit: number; credit: number }>): boolean {
+  const debit = rows.reduce((s, p) => s + p.debit, 0);
+  const credit = rows.reduce((s, p) => s + p.credit, 0);
+  return Math.abs(debit - credit) < TOLERANCE;
+}
+
+export async function recordTransaction(input: RecordTransactionInput, createdBy: string) {
+  if (!postingsBalance(input.postings)) {
+    throw new Error('UNBALANCED');
+  }
+  return db.transaction(async (tx) => {
+    const [txn] = await tx.insert(transactions).values({
+      date: input.date, payee: input.payee, memo: input.memo ?? null,
+      amount: String(input.amount), createdBy,
+    }).returning();
+
+    const postingRows = await tx.insert(postings).values(
+      input.postings.map((p) => ({
+        transactionId: txn!.id,
+        accountId: p.accountId ?? null,
+        envelopeId: p.envelopeId ?? null,
+        debit: String(p.debit),
+        credit: String(p.credit),
+      })),
+    ).returning();
+
+    let splitRows: Array<typeof expenseSplits.$inferSelect> = [];
+    if (input.splits && input.splits.length > 0) {
+      splitRows = await tx.insert(expenseSplits).values(
+        input.splits.map((s) => ({ transactionId: txn!.id, memberId: s.memberId, share: String(s.share) })),
+      ).returning();
+    }
+
+    return { transaction: txn!, postings: postingRows, splits: splitRows };
+  });
+}
+
+export async function listTransactions(q: { from?: string; to?: string; limit?: number; offset?: number }) {
+  const conditions = [];
+  if (q.from) conditions.push(gte(transactions.date, q.from));
+  if (q.to) conditions.push(lte(transactions.date, q.to));
+  const where = conditions.length ? and(...conditions) : undefined;
+  const limit = Math.min(100, Math.max(1, q.limit ?? 20));
+  const offset = Math.max(0, q.offset ?? 0);
+  const rows = await db.select().from(transactions).where(where).orderBy(desc(transactions.date)).limit(limit).offset(offset);
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(transactions).where(where);
+  return { rows, total: count, limit, offset };
+}
+
+export async function getTransaction(id: string) {
+  const [txn] = await db.select().from(transactions).where(eq(transactions.id, id)).limit(1);
+  if (!txn) return null;
+  const postingRows = await db.select().from(postings).where(eq(postings.transactionId, id));
+  const splitRows = await db.select().from(expenseSplits).where(eq(expenseSplits.transactionId, id));
+  return { transaction: txn, postings: postingRows, splits: splitRows };
+}
+
+export async function deleteTransaction(id: string): Promise<Transaction | null> {
+  const [row] = await db.delete(transactions).where(eq(transactions.id, id)).returning();
   return row ?? null;
 }

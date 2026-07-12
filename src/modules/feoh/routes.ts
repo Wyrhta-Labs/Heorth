@@ -119,8 +119,15 @@ feohRouter.get('/export', async (c) => {
 feohRouter.post('/import', canWrite, async (c) => {
   const text = await c.req.text();
   if (!text.trim()) return err(c, 'VALIDATION_ERROR', 'CSV body is empty', 400);
-  const result = await service.importTransactionsCsv(text, c.get('auth').userId);
-  return ok(c, result, undefined, 201);
+  try {
+    const result = await service.importTransactionsCsv(text, c.get('auth').userId);
+    return ok(c, result, undefined, 201);
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNKNOWN_REFERENCE') {
+      return err(c, 'UNKNOWN_REFERENCE', 'CSV references an unknown envelope or account name', 400);
+    }
+    throw e;
+  }
 });
 
 export { canWrite };

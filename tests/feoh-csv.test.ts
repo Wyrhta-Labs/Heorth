@@ -30,6 +30,22 @@ describe('feoh CSV & ledger', () => {
     expect(cafe[3]).toBe('4.5');
   });
 
+  it('rejects import rows with an unresolved envelope/account name and writes nothing', async () => {
+    const { admin } = await seedTestHousehold();
+    await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });
+    await service.createEnvelope({ name: 'Groceries', monthlyBudget: 400 });
+
+    const inputCsv = [
+      'date,payee,memo,amount,envelope,account',
+      '2026-07-05,Market,Weekly shop,50,Nonexistent,Checking',
+    ].join('\n');
+
+    await expect(service.importTransactionsCsv(inputCsv, admin.user.id)).rejects.toThrow('UNKNOWN_REFERENCE');
+
+    const { rows } = await service.listTransactions({});
+    expect(rows.length).toBe(0);
+  });
+
   it('exports a readable plaintext ledger', async () => {
     const { admin } = await seedTestHousehold();
     const account = await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });

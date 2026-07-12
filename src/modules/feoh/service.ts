@@ -216,16 +216,40 @@ export async function importTransactionsCsv(text: string, createdBy: string): Pr
   const envByName = new Map(envelopeRows.map((e) => [e.name, e.id]));
   const acctByName = new Map(accountRows.map((a) => [a.name, a.id]));
 
-  let imported = 0;
-  for (const r of dataRows) {
+  // Validation/resolution pass: resolve every row's envelope/account names up
+  // front and throw before writing anything, so a bad name never leaves a
+  // partial import committed.
+  const resolved = dataRows.map((r) => {
     const amount = Number(r[ai]);
-    const envelopeId = ei >= 0 ? envByName.get(r[ei] ?? '') ?? null : null;
-    const accountId = aci >= 0 ? acctByName.get(r[aci] ?? '') ?? null : null;
-    await recordTransaction({
+    const envelopeName = ei >= 0 ? r[ei] ?? '' : '';
+    const accountName = aci >= 0 ? r[aci] ?? '' : '';
+
+    let envelopeId: string | null = null;
+    if (envelopeName) {
+      envelopeId = envByName.get(envelopeName) ?? null;
+      if (envelopeId === null) throw new Error('UNKNOWN_REFERENCE');
+    }
+
+    let accountId: string | null = null;
+    if (accountName) {
+      accountId = acctByName.get(accountName) ?? null;
+      if (accountId === null) throw new Error('UNKNOWN_REFERENCE');
+    }
+
+    return {
       date: r[di]!, payee: r[pi]!, memo: r[mi] || null, amount,
+      envelopeId, accountId,
+    };
+  });
+
+  // Write pass: all names resolved, safe to record each transaction.
+  let imported = 0;
+  for (const row of resolved) {
+    await recordTransaction({
+      date: row.date, payee: row.payee, memo: row.memo, amount: row.amount,
       postings: [
-        { envelopeId, accountId: null, debit: amount, credit: 0 },
-        { accountId, envelopeId: null, debit: 0, credit: amount },
+        { envelopeId: row.envelopeId, accountId: null, debit: row.amount, credit: 0 },
+        { accountId: row.accountId, envelopeId: null, debit: 0, credit: row.amount },
       ],
       splits: [],
     }, createdBy);

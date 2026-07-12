@@ -112,6 +112,57 @@ describe('feoh CSV & ledger', () => {
     expect(rows.length).toBe(0);
   });
 
+  it('neutralizes formula-injection payees on export while leaving normal payees untouched', async () => {
+    const { admin } = await seedTestHousehold();
+    const account = await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });
+    const envelope = await service.createEnvelope({ name: 'Groceries', monthlyBudget: 400 });
+    await service.recordTransaction({
+      date: '2026-07-05', payee: '=HYPERLINK("http://evil","x")', amount: 10, memo: null,
+      postings: [{ envelopeId: envelope.id, debit: 10, credit: 0 }, { accountId: account.id, debit: 0, credit: 10 }],
+      splits: [],
+    }, admin.user.id);
+    await service.recordTransaction({
+      date: '2026-07-06', payee: 'Market', amount: 20, memo: null,
+      postings: [{ envelopeId: envelope.id, debit: 20, credit: 0 }, { accountId: account.id, debit: 0, credit: 20 }],
+      splits: [],
+    }, admin.user.id);
+
+    const exported = await service.exportTransactionsCsv();
+    const rows = parseCsv(exported);
+    const evil = rows.find((r) => r[1]?.includes('HYPERLINK'))!;
+    expect(evil[1]!.startsWith("'=")).toBe(true);
+    const market = rows.find((r) => r[1] === 'Market')!;
+    expect(market[1]).toBe('Market');
+  });
+
+  it('exports one row per envelope posting for a multi-envelope transaction without dropping legs', async () => {
+    const { admin } = await seedTestHousehold();
+    const checking = await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });
+    const groceries = await service.createEnvelope({ name: 'Groceries', monthlyBudget: 400 });
+    const dining = await service.createEnvelope({ name: 'Dining', monthlyBudget: 200 });
+
+    await service.recordTransaction({
+      date: '2026-07-05', payee: 'Costco', amount: 50, memo: 'split trip',
+      postings: [
+        { envelopeId: groceries.id, debit: 30, credit: 0 },
+        { envelopeId: dining.id, debit: 20, credit: 0 },
+        { accountId: checking.id, debit: 0, credit: 50 },
+      ],
+      splits: [],
+    }, admin.user.id);
+
+    const exported = await service.exportTransactionsCsv();
+    const rows = parseCsv(exported);
+    const groceriesRow = rows.find((r) => r[4] === 'Groceries')!;
+    const diningRow = rows.find((r) => r[4] === 'Dining')!;
+    expect(groceriesRow).toBeDefined();
+    expect(diningRow).toBeDefined();
+    expect(groceriesRow[3]).toBe('30');
+    expect(diningRow[3]).toBe('20');
+    expect(groceriesRow[5]).toBe('Checking');
+    expect(diningRow[5]).toBe('Checking');
+  });
+
   it('exports a readable plaintext ledger', async () => {
     const { admin } = await seedTestHousehold();
     const account = await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });

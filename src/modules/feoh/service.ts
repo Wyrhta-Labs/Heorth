@@ -2,7 +2,7 @@ import { db } from '../../db/index.js';
 import { accounts, envelopes, transactions, postings, expenseSplits, recurringBills, type Account, type Envelope, type Transaction, type RecurringBill } from './schema.js';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput, CreateBillInput } from './validators.js';
-import { toCsv, parseCsv } from './csv.js';
+import { toCsv, parseCsv, sanitizeCsvText } from './csv.js';
 
 export function listAccounts(): Promise<Account[]> {
   return db.select().from(accounts).orderBy(accounts.name);
@@ -196,13 +196,25 @@ export async function exportTransactionsCsv(): Promise<string> {
   const rows: string[][] = [CSV_HEADER];
   for (const t of txns) {
     const ps = allPostings.filter((p) => p.transactionId === t.id);
-    const envPosting = ps.find((p) => p.envelopeId);
+    const envPostings = ps.filter((p) => p.envelopeId);
     const acctPosting = ps.find((p) => p.accountId);
-    rows.push([
-      t.date, t.payee, t.memo ?? '', String(Number(t.amount)),
-      envPosting?.envelopeId ? (envelopeName.get(envPosting.envelopeId) ?? '') : '',
-      acctPosting?.accountId ? (accountName.get(acctPosting.accountId) ?? '') : '',
-    ]);
+    const acctName = acctPosting?.accountId ? (accountName.get(acctPosting.accountId) ?? '') : '';
+
+    if (envPostings.length > 0) {
+      for (const ep of envPostings) {
+        rows.push([
+          t.date, sanitizeCsvText(t.payee), sanitizeCsvText(t.memo ?? ''), String(Number(ep.debit)),
+          sanitizeCsvText(ep.envelopeId ? (envelopeName.get(ep.envelopeId) ?? '') : ''),
+          sanitizeCsvText(acctName),
+        ]);
+      }
+    } else {
+      rows.push([
+        t.date, sanitizeCsvText(t.payee), sanitizeCsvText(t.memo ?? ''), String(Number(t.amount)),
+        '',
+        sanitizeCsvText(acctName),
+      ]);
+    }
   }
   return toCsv(rows);
 }

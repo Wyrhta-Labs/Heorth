@@ -4,6 +4,8 @@ import { householdModule } from '../src/household/index.js';
 import { feohModule } from '../src/modules/feoh/index.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 import * as service from '../src/modules/feoh/service.js';
+import { db } from '../src/db/index.js';
+import { postings } from '../src/modules/feoh/schema.js';
 
 const app = createApp([householdModule, feohModule]);
 
@@ -49,6 +51,27 @@ describe('feoh double-entry transactions', () => {
     expect(body.error.code).toBe('UNBALANCED');
     const { rows } = await service.listTransactions({});
     expect(rows.length).toBe(0); // atomic rollback: nothing persisted
+  });
+
+  it('rolls back the transaction and postings when a later insert fails inside db.transaction', async () => {
+    const { adult, account, envelope } = await setup();
+    await expect(service.recordTransaction({
+      date: '2026-07-07', payee: 'Rollback Test', amount: 30, memo: null,
+      postings: [
+        { envelopeId: envelope.id, debit: 30, credit: 0 },
+        { accountId: account.id, debit: 0, credit: 30 },
+      ],
+      // Balanced postings pass the pre-check and enter db.transaction; this split's
+      // memberId is a syntactically-valid but non-existent UUID, so the FK to users.id
+      // fails AFTER the transactions/postings inserts, forcing a rollback.
+      splits: [{ memberId: '00000000-0000-0000-0000-000000000000', share: 30 }],
+    }, adult.user.id)).rejects.toThrow();
+
+    const { rows } = await service.listTransactions({});
+    expect(rows.length).toBe(0); // atomic rollback: transaction row not persisted
+
+    const remainingPostings = await db.select().from(postings);
+    expect(remainingPostings.length).toBe(0); // atomic rollback: postings not persisted
   });
 
   it('records expense splits with the transaction', async () => {

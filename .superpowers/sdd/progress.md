@@ -127,3 +127,16 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ## MCP-over-HTTP assembly landed on feat/heorth-0.1. HEAD a3028f3. 67 tests green, typecheck+build clean.
 ## Backend is now feature-complete (Phases 0-6). Per user DECISION (check in at each phase boundary) -> PAUSED.
 ## NEXT: Phase 7 (React 18 SPA, tasks 7.1-7.7, plan lines 4582+), then Phase 8 (integration/release).
+
+## ===== PHASE 7 (React 18 web SPA) execution log =====
+- Task 7.1: complete (commit 22bb8e8 scaffold, 3f67b5c tsconfig fix; review APPROVED by sonnet reviewer).
+  web/ toolchain (vite/vitest/ts/tailwind v4), lib/{utils,types,format,constants}.ts, api/client.ts, format.test.ts.
+  React 18 pin verified; envelope-aware Bearer (he_jwt) client; money string-vs-number split correct; brand hex verbatim.
+  5 web tests green. RECONCILED: vitest setupFiles -> absolute resolve(__dirname) path to avoid parent-repo
+  tests/setup.ts collision on Windows (sound, verified). FIXED (Important, plan-inherited): brief's tsconfig.node.json
+  had composite+noEmit -> TS6310 broke `npm run build`; corrected to emit-legal (3f67b5c). tsc -b clean.
+##   KNOWN SCAFFOLD STATE: `npm run build` still exits 1 ONLY because web/src/main.tsx imports './app' (app.tsx
+##   created in Task 7.2). Build turns green after 7.2. NON-issue - inherent to phased scaffold; Phase 8 is the build gate.
+##   NON-ISSUES confirmed by reviewer: MONTH_SLOTS/apiText prose-only typos in brief (real names MEAL_SLOTS +
+##   apiGetText/apiPostText, used correctly by later tasks). MINOR (defer to final): tsconfig.node.json emit artifacts
+##   must stay gitignored (fixer handled).

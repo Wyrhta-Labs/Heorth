@@ -106,3 +106,24 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ## USER STOPPED HERE (did NOT start Phase 6). Branch feat/heorth-0.1 NOT pushed.
 ## RESUME: Phase 6 (MCP-over-HTTP assembly, plan lines 4356+; wire StreamableHTTPServerTransport on Hono,
 ##   extract src/mcp/, add @modelcontextprotocol/sdk dep), then Phase 7 (React 18 SPA 7.1-7.7), Phase 8.
+
+## ===== PHASE 6 (MCP-over-HTTP assembly) execution log =====
+- Task 6.1: complete (commit a3028f3, review APPROVED by opus reviewer). src/mcp/{auth-adapter,server}.ts,
+  bootstrap() refactor, tests/mcp-server.test.ts. 67 tests green (5 new), typecheck+build clean.
+##   RECONCILED vs brief (all verified correct against real core API): no createIdentityService -> used wiring.ts
+##   `identity` singleton; validateApiKey returns Principal ({type,userId,role}) not {user,apiKeyId}; createApiKey
+##   is 2-arg (he_ baked in) returning key.key not key.raw; core createMcpServer(registry,authAdapter,info)->SDK
+##   McpServer with zero-arg resolve() (NOT .fetch()). Bridged via per-request McpServer + MCP SDK
+##   WebStandardStreamableHTTPServerTransport (fresh server per HTTP request, stateless, key closed over request).
+##   MINOR findings (defer to final whole-branch review):
+##     (a) [transport coverage] per-request HTTP transport path only asserted via typeof server.fetch==='function';
+##         no live MCP initialize->tool-call handshake round-trip. Reviewer recommends follow-up e2e /mcp test.
+##     (b) [audit gap] missing-Authorization-header case throws MCP_UNAUTHORIZED before Heorth adapter runs, so it
+##         emits NO mcp.auth.failure event (only present-but-invalid keys log failure). server.ts:150-155.
+##     (c) api_key_id not in mcp.auth.success (resolveApiKey doesn't surface key row id) - per-member audit only.
+##     (d) toCoreAuthAdapter re-declares resolver sig inline instead of reusing McpAuthAdapter type (cosmetic).
+##
+## ========== PHASE 6 COMPLETE (2026-07-12) ==========
+## MCP-over-HTTP assembly landed on feat/heorth-0.1. HEAD a3028f3. 67 tests green, typecheck+build clean.
+## Backend is now feature-complete (Phases 0-6). Per user DECISION (check in at each phase boundary) -> PAUSED.
+## NEXT: Phase 7 (React 18 SPA, tasks 7.1-7.7, plan lines 4582+), then Phase 8 (integration/release).

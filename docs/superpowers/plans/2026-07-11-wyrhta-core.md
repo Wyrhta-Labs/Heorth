@@ -283,6 +283,7 @@ git commit -m "chore: scaffold @wyrhta/core package"
 `tests/config/env.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import { baseEnvSchema, parseEnv } from '../../src/config/env.js';
 
 const VALID = {
@@ -317,8 +318,9 @@ describe('baseEnvSchema', () => {
   });
 
   it('parseEnv merges an extension schema', () => {
-    const env = parseEnv({ API_PORT: undefined } as never, VALID);
+    const env = parseEnv({ API_PORT: z.coerce.number().int().default(3000) }, VALID);
     expect(env.DATABASE_URL).toBe(VALID.DATABASE_URL);
+    expect(env.API_PORT).toBe(3000);
   });
 });
 ```
@@ -748,11 +750,14 @@ export interface Pagination {
 }
 
 export function parsePagination(query: Record<string, string | undefined>): Pagination {
-  const limit = Math.min(
-    MAX_LIMIT,
-    Math.max(1, parseInt(query['limit'] ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT)
-  );
-  const offset = Math.max(0, parseInt(query['offset'] ?? '0', 10) || 0);
+  // NOTE: use NaN checks, not `|| DEFAULT_LIMIT` — `parseInt('0')` is 0 (falsy),
+  // which would wrongly fall back to the default instead of clamping to 1.
+  const rawLimit = parseInt(query['limit'] ?? '', 10);
+  const limit = Number.isNaN(rawLimit)
+    ? DEFAULT_LIMIT
+    : Math.min(MAX_LIMIT, Math.max(1, rawLimit));
+  const rawOffset = parseInt(query['offset'] ?? '', 10);
+  const offset = Number.isNaN(rawOffset) ? 0 : Math.max(0, rawOffset);
   return { limit, offset };
 }
 ```
@@ -2536,6 +2541,9 @@ export interface McpToolContext {
 export interface McpToolResult {
   content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
+  // MCP SDK 1.x's CallToolResult carries an index signature; mirror it so tool
+  // handler returns are structurally assignable to `registerTool`.
+  [key: string]: unknown;
 }
 
 export interface McpTool {

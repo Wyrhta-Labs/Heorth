@@ -7,6 +7,7 @@ import { db } from './db/index.js';
 import { config } from './config/env.js';
 import { createApp } from './app.js';
 import { ALL_MODULES } from './modules/index.js';
+import { buildMcpServer } from './mcp/server.js';
 
 /**
  * Seed the single admin user (idempotent). Core's `seedHousehold` creates only
@@ -26,24 +27,27 @@ async function seedAdmin(): Promise<void> {
 }
 
 /**
- * Migrate, seed the household + admin (both idempotent), and build the app.
- *
- * The MCP server (tool registry + HTTP transport) is assembled in Phase 6 once
- * modules contribute tools; core's `createMcpServer` returns an SDK `McpServer`
- * and the HTTP transport is wired onto this Hono app there.
+ * Migrate, seed the household + admin (both idempotent), and build the app + MCP server.
  */
-export async function bootstrap(): Promise<{ app: ReturnType<typeof createApp> }> {
+export async function bootstrap(): Promise<{
+  app: ReturnType<typeof createApp>;
+  mcpServer: ReturnType<typeof buildMcpServer>;
+}> {
   await migrate(db, { migrationsFolder: './src/db/migrations' });
   await seedHousehold(db, { name: config.householdName });
   await seedAdmin();
 
   const app = createApp(ALL_MODULES);
-  return { app };
+  const mcpServer = buildMcpServer(ALL_MODULES);
+  return { app, mcpServer };
 }
 
 async function main() {
   console.log('Booting Heorth: migrations, household + admin seed, module registration...');
-  const { app } = await bootstrap();
+  const { app, mcpServer } = await bootstrap();
+
+  // Mount the MCP HTTP transport on the same server.
+  app.all('/mcp', (c) => mcpServer.fetch(c.req.raw));
 
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(`Heorth running on http://localhost:${info.port}`);

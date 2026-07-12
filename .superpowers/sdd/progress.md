@@ -159,3 +159,9 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
   reaches EventInput.attendeeIds correctly. MINOR (defer to final): (a) 4x `as never` casts in event-form.tsx
   (type-safety hole if renamed); (b) no component/render tests for EventForm/WeekView/MonthView (brief scoped tests
   to grid helper only) -> attendeeIds wiring has no test evidence beyond type-level reasoning; close at whole-branch review.
+- Task 7.5: complete (commit 74f5967; review APPROVED by sonnet reviewer). Meals page: recipe library, weekly
+  planner (MEAL_SLOTS), shopping list (renders API merge, no client re-derive). Reuses 7.3 meals hooks/api.
+  DEVIATION (adjudicated OK): created web/src/components/ui/tabs.tsx (didn't exist) - uncontrolled defaultValue,
+  re-themed to real brand tokens; state wiring traced sound. 12 web tests (shopping-list RED->GREEN; sortItems unit),
+  build green. MINOR (defer to final): (a) shopping-list render test thin (only asserts count, not names/strikethrough/
+  callbacks); (b) NEW shared tabs.tsx primitive has NO switch-behavior test though other pages may depend on it.

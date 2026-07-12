@@ -186,4 +186,20 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ## ========== PHASE 7 COMPLETE (2026-07-12) ==========
 ## React 18 web SPA fully landed on feat/heorth-0.1. HEAD 9f6b7cc. 17 web tests green, `npm run build` green,
 ## backend 67 tests still green. Pages: Dashboard, Calendar, Meals, Feoh, Household + auth/shell/router.
-## All 7 tasks reviewed+approved. Running whole-Phase-7 review next, then PAUSE for user check-in (phase-boundary rule).
+## All 7 tasks reviewed+approved.
+##
+## PHASE 7 WHOLE-PHASE REVIEW (opus reviewer, diff 56f3291..a737737): VERDICT = SHIP-READY. No Critical/Important.
+## Traced correct: EventForm attendee round-trip (Dialog unmounts -> re-seeds defaultValues, no stale edit),
+## post-login guard re-run (localStorage written before navigate), ['summary'] prefix-invalidation.
+## ALL deferred Minors triaged ACCEPT-FOR-0.1 (see per-task notes above). NEW Minor cross-cutting (all accept-for-0.1):
+##   (N1) DEAD CODE: web/src/components/ui/select.tsx never imported; 4 call sites use raw <select> instead.
+##   (N2) Unused QUERY_KEYS entries: upcoming, member(id), recipe(id).
+##   (N3) No page surfaces query ERRORS - all pages degrade silently to empty on fetch failure (uniform, 0 error UX).
+##   (N4) agenda.tsx:8-9 builds day window as localDate + 'Z' suffix -> shifted in negative-UTC zones.
+## Highest-value untested path to fund first (still accept for 0.1): EventForm attendeeIds wiring (rides on
+##   watch('attendeeIds' as never); a future RHF bump could silently drop attendees with no test to catch it).
+##
+## ===== PHASE 7 FULLY DONE + WHOLE-PHASE REVIEWED (SHIP-READY). HEAD a737737. 17 web tests + backend 67 green,
+## `npm run build` green. Branch feat/heorth-0.1 NOT pushed. =====
+## PAUSED for user check-in (phase-boundary rule). NEXT: Phase 8 (integration, verification & release, plan lines 8129+).
+## Phase 8 will be the place to optionally sweep the accepted-for-0.1 Minors (N1-N4 + deferred list) if desired.

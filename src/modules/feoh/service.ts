@@ -1,5 +1,5 @@
 import { db } from '../../db/index.js';
-import { accounts, envelopes, transactions, postings, expenseSplits, type Account, type Envelope, type Transaction, type Posting } from './schema.js';
+import { accounts, envelopes, transactions, postings, expenseSplits, type Account, type Envelope, type Transaction } from './schema.js';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput } from './validators.js';
 

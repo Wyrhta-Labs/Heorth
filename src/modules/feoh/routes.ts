@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../../wiring.js';
 import * as service from './service.js';
-import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema } from './validators.js';
+import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema } from './validators.js';
 
 export const feohRouter = new Hono();
 feohRouter.use('*', requireAuth);
@@ -45,6 +45,39 @@ feohRouter.patch('/envelopes/:id', canWrite, async (c) => {
 feohRouter.delete('/envelopes/:id', canWrite, async (c) => {
   const row = await service.deleteEnvelope(c.req.param('id'));
   if (!row) return err(c, 'NOT_FOUND', 'Envelope not found', 404);
+  return ok(c, { id: row.id });
+});
+
+feohRouter.get('/transactions', async (c) => {
+  const q = listTransactionsQuerySchema.safeParse(c.req.query());
+  if (!q.success) return err(c, 'VALIDATION_ERROR', 'Invalid query parameters', 400);
+  const { rows, total, limit, offset } = await service.listTransactions(q.data);
+  return ok(c, rows, { total, limit, offset });
+});
+
+feohRouter.post('/transactions', canWrite, async (c) => {
+  const body = recordTransactionSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  try {
+    const result = await service.recordTransaction(body.data, c.get('auth').userId);
+    return ok(c, result, undefined, 201);
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNBALANCED') {
+      return err(c, 'UNBALANCED', 'Postings do not balance (sum of debits must equal sum of credits)', 400);
+    }
+    throw e;
+  }
+});
+
+feohRouter.get('/transactions/:id', async (c) => {
+  const result = await service.getTransaction(c.req.param('id'));
+  if (!result) return err(c, 'NOT_FOUND', 'Transaction not found', 404);
+  return ok(c, result);
+});
+
+feohRouter.delete('/transactions/:id', canWrite, async (c) => {
+  const row = await service.deleteTransaction(c.req.param('id'));
+  if (!row) return err(c, 'NOT_FOUND', 'Transaction not found', 404);
   return ok(c, { id: row.id });
 });
 

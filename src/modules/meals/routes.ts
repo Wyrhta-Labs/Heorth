@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth } from '../../wiring.js';
 import * as service from './service.js';
-import { createRecipeSchema, updateRecipeSchema, upsertPlanEntrySchema, planQuerySchema } from './validators.js';
+import { createRecipeSchema, updateRecipeSchema, upsertPlanEntrySchema, planQuerySchema, addShoppingItemSchema, updateShoppingItemSchema, generateQuerySchema } from './validators.js';
 
 export const recipesRouter = new Hono();
 recipesRouter.use('*', requireAuth);
@@ -67,4 +67,37 @@ mealsRouter.delete('/plan/:id', async (c) => {
   const entry = await service.deletePlanEntry(c.req.param('id'));
   if (!entry) return err(c, 'NOT_FOUND', 'Plan entry not found', 404);
   return ok(c, { id: entry.id });
+});
+
+mealsRouter.get('/shopping-list', async (c) => {
+  const items = await service.listShoppingItems();
+  return ok(c, items);
+});
+
+mealsRouter.post('/shopping-list/generate', async (c) => {
+  const q = generateQuerySchema.safeParse(c.req.query());
+  if (!q.success) return err(c, 'VALIDATION_ERROR', 'from and to (YYYY-MM-DD) are required', 400);
+  const items = await service.generateShoppingList(q.data.from, q.data.to);
+  return ok(c, items, undefined, 201);
+});
+
+mealsRouter.post('/shopping-list', async (c) => {
+  const body = addShoppingItemSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  const item = await service.addShoppingItem(body.data);
+  return ok(c, item, undefined, 201);
+});
+
+mealsRouter.patch('/shopping-list/:id', async (c) => {
+  const body = updateShoppingItemSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  const item = await service.updateShoppingItem(c.req.param('id'), body.data);
+  if (!item) return err(c, 'NOT_FOUND', 'Item not found', 404);
+  return ok(c, item);
+});
+
+mealsRouter.delete('/shopping-list/:id', async (c) => {
+  const item = await service.removeShoppingItem(c.req.param('id'));
+  if (!item) return err(c, 'NOT_FOUND', 'Item not found', 404);
+  return ok(c, { id: item.id });
 });

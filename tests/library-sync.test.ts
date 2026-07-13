@@ -17,13 +17,13 @@ describe('library sync', () => {
     const conn = await service.createLibraryThingConnection(adult.user.id, { userid: 'u', key: 'k' });
 
     const spy = vi.spyOn(ltMod.LibraryThingConnector.prototype, 'fetchItems');
-    spy.mockResolvedValueOnce(fakeItems(['1', '2', '3']));
+    spy.mockResolvedValueOnce({ items: fakeItems(['1', '2', '3']) });
     await service.syncConnection(conn.id);
     let page = await service.listItems({});
     expect(page.total).toBe(3);
 
     // Second sync: 2 gone, 4 new.
-    spy.mockResolvedValueOnce(fakeItems(['1', '3', '4']));
+    spy.mockResolvedValueOnce({ items: fakeItems(['1', '3', '4']) });
     const updated = await service.syncConnection(conn.id);
     expect(updated.itemCount).toBe(3);
     page = await service.listItems({});
@@ -45,7 +45,7 @@ describe('library sync', () => {
   it('searches by title', async () => {
     const { adult } = await seedTestHousehold();
     const conn = await service.createLibraryThingConnection(adult.user.id, { userid: 'u', key: 'k' });
-    vi.spyOn(ltMod.LibraryThingConnector.prototype, 'fetchItems').mockResolvedValueOnce(fakeItems(['9']));
+    vi.spyOn(ltMod.LibraryThingConnector.prototype, 'fetchItems').mockResolvedValueOnce({ items: fakeItems(['9']) });
     await service.syncConnection(conn.id);
     const hits = await service.searchItems('T9');
     expect(hits).toHaveLength(1);

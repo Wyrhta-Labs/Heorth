@@ -82,7 +82,7 @@ export class LibraryThingConnector implements Connector {
     };
   }
 
-  async fetchItems(conn: RawConnection): Promise<LibraryItem[]> {
+  async fetchItems(conn: RawConnection): Promise<{ items: LibraryItem[] }> {
     if (!conn.credentials) throw new LibraryThingEndpointError('No credentials; use file import');
     const { userid, key } = JSON.parse(decryptSecret(conn.credentials)) as { userid: string; key: string };
     const url = `https://www.librarything.com/api_getdata.php?userid=${encodeURIComponent(userid)}` +
@@ -96,6 +96,6 @@ export class LibraryThingConnector implements Connector {
     if (!res.ok) throw new LibraryThingEndpointError(`LibraryThing endpoint returned ${res.status}`);
     let json: unknown;
     try { json = await res.json(); } catch { throw new LibraryThingEndpointError('LibraryThing returned non-JSON'); }
-    return parseLibraryThingExport(json);
+    return { items: parseLibraryThingExport(json) };
   }
 }

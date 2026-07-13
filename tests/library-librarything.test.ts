@@ -44,7 +44,7 @@ describe('LibraryThingConnector.fetchItems', () => {
     const c = new LibraryThingConnector({ fetch: fakeFetch as unknown as typeof fetch });
     // credentials would be encrypted in real use; connector decrypts internally.
     const enc = await c.connect({ userid: 'u1', key: 'k1' });
-    const items = await c.fetchItems({ ...conn, credentials: enc.credentials });
+    const { items } = await c.fetchItems({ ...conn, credentials: enc.credentials });
     expect(items).toHaveLength(2);
   });
 

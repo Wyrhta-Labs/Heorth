@@ -18,10 +18,14 @@ const schema = z.object({
   location: z.string().optional(),
   notes: z.string().optional(),
   recurrence: z.string().optional(),
+  attendeeIds: z.array(z.string()),
 });
 type FormValues = z.infer<typeof schema>;
 
-export interface EventFormValues extends FormValues { attendeeIds: string[]; }
+/** The shape handed to `onSubmit`: ISO timestamps and an API-ready recurrence. */
+export interface EventFormValues extends Omit<FormValues, 'recurrence'> {
+  recurrence: string | null;
+}
 
 /** datetime-local strings <-> ISO. */
 function toLocalInput(iso?: string): string {
@@ -54,14 +58,14 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading }: Prop
       location: event?.location ?? '',
       notes: event?.notes ?? '',
       recurrence: event?.recurrence ?? '',
+      attendeeIds: event?.attendeeIds ?? [],
     },
   });
-  const attendeeIds = watch('attendeeIds' as never) as string[] | undefined;
-  const selected = attendeeIds ?? event?.attendeeIds ?? [];
+  const selected = watch('attendeeIds') ?? [];
 
   const toggle = (id: string) => {
     const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
-    setValue('attendeeIds' as never, next as never);
+    setValue('attendeeIds', next);
   };
 
   const submit = handleSubmit(async (v) => {
@@ -69,8 +73,7 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading }: Prop
       ...v,
       startAt: localToIso(v.startAt),
       endAt: localToIso(v.endAt),
-      recurrence: v.recurrence || null as never,
-      attendeeIds: selected,
+      recurrence: v.recurrence ? v.recurrence : null,
     });
   });
 

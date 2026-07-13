@@ -1,5 +1,5 @@
 import { Link, useRouter } from '@tanstack/react-router';
-import { LayoutDashboard, CalendarDays, UtensilsCrossed, Wallet, Home, Flame } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, UtensilsCrossed, Wallet, Home, Flame, Library } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/meals', label: 'Meals', icon: UtensilsCrossed },
   { to: '/feoh', label: 'Feoh', icon: Wallet },
+  { to: '/library', label: 'Library', icon: Library },
   { to: '/household', label: 'Household', icon: Home },
 ];
 

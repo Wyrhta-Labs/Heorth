@@ -1,11 +1,13 @@
+import { ErrorState } from '@/components/ui/error-state';
 import { useEvents } from '@/hooks/use-calendar';
 import { formatTime, dayRangeIso } from '@/lib/format';
 
 export default function Agenda() {
   const { from, to } = dayRangeIso();
-  const { data, isLoading } = useEvents({ from, to });
+  const { data, isLoading, isError, refetch } = useEvents({ from, to });
   const events = data?.data ?? [];
 
+  if (isError) return <ErrorState compact message="Couldn’t load today’s agenda." onRetry={() => refetch()} />;
   if (isLoading) return <div className="text-sm text-ash py-4 text-center">Loading…</div>;
   if (events.length === 0) return <div className="text-sm text-ash py-4 text-center">No events today.</div>;
 

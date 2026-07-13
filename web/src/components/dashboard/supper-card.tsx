@@ -1,13 +1,19 @@
 import { UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { ErrorState } from '@/components/ui/error-state';
+import { retryOf } from '@/lib/query-error';
 import { useWeekPlan } from '@/hooks/use-meals';
 import { useRecipes } from '@/hooks/use-meals';
 import { dayLabel } from '@/lib/format';
 
 export default function SupperCard() {
   const today = dayLabel(new Date()).iso;
-  const { data: plan } = useWeekPlan(today, today);
-  const { data: recipes } = useRecipes();
+  const planQuery = useWeekPlan(today, today);
+  const recipesQuery = useRecipes();
+  const plan = planQuery.data;
+  const recipes = recipesQuery.data;
+  const retry = retryOf(planQuery, recipesQuery);
+  if (retry) return <ErrorState compact message="Couldn’t load tonight’s supper." onRetry={retry} />;
   const supper = plan?.data.find((e) => e.slot === 'supper');
   const recipe = supper?.recipeId ? recipes?.data.find((r) => r.id === supper.recipeId) : undefined;
   const title = recipe?.title ?? supper?.freeText ?? 'Nothing planned yet';

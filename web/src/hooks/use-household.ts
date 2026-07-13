@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import * as api from '@/api/household';
 import { whoami } from '@/api/auth';
+import type { Role } from '@/lib/types';
 
 export function useWhoami() {
   return useQuery({ queryKey: QUERY_KEYS.whoami, queryFn: () => whoami() });
@@ -29,7 +30,7 @@ export function useUpdateMember() {
 export function useSetMemberRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, role }: { id: string; role: 'admin' | 'adult' | 'child' }) => api.setMemberRole(id, role),
+    mutationFn: ({ id, role }: { id: string; role: Role }) => api.setMemberRole(id, role),
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.members }),
   });
 }

@@ -17,7 +17,14 @@ const queryClient = new QueryClient({
 });
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
-const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', component: LoginPage });
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/login',
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect: typeof search['redirect'] === 'string' ? (search['redirect'] as string) : undefined,
+  }),
+  component: LoginPage,
+});
 const authRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'auth',

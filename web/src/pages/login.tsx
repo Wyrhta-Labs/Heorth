@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Flame } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = useSearch({ strict: false }) as { redirect?: string };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +21,8 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate({ to: '/' });
+      // Honor the deep-link the auth guard captured; fall back to the dashboard.
+      navigate({ to: redirect || '/' });
     } catch {
       setError('Invalid email or password. Please try again.');
     } finally {

@@ -1,9 +1,9 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from './client';
-import type { SingleResponse, ListResponse, Household, Member, Role, AvatarColor } from '@/lib/types';
+import type { SingleResponse, ListResponse, Household, Member, Role, MemberRole, AvatarColor } from '@/lib/types';
 
 export interface CreateMemberInput {
   email: string; password: string; displayName: string;
-  avatarColor: AvatarColor; role?: 'adult' | 'child'; handle?: string;
+  avatarColor: AvatarColor; role?: MemberRole; handle?: string;
 }
 export interface UpdateMemberInput {
   displayName?: string; avatarColor?: AvatarColor; email?: string; password?: string;

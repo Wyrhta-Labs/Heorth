@@ -4,6 +4,8 @@
 // /feoh/summary endpoint returns computed NUMBERS. Types below reflect that split.
 
 export type Role = 'admin' | 'adult' | 'child';
+// Roles a member can be created/assigned as through the member form (admins are seeded).
+export type MemberRole = Exclude<Role, 'admin'>;
 export type AvatarColor = 'ember' | 'taupe' | 'sage' | 'sky';
 
 export interface Member {

@@ -29,7 +29,7 @@ describe('TraktConnector.fetchItems', () => {
       '/sync/ratings/movies': [{ ...movie, rating: 9 }],
     });
     const c = new TraktConnector({ fetch: fetchFn as unknown as typeof fetch });
-    const items = await c.fetchItems(conn);
+    const { items } = await c.fetchItems(conn);
 
     const dune = items.find((i) => i.externalId === '1')!;
     expect(dune.mediaType).toBe('movie');
@@ -41,5 +41,22 @@ describe('TraktConnector.fetchItems', () => {
     expect(sev.mediaType).toBe('series');
     expect(sev.lists).toEqual(['later']);
     expect(sev.status).toBe('unread');
+  });
+
+  it('keeps a movie and a show with the same numeric trakt id as two distinct items', async () => {
+    const sharedId = 42;
+    const sharedMovie = { movie: { title: 'Same Id Movie', year: 2020, ids: { trakt: sharedId, slug: 'same-id-movie' } } };
+    const sharedShow = { show: { title: 'Same Id Show', year: 2021, ids: { trakt: sharedId, slug: 'same-id-show' } } };
+    const fetchFn = router({
+      '/sync/collection/movies': [sharedMovie],
+      '/sync/collection/shows': [sharedShow],
+    });
+    const c = new TraktConnector({ fetch: fetchFn as unknown as typeof fetch });
+    const { items } = await c.fetchItems(conn);
+
+    const matches = items.filter((i) => i.externalId === String(sharedId));
+    expect(matches).toHaveLength(2);
+    expect(matches.find((i) => i.mediaType === 'movie')).toBeTruthy();
+    expect(matches.find((i) => i.mediaType === 'series')).toBeTruthy();
   });
 });

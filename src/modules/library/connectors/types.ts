@@ -27,6 +27,6 @@ export interface Connector {
   provider: Provider;
   /** Validate user input; return externalRef + label + (encrypted) credentials. */
   connect(input: unknown): Promise<{ externalRef: string; label: string; credentials: string | null }>;
-  /** Pull the whole account, already normalized. */
-  fetchItems(conn: RawConnection): Promise<LibraryItem[]>;
+  /** Pull the whole account, already normalized. `credentials` is set only when rotated (e.g. token refresh). */
+  fetchItems(conn: RawConnection): Promise<{ items: LibraryItem[]; credentials?: string | null }>;
 }

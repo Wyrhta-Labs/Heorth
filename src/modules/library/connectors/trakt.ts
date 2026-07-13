@@ -99,20 +99,22 @@ export class TraktConnector implements Connector {
     return res.json() as Promise<any[]>;
   }
 
-  async fetchItems(conn: RawConnection): Promise<LibraryItem[]> {
+  async fetchItems(conn: RawConnection): Promise<{ items: LibraryItem[]; credentials?: string | null }> {
     if (!conn.credentials) { const e = new Error('No Trakt credentials'); (e as any).needsReauth = true; throw e; }
     let tokens = JSON.parse(decryptSecret(conn.credentials)) as Tokens;
 
     // Probe once; refresh on 401 then continue.
     const probe = await this.fetchFn(`${API}/sync/last_activities`, { headers: this.headers(tokens.access_token) });
-    if (probe.status === 401) tokens = await this.refresh(tokens);
+    let refreshed = false;
+    if (probe.status === 401) { tokens = await this.refresh(tokens); refreshed = true; }
     const token = tokens.access_token;
 
     const byId = new Map<string, LibraryItem>();
     const upsert = (raw: any, media: MediaType, patch: Partial<LibraryItem>) => {
       const node = raw.movie ?? raw.show ?? raw;
       const id = String(node.ids?.trakt ?? node.ids?.imdb ?? node.title);
-      const existing = byId.get(id);
+      const key = `${media}:${id}`;
+      const existing = byId.get(key);
       const title: string = node.title ?? 'Untitled';
       const base: LibraryItem = existing ?? {
         mediaType: media, externalId: id, title, sortTitle: makeSortTitle(title),
@@ -121,7 +123,7 @@ export class TraktConnector implements Connector {
         sourceUrl: node.ids?.slug ? `https://trakt.tv/${media === 'series' ? 'shows' : 'movies'}/${node.ids.slug}` : null,
         raw: node,
       };
-      byId.set(id, {
+      byId.set(key, {
         ...base,
         ...patch,
         lists: mergeLists(base.lists, patch.lists ?? []),
@@ -145,6 +147,7 @@ export class TraktConnector implements Connector {
     await pull('/sync/ratings/movies', 'movie', (r) => ({ rating: r.rating ?? null }));
     await pull('/sync/ratings/shows', 'series', (r) => ({ rating: r.rating ?? null }));
 
-    return [...byId.values()].map((i) => ({ ...i, status: i.status ?? (i.lists.length ? 'unread' as ItemStatus : i.status) }));
+    const items = [...byId.values()].map((i) => ({ ...i, status: i.status ?? (i.lists.length ? 'unread' as ItemStatus : i.status) }));
+    return { items, credentials: refreshed ? encryptSecret(JSON.stringify(tokens)) : undefined };
   }
 }

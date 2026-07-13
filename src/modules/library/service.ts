@@ -121,8 +121,9 @@ export async function syncConnection(id: string): Promise<PublicConnection> {
   const raw: RawConnection = { id: conn.id, provider: conn.provider as Provider, externalRef: conn.externalRef, credentials: conn.credentials };
 
   let items: LibraryItem[];
+  let rotated: string | null | undefined;
   try {
-    items = await connector.fetchItems(raw);
+    ({ items, credentials: rotated } = await connector.fetchItems(raw));
   } catch (e) {
     const needsReauth = e instanceof LibraryThingEndpointError || (e as { needsReauth?: boolean }).needsReauth;
     await db.update(libraryConnections).set({
@@ -153,6 +154,7 @@ export async function syncConnection(id: string): Promise<PublicConnection> {
 
     await tx.update(libraryConnections).set({
       status: 'active', lastSyncedAt: new Date(), lastSyncError: null, itemCount: items.length, updatedAt: new Date(),
+      ...(rotated ? { credentials: rotated } : {}),
     }).where(eq(libraryConnections.id, id));
   });
   return toPublic((await getRaw(id))!);

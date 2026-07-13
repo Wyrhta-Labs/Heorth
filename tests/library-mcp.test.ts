@@ -8,10 +8,10 @@ describe('library MCP tools', () => {
   it('lists items and connections', async () => {
     const { adult } = await seedTestHousehold();
     const conn = await service.createLibraryThingConnection(adult.user.id, { userid: 'u', key: 'k' });
-    vi.spyOn(ltMod.LibraryThingConnector.prototype, 'fetchItems').mockResolvedValueOnce([{
+    vi.spyOn(ltMod.LibraryThingConnector.prototype, 'fetchItems').mockResolvedValueOnce({ items: [{
       mediaType: 'book', externalId: '1', title: 'Dune', sortTitle: 'dune', creators: ['Frank Herbert'],
       year: 1965, coverUrl: null, status: 'read', lists: ['favorites'], rating: 5, tags: [], sourceUrl: null, raw: {},
-    }]);
+    }] });
     await service.syncConnection(conn.id);
 
     const list = await invokeTool(libraryTools, 'library.list_items',

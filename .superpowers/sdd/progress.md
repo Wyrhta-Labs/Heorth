@@ -266,4 +266,12 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ##   SKIPPED (documented):
 ##   * Summary counts debits-only (task 5.4): plan-locked behavior (spec defines month spend as debit sums);
 ##     changing semantics is a spec decision + regression risk, not a hardening fix. Left as-is.
-## Phase 4 (N3): see next section.
+## Phase 4 (N3) — ADDRESSED: silent query-error UX is gone. Added reusable ErrorState
+##   (src/components/ui/error-state.tsx, on-brand card, AlertTriangle+RefreshCw, message + "Try again")
+##   and retryOf() helper (src/lib/query-error.ts) that aggregates several query results into one retry.
+##   Wired every page: Calendar/Feoh render ErrorState in the content region on query error; Meals/Household
+##   early-return ErrorState; Dashboard widgets (Agenda, MembersRow, SupperCard) render a compact ErrorState.
+##   Errors now show a visible message + working retry (refetch) instead of empty content. Tests (TDD):
+##   error-state.test.tsx (3), agenda.test.tsx (2, errored query -> alert + retry, success -> normal empty
+##   state), meals.error.test.tsx (1, page renders ErrorState not the empty planner). Web 24 -> 30 tests.
+## N3 is no longer accept-for-0.1; it is fixed. Commits: staging CI + Phase 3 (see hashes in report), Phase 4 one commit.

@@ -203,14 +203,14 @@ export async function exportTransactionsCsv(): Promise<string> {
     if (envPostings.length > 0) {
       for (const ep of envPostings) {
         rows.push([
-          t.date, sanitizeCsvText(t.payee), sanitizeCsvText(t.memo ?? ''), String(Number(ep.debit)),
+          t.date, sanitizeCsvText(t.payee), sanitizeCsvText(t.memo ?? ''), ep.debit,
           sanitizeCsvText(ep.envelopeId ? (envelopeName.get(ep.envelopeId) ?? '') : ''),
           sanitizeCsvText(acctName),
         ]);
       }
     } else {
       rows.push([
-        t.date, sanitizeCsvText(t.payee), sanitizeCsvText(t.memo ?? ''), String(Number(t.amount)),
+        t.date, sanitizeCsvText(t.payee), sanitizeCsvText(t.memo ?? ''), t.amount,
         '',
         sanitizeCsvText(acctName),
       ]);

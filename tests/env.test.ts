@@ -35,3 +35,29 @@ describe('env schema', () => {
     expect(parsed.success).toBe(false);
   });
 });
+
+describe('library env vars', () => {
+  const base = {
+    DATABASE_URL: 'postgres://u:p@localhost:5432/db',
+    JWT_SECRET: 'x'.repeat(32),
+    HOUSEHOLD_NAME: 'Home',
+    ADMIN_EMAIL: 'a@b.com',
+    ADMIN_PASSWORD: 'pw',
+  };
+
+  it('accepts optional Trakt + encryption vars', () => {
+    const parsed = buildEnvSchema().parse({
+      ...base,
+      TRAKT_CLIENT_ID: 'cid',
+      TRAKT_CLIENT_SECRET: 'sec',
+      LIBRARY_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    });
+    expect(parsed.TRAKT_CLIENT_ID).toBe('cid');
+    expect(parsed.LIBRARY_ENCRYPTION_KEY).toBeTypeOf('string');
+  });
+
+  it('is valid without any library vars set', () => {
+    const parsed = buildEnvSchema().parse(base);
+    expect(parsed.TRAKT_CLIENT_ID).toBeUndefined();
+  });
+});

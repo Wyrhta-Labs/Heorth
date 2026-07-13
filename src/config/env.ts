@@ -11,6 +11,9 @@ export function buildEnvSchema() {
     JWT_TTL_SECONDS: z.coerce.number().int().positive().default(604800),
     CORS_ORIGIN: z.string().default('*'),
     DB_POOL_MAX: z.coerce.number().int().positive().default(10),
+    TRAKT_CLIENT_ID: z.string().min(1).optional(),
+    TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
+    LIBRARY_ENCRYPTION_KEY: z.string().min(1).optional(),
   });
 }
 
@@ -32,4 +35,7 @@ export const config = {
   jwtTtlSeconds: parsed.data.JWT_TTL_SECONDS,
   corsOrigin: parsed.data.CORS_ORIGIN,
   dbPoolMax: parsed.data.DB_POOL_MAX,
+  traktClientId: parsed.data.TRAKT_CLIENT_ID,
+  traktClientSecret: parsed.data.TRAKT_CLIENT_SECRET,
+  libraryEncryptionKey: parsed.data.LIBRARY_ENCRYPTION_KEY,
 } as const;

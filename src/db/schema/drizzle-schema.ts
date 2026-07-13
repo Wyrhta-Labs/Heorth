@@ -5,3 +5,4 @@ export { household } from '@wyrhta/core/household';
 export * from '../../modules/calendar/schema';
 export * from '../../modules/meals/schema';
 export * from '../../modules/feoh/schema';
+export * from '../../modules/library/schema';

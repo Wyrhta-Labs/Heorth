@@ -22,8 +22,12 @@ export default function ConnectionsPanel({ connections }: { connections: Library
     const text = await file.text();
     let json: unknown;
     try { json = JSON.parse(text); } catch { toast('Not a valid JSON export', 'error'); return; }
-    await importFile.mutateAsync({ id, json });
-    toast('Imported', 'success');
+    try {
+      await importFile.mutateAsync({ id, json });
+      toast('Imported', 'success');
+    } catch (e) {
+      toast((e as Error).message || 'Import failed', 'error');
+    }
   };
 
   if (connections.length === 0) return <p className="text-muted-foreground">No accounts connected yet.</p>;
@@ -47,7 +51,7 @@ export default function ConnectionsPanel({ connections }: { connections: Library
                 <>
                   <input type="file" accept=".json,application/json" hidden
                     ref={(el) => { fileRefs.current[c.id] = el; }}
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(c.id, f); }} />
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(c.id, f); e.target.value = ''; }} />
                   <Button size="sm" variant="secondary" onClick={() => fileRefs.current[c.id]?.click()}>
                     <Upload className="h-4 w-4 mr-1" /> Upload export
                   </Button>

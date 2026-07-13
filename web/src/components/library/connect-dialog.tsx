@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -18,27 +18,57 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
   const [key, setKey] = useState('');
   const [device, setDevice] = useState<TraktDevice | null>(null);
 
+  // Cancellation guard: prevents the poll chain from touching state/toasts after
+  // unmount, and lets us clear any pending timeout on cleanup.
+  const activeRef = useRef(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const connectLT = async () => {
-    await createLT.mutateAsync({ userid, key });
-    toast('LibraryThing connected', 'success');
-    onClose();
+    try {
+      await createLT.mutateAsync({ userid, key });
+      toast('LibraryThing connected', 'success');
+      onClose();
+    } catch (e) {
+      toast((e as Error).message || 'Could not connect LibraryThing', 'error');
+    }
   };
 
   const beginTrakt = async () => {
-    const res = await startDevice.mutateAsync();
+    let res;
+    try {
+      res = await startDevice.mutateAsync();
+    } catch (e) {
+      toast((e as Error).message || 'Could not start Trakt authorization', 'error');
+      return;
+    }
     setDevice(res.data);
-    // Poll until authorized or expired.
+    // Poll until authorized, expired, or an error stops the loop.
     const started = Date.now();
     const tick = async () => {
+      if (!activeRef.current) return;
       if (Date.now() - started > res.data.expires_in * 1000) { toast('Trakt code expired', 'error'); setDevice(null); return; }
-      const poll = await pollDevice.mutateAsync(res.data.device_code);
-      if ('status' in poll.data && poll.data.status === 'pending') {
-        setTimeout(tick, res.data.interval * 1000);
-      } else {
-        toast('Trakt connected', 'success'); setDevice(null); onClose();
+      try {
+        const poll = await pollDevice.mutateAsync(res.data.device_code);
+        if (!activeRef.current) return;
+        if ('status' in poll.data && poll.data.status === 'pending') {
+          timeoutRef.current = setTimeout(tick, res.data.interval * 1000);
+        } else {
+          toast('Trakt connected', 'success'); setDevice(null); onClose();
+        }
+      } catch (e) {
+        if (!activeRef.current) return;
+        toast((e as Error).message || 'Trakt authorization failed', 'error');
+        setDevice(null);
       }
     };
-    setTimeout(tick, res.data.interval * 1000);
+    timeoutRef.current = setTimeout(tick, res.data.interval * 1000);
   };
 
   return (

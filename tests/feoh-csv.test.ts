@@ -22,12 +22,13 @@ describe('feoh CSV & ledger', () => {
     const rows = parseCsv(exported);
     expect(rows[0]).toEqual(['date', 'payee', 'memo', 'amount', 'envelope', 'account']);
     const market = rows.find((r) => r[1] === 'Market')!;
-    expect(market[3]).toBe('50');
+    // Export emits canonical numeric(14,2) money strings (no lossy float round-trip).
+    expect(market[3]).toBe('50.00');
     expect(market[4]).toBe('Groceries');
     expect(market[5]).toBe('Checking');
     // Quoted field with a comma survives the round-trip.
     const cafe = rows.find((r) => r[1] === 'Café, corner')!;
-    expect(cafe[3]).toBe('4.5');
+    expect(cafe[3]).toBe('4.50');
   });
 
   it('rejects import rows with an unresolved envelope/account name and writes nothing', async () => {
@@ -157,8 +158,8 @@ describe('feoh CSV & ledger', () => {
     const diningRow = rows.find((r) => r[4] === 'Dining')!;
     expect(groceriesRow).toBeDefined();
     expect(diningRow).toBeDefined();
-    expect(groceriesRow[3]).toBe('30');
-    expect(diningRow[3]).toBe('20');
+    expect(groceriesRow[3]).toBe('30.00');
+    expect(diningRow[3]).toBe('20.00');
     expect(groceriesRow[5]).toBe('Checking');
     expect(diningRow[5]).toBe('Checking');
   });

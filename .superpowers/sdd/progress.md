@@ -203,3 +203,38 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ## `npm run build` green. Branch feat/heorth-0.1 NOT pushed. =====
 ## PAUSED for user check-in (phase-boundary rule). NEXT: Phase 8 (integration, verification & release, plan lines 8129+).
 ## Phase 8 will be the place to optionally sweep the accepted-for-0.1 Minors (N1-N4 + deferred list) if desired.
+
+## ===== PHASE 8 (Integration, verification & release) execution log =====
+- Task 8.1: complete (commit c0fa8bf). Added tests/integration-smoke.test.ts (calendar->meals->feoh
+  through one createApp(ALL_MODULES); adult writes OK, child finance-write 403, child reads summary spent=50).
+  GATE FIX (root cause): root vitest.config.ts had no include -> `npm test` globbed web/src specs that resolve
+  the @/ alias only under web/'s own vitest (surfaced 6 collection failures at the integration gate; web was
+  added in Phase 7 and root `npm test` was never re-run since). Scoped root config to include:['tests/**/*.test.ts'].
+  GATE RESULTS: backend 68 tests green (24 files); `npm run typecheck` rc=0; `npm run build` rc=0 (dist/index.js);
+  web 18 tests green (8 files); `cd web && npm run build` green (web/dist/index.html).
+- Task 8.2: complete (commit 978323f). docs/superpowers/heorth-0.1-acceptance.md — every 0.1 spec item mapped to
+  its delivering task and checked; spot-verified /mcp mount (src/index.ts app.all('/mcp')), household MCP tool
+  names (household.get_members/whoami), REST /household + /members, meals /plan, feoh route paths. All PASS.
+- MINOR SWEEP (commit d9905e9): FIXED the safe/clearly-correct items:
+  * N4 (real bug): agenda.tsx built today window as `${localDate}T00:00:00.000Z`, treating local calendar
+    boundaries as UTC instants (window shifted into prior day for negative-UTC viewers). Added pure
+    dayRangeIso() helper (local startOfDay/endOfDay -> ISO instants) + timezone-independent unit test (TDD),
+    wired agenda.tsx to it. web format suite now 6 tests.
+  * N1: deleted dead web/src/components/ui/select.tsx (zero import sites).
+  * N2: removed unused QUERY_KEYS entries (upcoming, member(id), recipe(id)).
+  Re-ran full gate after: backend 68 green, web 18 green, both builds green, typecheck clean.
+- LEFT as accepted-for-0.1 (NOT fixed — design work / regression risk, per Phase 8 triage instruction):
+  * N3 (silent query-error UX across ALL pages): uniform empty-state-on-fetch-failure is a cross-cutting
+    UX/design decision (needs error boundaries + per-page error surfaces + retry affordances); out of scope for
+    a 0.1 hardening sweep. Documented, deferred.
+  * All previously deferred per-task Minors (FK indexes, accounts/bills CRUD test depth, summary counts
+    debits-only, CSV export trailing-zero, MCP transport e2e handshake test, EventForm attendeeIds `as never`
+    casts + missing render test, tabs.tsx switch test, login deep-link redirect, inline Role unions): remain
+    accept-for-0.1. No behavior change; each is coverage/cosmetic or plan-locked.
+##
+## ========== PHASE 8 COMPLETE (2026-07-13) ==========
+## Heorth 0.1 is feature-complete and verified. Branch feat/heorth-0.1.
+## Phase 8 commits: c0fa8bf(8.1) 978323f(8.2) d9905e9(minor sweep) + this ledger update.
+## FINAL GATE: backend 68 tests green (24 files); typecheck clean; backend build clean;
+##   web 18 tests green (8 files); web production build clean. 0.1 acceptance checklist: ALL PASS.
+## SHIP-READY. NOT pushed (orchestrator pushes after review). No tags/releases created.

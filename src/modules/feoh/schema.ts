@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, numeric, date, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, uuid, timestamp, numeric, date, check, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from '@wyrhta/core/identity';
 
@@ -29,7 +29,7 @@ export const transactions = pgTable('transactions', {
   memo: text('memo'),
   amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
-});
+}, (t) => [index('transactions_created_by_idx').on(t.createdBy)]);
 
 export const postings = pgTable('postings', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -38,7 +38,11 @@ export const postings = pgTable('postings', {
   envelopeId: uuid('envelope_id').references(() => envelopes.id, { onDelete: 'set null' }),
   debit: numeric('debit', { precision: 14, scale: 2 }).notNull().default('0'),
   credit: numeric('credit', { precision: 14, scale: 2 }).notNull().default('0'),
-});
+}, (t) => [
+  index('postings_transaction_id_idx').on(t.transactionId),
+  index('postings_account_id_idx').on(t.accountId),
+  index('postings_envelope_id_idx').on(t.envelopeId),
+]);
 
 export const recurringBills = pgTable('recurring_bills', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -49,14 +53,17 @@ export const recurringBills = pgTable('recurring_bills', {
   cadence: text('cadence').notNull(),
   nextDue: date('next_due').notNull(),
   envelopeId: uuid('envelope_id').references(() => envelopes.id, { onDelete: 'set null' }),
-});
+}, (t) => [index('recurring_bills_envelope_id_idx').on(t.envelopeId)]);
 
 export const expenseSplits = pgTable('expense_splits', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   transactionId: uuid('transaction_id').notNull().references(() => transactions.id, { onDelete: 'cascade' }),
   memberId: uuid('member_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   share: numeric('share', { precision: 14, scale: 2 }).notNull(),
-});
+}, (t) => [
+  index('expense_splits_transaction_id_idx').on(t.transactionId),
+  index('expense_splits_member_id_idx').on(t.memberId),
+]);
 
 export type Account = typeof accounts.$inferSelect;
 export type Envelope = typeof envelopes.$inferSelect;

@@ -189,3 +189,39 @@ export interface ApiKeyCreated {
 export interface ListMeta { total: number; limit?: number; offset?: number; }
 export interface ListResponse<T> { data: T[]; meta: ListMeta; }
 export interface SingleResponse<T> { data: T; }
+
+// ---- Library ----
+export type LibraryProvider = 'trakt' | 'librarything';
+export type LibraryMediaType = 'book' | 'ebook' | 'movie' | 'series';
+export type LibraryItemStatus = 'unread' | 'reading' | 'read' | 'watching' | 'watched';
+export type LibraryList = 'later' | 'favorites';
+
+export interface LibraryConnection {
+  id: string;
+  memberId: string;
+  provider: LibraryProvider;
+  label: string;
+  externalRef: string;
+  status: 'active' | 'needs_reauth' | 'error';
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+  itemCount: number;
+}
+
+export interface LibraryItem {
+  id: string;
+  connectionId: string;
+  memberId: string;
+  provider: LibraryProvider;
+  mediaType: LibraryMediaType;
+  externalId: string;
+  title: string;
+  creators: string[];
+  year: number | null;
+  coverUrl: string | null;
+  status: LibraryItemStatus | null;
+  lists: LibraryList[];
+  rating: string | null;
+  tags: string[];
+  sourceUrl: string | null;
+}

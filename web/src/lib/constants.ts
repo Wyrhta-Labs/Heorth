@@ -14,6 +14,8 @@ export const QUERY_KEYS = {
   transactions: ['transactions'] as const,
   bills: ['bills'] as const,
   summary: (month: string) => ['summary', month] as const,
+  libraryConnections: ['library', 'connections'] as const,
+  libraryItems: ['library', 'items'] as const,
 } as const;
 
 /** Member avatar palette (ember / taupe / sage / sky) — hex per the brand guide. */

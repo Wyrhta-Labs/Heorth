@@ -238,3 +238,32 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ## FINAL GATE: backend 68 tests green (24 files); typecheck clean; backend build clean;
 ##   web 18 tests green (8 files); web production build clean. 0.1 acceptance checklist: ALL PASS.
 ## SHIP-READY. NOT pushed (orchestrator pushes after review). No tags/releases created.
+
+## ===== STAGING HARDENING (2026-07-13, branch `staging` from feat/heorth-0.1 @ 33a8397) =====
+## Phase 1: created + pushed `staging` (33a8397).
+## Phase 2: .github/workflows/staging.yml — backend job (postgres:16 service + healthcheck,
+##   npm ci, db:migrate, typecheck, test, build) + web job (npm ci, test, build). Build+test only,
+##   no deploy. Commit 837cc99. UNVERIFIABLE locally: GitHub Actions not run here (YAML parse-validated,
+##   commands mirror the local gate); npm ci resolves `@wyrhta/core` from github: dep — needs the
+##   wyrhta-core repo reachable to the runner (public, or a token) or the backend job's `npm ci` fails.
+## Phase 3 — accepted-for-0.1 minor backlog, worked through green-per-commit:
+##   FIXED (with tests):
+##   * FK indexes — migration 0004 (drizzle generate from schema index() defs) on transactions.created_by,
+##     postings.{transaction,account,envelope}_id, recurring_bills.envelope_id, expense_splits.{transaction,member}_id.
+##     Applied cleanly to test DB (7 indexes verified). Commit 86d9e0b.
+##   * Accounts CRUD + recurring-bills update/delete/404/child-write-gating route tests. Commit c6cb887.
+##   * CSV export trailing-zero -> now emits canonical numeric(14,2) strings straight from the DB
+##     (dropped String(Number(x)) float round-trip); updated round-trip + multi-envelope test assertions
+##     ('50.00'/'4.50'/'30.00'/'20.00'); import round-trip still works. Commit f497820.
+##   * MCP-over-HTTP e2e: real initialize -> tools/call handshake round-trip through buildMcpServer().fetch
+##     (SSE parsed), incl. unknown-key rejection. Verified stateless per-request design still answers each
+##     JSON-RPC message. tests/mcp-http-e2e.test.ts (3 tests). Commit ebfd827.
+##   * Web: EventForm attendeeIds now a typed RHF field (added to zod schema) — ALL 4 `as never` casts removed;
+##     added interaction test proving attendee create + edit round-trip. tabs.tsx switch-behavior test.
+##     login deep-link redirect (loginRoute validateSearch + useSearch -> navigate to captured redirect,
+##     falls back to '/'); +test. Shared MemberRole = Exclude<Role,'admin'> replaces inline 'adult'|'child'
+##     in member-form/api-household; useSetMemberRole now imports Role. Commit c49c533. Web: 18 -> 24 tests.
+##   SKIPPED (documented):
+##   * Summary counts debits-only (task 5.4): plan-locked behavior (spec defines month spend as debit sums);
+##     changing semantics is a spec decision + regression risk, not a hardening fix. Left as-is.
+## Phase 4 (N3): see next section.

@@ -1,9 +1,11 @@
 import { MemberAvatar } from '@/components/ui/member-avatar';
+import { ErrorState } from '@/components/ui/error-state';
 import { useMembers } from '@/hooks/use-household';
 
 export default function MembersRow() {
-  const { data } = useMembers();
+  const { data, isError, refetch } = useMembers();
   const members = data?.data ?? [];
+  if (isError) return <ErrorState compact message="Couldn’t load members." onRetry={() => refetch()} />;
   return (
     <div className="flex flex-wrap items-center gap-4">
       {members.map((m) => (

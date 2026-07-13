@@ -9,16 +9,19 @@ import MembersTable from '@/components/household/members-table';
 import MemberForm from '@/components/household/member-form';
 import ApiKeysPanel from '@/components/household/api-keys-panel';
 import HouseholdSettings from '@/components/household/household-settings';
+import { ErrorState } from '@/components/ui/error-state';
+import { retryOf } from '@/lib/query-error';
 import { useMembers, useCreateMember, useUpdateMember, useSetMemberRole, useDeleteMember, useWhoami } from '@/hooks/use-household';
 import type { Member, Role } from '@/lib/types';
 import { ApiError } from '@/api/client';
 
 export default function HouseholdPage() {
   const { toast } = useToast();
-  const { data: whoami } = useWhoami();
-  const canManage = whoami?.data.role === 'admin';
-  const { data } = useMembers();
-  const members = data?.data ?? [];
+  const whoamiQuery = useWhoami();
+  const canManage = whoamiQuery.data?.data.role === 'admin';
+  const membersQuery = useMembers();
+  const members = membersQuery.data?.data ?? [];
+  const retry = retryOf(whoamiQuery, membersQuery);
 
   const createM = useCreateMember();
   const updateM = useUpdateMember();
@@ -60,6 +63,8 @@ export default function HouseholdPage() {
       toast(msg ?? 'Failed to remove member', 'error');
     }
   };
+
+  if (retry) return <ErrorState message="We couldn’t load your household." onRetry={retry} />;
 
   return (
     <Tabs defaultValue="members" className="space-y-4">

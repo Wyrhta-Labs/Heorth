@@ -10,24 +10,27 @@ import EnvelopeCard from '@/components/feoh/envelope-card';
 import BillsList from '@/components/feoh/bills-list';
 import TransactionForm from '@/components/feoh/transaction-form';
 import CsvPanel from '@/components/feoh/csv-panel';
+import { ErrorState } from '@/components/ui/error-state';
+import { retryOf } from '@/lib/query-error';
 import { useSummary, useEnvelopes, useAccounts, useBills, useRecordTransaction, useDeleteBill } from '@/hooks/use-feoh';
 import { ApiError } from '@/api/client';
 
 export default function FeohPage() {
   const { toast } = useToast();
   const month = format(new Date(), 'yyyy-MM');
-  const { data: summaryData } = useSummary(month);
-  const { data: envData } = useEnvelopes();
-  const { data: acctData } = useAccounts();
-  const { data: billsData } = useBills();
+  const summaryQuery = useSummary(month);
+  const envQuery = useEnvelopes();
+  const acctQuery = useAccounts();
+  const billsQuery = useBills();
   const record = useRecordTransaction();
   const deleteBill = useDeleteBill();
   const [txOpen, setTxOpen] = useState(false);
 
-  const summary = summaryData?.data;
-  const envelopes = envData?.data ?? [];
-  const accounts = acctData?.data ?? [];
-  const bills = billsData?.data ?? [];
+  const summary = summaryQuery.data?.data;
+  const envelopes = envQuery.data?.data ?? [];
+  const accounts = acctQuery.data?.data ?? [];
+  const bills = billsQuery.data?.data ?? [];
+  const retry = retryOf(summaryQuery, envQuery, acctQuery, billsQuery);
 
   const submitTx = async (input: Parameters<typeof record.mutateAsync>[0]) => {
     try {
@@ -47,21 +50,27 @@ export default function FeohPage() {
         <Button onClick={() => setTxOpen(true)}><Plus className="h-4 w-4" /> New transaction</Button>
       </div>
 
-      {summary && <SummaryHeader summary={summary} />}
+      {retry ? (
+        <ErrorState message="We couldn’t load your budget." onRetry={retry} />
+      ) : (
+        <>
+          {summary && <SummaryHeader summary={summary} />}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(summary?.envelopes ?? []).map((e) => <EnvelopeCard key={e.envelopeId} envelope={e} />)}
-      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(summary?.envelopes ?? []).map((e) => <EnvelopeCard key={e.envelopeId} envelope={e} />)}
+          </div>
 
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Recurring bills</CardTitle></CardHeader>
-        <CardContent><BillsList bills={bills} onRemove={(id) => deleteBill.mutate(id)} /></CardContent>
-      </Card>
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-base">Recurring bills</CardTitle></CardHeader>
+            <CardContent><BillsList bills={bills} onRemove={(id) => deleteBill.mutate(id)} /></CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Import / export</CardTitle></CardHeader>
-        <CardContent><CsvPanel /></CardContent>
-      </Card>
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-base">Import / export</CardTitle></CardHeader>
+            <CardContent><CsvPanel /></CardContent>
+          </Card>
+        </>
+      )}
 
       <Dialog open={txOpen} onOpenChange={setTxOpen}>
         <DialogContent>

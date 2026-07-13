@@ -10,6 +10,8 @@ import RecipeLibrary from '@/components/meals/recipe-library';
 import RecipeForm from '@/components/meals/recipe-form';
 import WeekPlanner from '@/components/meals/week-planner';
 import ShoppingList from '@/components/meals/shopping-list';
+import { ErrorState } from '@/components/ui/error-state';
+import { retryOf } from '@/lib/query-error';
 import {
   useRecipes, useCreateRecipe, useUpdateRecipe, useWeekPlan, useUpsertPlanEntry,
   useShoppingList, useGenerateShoppingList, useAddShoppingItem, useUpdateShoppingItem, useRemoveShoppingItem,
@@ -21,12 +23,13 @@ export default function MealsPage() {
   const from = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const to = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
-  const { data: recipesData } = useRecipes();
-  const recipes = recipesData?.data ?? [];
-  const { data: planData } = useWeekPlan(from, to);
-  const entries = planData?.data ?? [];
-  const { data: listData } = useShoppingList();
-  const items = listData?.data ?? [];
+  const recipesQuery = useRecipes();
+  const recipes = recipesQuery.data?.data ?? [];
+  const planQuery = useWeekPlan(from, to);
+  const entries = planQuery.data?.data ?? [];
+  const listQuery = useShoppingList();
+  const items = listQuery.data?.data ?? [];
+  const retry = retryOf(recipesQuery, planQuery, listQuery);
 
   const createRecipe = useCreateRecipe();
   const updateRecipe = useUpdateRecipe();
@@ -53,6 +56,8 @@ export default function MealsPage() {
     setAssign(null);
     toast('Meal planned', 'success');
   };
+
+  if (retry) return <ErrorState message="We couldn’t load your meals." onRetry={retry} />;
 
   return (
     <Tabs defaultValue="planner" className="space-y-4">

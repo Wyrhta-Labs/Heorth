@@ -8,6 +8,8 @@ import { useToast } from '@/components/ui/toast';
 import WeekView from '@/components/calendar/week-view';
 import MonthView from '@/components/calendar/month-view';
 import EventForm, { type EventFormValues } from '@/components/calendar/event-form';
+import { ErrorState } from '@/components/ui/error-state';
+import { retryOf } from '@/lib/query-error';
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/use-calendar';
 import type { Event, EventOccurrence } from '@/lib/types';
 
@@ -20,8 +22,9 @@ export default function CalendarPage() {
 
   const from = (view === 'week' ? startOfWeek(ref, { weekStartsOn: 1 }) : startOfMonth(ref)).toISOString();
   const to = (view === 'week' ? endOfWeek(ref, { weekStartsOn: 1 }) : endOfMonth(ref)).toISOString();
-  const { data } = useEvents({ from, to });
-  const occurrences = (data?.data ?? []) as EventOccurrence[];
+  const eventsQuery = useEvents({ from, to });
+  const occurrences = (eventsQuery.data?.data ?? []) as EventOccurrence[];
+  const retry = retryOf(eventsQuery);
 
   const createMut = useCreateEvent();
   const updateMut = useUpdateEvent();
@@ -60,13 +63,17 @@ export default function CalendarPage() {
         <Button onClick={openNew}><Plus className="h-4 w-4" /> New event</Button>
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          {view === 'week'
-            ? <WeekView occurrences={occurrences} onSelect={openEdit} />
-            : <MonthView year={ref.getFullYear()} month0={ref.getMonth()} occurrences={occurrences} onSelect={openEdit} />}
-        </CardContent>
-      </Card>
+      {retry ? (
+        <ErrorState message="We couldn’t load your calendar." onRetry={retry} />
+      ) : (
+        <Card>
+          <CardContent className="p-4">
+            {view === 'week'
+              ? <WeekView occurrences={occurrences} onSelect={openEdit} />
+              : <MonthView year={ref.getFullYear()} month0={ref.getMonth()} occurrences={occurrences} onSelect={openEdit} />}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

@@ -1,4 +1,4 @@
-import { format, parseISO, addDays, startOfWeek } from 'date-fns';
+import { format, parseISO, addDays, startOfWeek, startOfDay, endOfDay } from 'date-fns';
 
 /** Format a money value (string from raw rows, or number from summaries) as USD. */
 export function formatMoney(v: string | number | null | undefined): string {
@@ -32,4 +32,14 @@ export function weekDays(ref: Date = new Date()): Date[] {
 
 export function dayLabel(d: Date): { dow: string; dom: string; iso: string } {
   return { dow: format(d, 'EEE'), dom: format(d, 'd'), iso: format(d, 'yyyy-MM-dd') };
+}
+
+/**
+ * The start/end instants (ISO-8601, UTC) bracketing the LOCAL calendar day
+ * containing `d`. Built from local midnight/end-of-day so a negative-UTC
+ * viewer's "today" window is not shifted into the previous day (which a naive
+ * `${yyyy-MM-dd}T00:00:00Z` construction would cause).
+ */
+export function dayRangeIso(d: Date = new Date()): { from: string; to: string } {
+  return { from: startOfDay(d).toISOString(), to: endOfDay(d).toISOString() };
 }

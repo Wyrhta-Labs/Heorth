@@ -3,13 +3,10 @@ import type { AvatarColor, MealSlot } from './types';
 export const QUERY_KEYS = {
   household: ['household'] as const,
   members: ['members'] as const,
-  member: (id: string) => ['members', id] as const,
   whoami: ['whoami'] as const,
   apiKeys: ['apiKeys'] as const,
   events: ['events'] as const,
-  upcoming: ['events', 'upcoming'] as const,
   recipes: ['recipes'] as const,
-  recipe: (id: string) => ['recipes', id] as const,
   mealPlan: ['mealPlan'] as const,
   shoppingList: ['shoppingList'] as const,
   accounts: ['accounts'] as const,

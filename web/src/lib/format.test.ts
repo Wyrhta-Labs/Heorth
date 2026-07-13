@@ -1,6 +1,7 @@
 // web/src/lib/format.test.ts
 import { describe, it, expect } from 'vitest';
-import { formatMoney, progressPercent, weekDays, dayLabel } from './format';
+import { formatMoney, progressPercent, weekDays, dayLabel, dayRangeIso } from './format';
+import { startOfDay, endOfDay, parseISO } from 'date-fns';
 
 describe('formatMoney', () => {
   it('formats a numeric string as USD', () => {
@@ -29,5 +30,20 @@ describe('weekDays / dayLabel', () => {
     expect(days.length).toBe(7);
     expect(dayLabel(days[0]!).dow).toBe('Mon');
     expect(dayLabel(days[6]!).dow).toBe('Sun');
+  });
+});
+
+describe('dayRangeIso', () => {
+  it('brackets the LOCAL calendar day (not a Z-suffixed local date)', () => {
+    const d = new Date('2026-07-13T15:30:00'); // parsed in local time
+    const { from, to } = dayRangeIso(d);
+    // from/to are the exact local day boundaries, expressed as UTC instants.
+    expect(parseISO(from).getTime()).toBe(startOfDay(d).getTime());
+    expect(parseISO(to).getTime()).toBe(endOfDay(d).getTime());
+    // Local calendar date of both bounds equals the input's local date.
+    expect(dayLabel(parseISO(from)).iso).toBe(dayLabel(d).iso);
+    expect(dayLabel(parseISO(to)).iso).toBe(dayLabel(d).iso);
+    // Spans one full day minus a millisecond, in any timezone.
+    expect(parseISO(to).getTime() - parseISO(from).getTime()).toBe(86_399_999);
   });
 });

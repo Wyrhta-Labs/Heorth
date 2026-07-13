@@ -1,10 +1,8 @@
 import { useEvents } from '@/hooks/use-calendar';
-import { formatTime, dayLabel } from '@/lib/format';
+import { formatTime, dayRangeIso } from '@/lib/format';
 
 export default function Agenda() {
-  const today = dayLabel(new Date()).iso;
-  const from = `${today}T00:00:00.000Z`;
-  const to = `${today}T23:59:59.999Z`;
+  const { from, to } = dayRangeIso();
   const { data, isLoading } = useEvents({ from, to });
   const events = data?.data ?? [];
 

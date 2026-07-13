@@ -7,3 +7,4 @@ export { household } from '@wyrhta/core/household';
 export * from '../../modules/calendar/schema.js';
 export * from '../../modules/meals/schema.js';
 export * from '../../modules/feoh/schema.js';
+export * from '../../modules/library/schema.js';

@@ -11,6 +11,7 @@ import CalendarPage from '@/pages/calendar';
 import MealsPage from '@/pages/meals';
 import FeohPage from '@/pages/feoh';
 import HouseholdPage from '@/pages/household';
+import LibraryPage from '@/pages/library';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -41,10 +42,11 @@ const calendarRoute = createRoute({ getParentRoute: () => authRoute, path: '/cal
 const mealsRoute = createRoute({ getParentRoute: () => authRoute, path: '/meals', component: MealsPage });
 const feohRoute = createRoute({ getParentRoute: () => authRoute, path: '/feoh', component: FeohPage });
 const householdRoute = createRoute({ getParentRoute: () => authRoute, path: '/household', component: HouseholdPage });
+const libraryRoute = createRoute({ getParentRoute: () => authRoute, path: '/library', component: LibraryPage });
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  authRoute.addChildren([dashboardRoute, calendarRoute, mealsRoute, feohRoute, householdRoute]),
+  authRoute.addChildren([dashboardRoute, calendarRoute, mealsRoute, feohRoute, householdRoute, libraryRoute]),
 ]);
 
 const router = createRouter({ routeTree });

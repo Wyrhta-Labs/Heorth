@@ -275,3 +275,54 @@ Reconciliations: see .superpowers/sdd/core-reconciliations.md (auth->principal, 
 ##   error-state.test.tsx (3), agenda.test.tsx (2, errored query -> alert + retry, success -> normal empty
 ##   state), meals.error.test.tsx (1, page renders ErrorState not the empty planner). Web 24 -> 30 tests.
 ## N3 is no longer accept-for-0.1; it is fixed. Commits: staging CI + Phase 3 (see hashes in report), Phase 4 one commit.
+
+## ===== LIBRARY MODULE (plan: 2026-07-13-library-module.md, 12 tasks, 5 phases) =====
+## Branch: staging. Base commit before Task 1: cdcbd4f. Test DB: kith-testdb host:55432 db heorth.
+## ALWAYS 'set -a && source .env && set +a' before test/typecheck/db cmds.
+## Reconciliations to honor: route guards import from '../../wiring.js' (c.get('auth')); MCP tools use
+##   ZodRawShape inputSchema + result()->McpToolResult + ctx.principal.userId; money/numeric returned as strings.
+## Ledger:
+- Task 1: complete (commit c1556cb, review clean). Env vars optional, config exports. 6 env tests green.
+- Task 2: complete (commit 34e7724, review clean). AES-256-GCM crypto, HKDF-from-JWT fallback. 3 tests green.
+- Task 3: complete (commit 84f9975, review clean). Schema + migration 0005_cool_dragon_man.sql. Dual-barrel (index+drizzle-schema) per repo pattern. 84 tests green.
+- Task 4: complete (commit f383914, review clean). Connector contract (types.ts) + normalize helpers. 2 tests green. Downstream may depend on LibraryItem/Connector shapes.
+- Task 5: complete (commit 572cf4b, review clean). LibraryThing connector: api_getdata.php endpoint + parseLibraryThingExport normalizer (shared with file-import), all failure modes -> LibraryThingEndpointError. 3 tests green.
+##   CARRY TO TASK 7: parseLibraryThingExport throws LibraryThingEndpointError even on file-import path;
+##   importFile should catch/re-label so file-upload users don't see "endpoint" language. MINOR (defer): network-exception/non-JSON/empty-payload branches untested.
+- Task 6: complete (commit b3177ba, review clean). Trakt connector: device flow + merge-by-id across 10 endpoints. 1 test green.
+##   PLAN DEFECT FIXED (controller-approved): headers() used requireClient() which threw before injected fetch;
+##   changed to config.traktClientId ?? '' (requireClient kept on device/refresh). Plan doc updated to match.
+##   CARRY TO FINAL REVIEW (minor, brief-inherited): merge key is bare trakt id, no media-type discriminator
+##   -> movie & show with same numeric id could merge in-memory. Fix: key byId by `${media}:${id}`. Low prob; DB unique is (conn,media,extId).
+- Task 7: complete (commit 1d87ccb, review clean). Connection-half of service.ts: create LT, device flow, importFile (atomic delete/insert/update), delete (owner/admin). Credentials never leak via toPublic. 3 tests green.
+##   importFile re-labels parseLibraryThingExport failure as IMPORT_PARSE_FAILED (approved).
+##   NOTE FOR TASK 8: Task 8 APPENDS to service.ts -> shares module scope with getRaw/toPublic/getConnectorFor (no export needed). importFile memberId param unused (brief-verbatim, ok).
+- Task 8: complete (commit 5b10612, review clean). Sync (idempotent upsert + connection-scoped delete-vanished, atomic) + listItems/searchItems/getItem (joined provenance). Full suite 96 tests green.
+##   Added 2 `as Provider` casts (provider column is untyped text()) - sound (only 'trakt'/'librarything' written).
+##   CARRY TO FINAL REVIEW (minor): schema.ts provider column should use .$type<Provider>(); listItems seen[] could be Set; count via window fn.
+- Task 9: complete (commit 74909df, review clean). validators + routes (10 endpoints, search/:id before /items) + index.ts + mcp.ts STUB + ALL_MODULES registration. Full suite 99 green.
+##   APPROVED DEVIATION: core ok/err status unions exclude 202/502; pending-poll(202) & sync-fail(502) use c.json
+##   with byte-identical {data,meta}/{error:{code,message}} envelopes (reviewer verified vs core source).
+##   Task 10 replaces the mcp.ts stub with real tools.
+- Task 10: complete (commit 718f805, review clean). 5 MCP tools (list_items/search/get_item/list_connections/sync_connection), live pattern verbatim. Full suite 100 green. BACKEND FEATURE-COMPLETE.
+- Task 11: complete (commit a8d936b, review clean). Web types (LibraryConnection/LibraryItem, rating string|null), QUERY_KEYS, api/library.ts, hooks/use-library.ts. Web build clean, 30 web tests green.
+- Task 12: complete (commits 7298b1d impl, a2cca7e fix; re-review APPROVED). Library web page + connect-dialog/connections-panel/shelf/item-detail + route + nav. Web suite 32 green, build clean.
+##   RECONCILED: heading map in app-shell.tsx (not sidebar); native <select> (select.tsx deleted). FIXED (2 Important): Trakt poll-loop try/catch + unmount cancellation ref/cleanup; (2 Minor): connectLT/onFile failure toasts, file-input reset. +failure-toast test.
+##
+## ===== ALL 12 LIBRARY TASKS COMPLETE. HEAD a2cca7e. Backend 100 tests green, web 32 tests green. =====
+## NEXT: final whole-branch review (scope: library work cdcbd4f..HEAD; prior Heorth commits reviewed under their own ledger).
+
+## ===== FINAL WHOLE-BRANCH REVIEW (opus) + FIX =====
+## Verdict: merge-with-fixes. Architecture/layering/credential-boundary/sync-correctness all verified sound.
+## 2 IMPORTANT cross-task bugs found + FIXED @ f048a81 (re-review APPROVED, no new issues):
+##  (1) Refreshed Trakt tokens discarded -> fetchItems now returns {items, credentials?}; service persists rotated
+##      creds in success-tx. Connector interface changed; LT returns {items}; 5 call sites/tests updated to .items.
+##  (2) Trakt merge collided movie vs show on bare trakt id -> byId keyed by `${media}:${id}` (externalId stays bare;
+##      delete-vanished seen-set alignment verified intact). +regression test (movie+show id 42 -> 2 items).
+## ACCEPTED follow-ups (documented, not blocking): text() column types + as-Provider casts; seen[] array vs Set +
+##   separate count query; LT network/non-JSON/empty branches untested; importFile memberId unused (+ no ownership
+##   check on sync/import - matches spec/household trust); raw jsonb returned over REST; web shelf capped at 200
+##   (client-side filter, searchItems/offset unused by page); LT duplicate-connect -> 500 (should be 409/idempotent).
+##
+## ========== LIBRARY MODULE COMPLETE. HEAD f048a81. Backend 101 tests green + typecheck clean; web 32 tests + build clean. =====
+## Branch staging, NOT pushed. Ready for finishing-a-development-branch.

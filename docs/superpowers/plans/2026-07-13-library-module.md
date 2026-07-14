@@ -849,8 +849,10 @@ export class TraktConnector implements Connector {
   }
 
   private headers(token: string): Record<string, string> {
-    const { id } = requireClient();
-    return { 'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': id, Authorization: `Bearer ${token}` };
+    // Only the client ID is needed for the api-key header (not the secret), and
+    // fetchItems must work under an injected fake fetch with no configured client,
+    // so read the id directly with a fallback instead of requireClient().
+    return { 'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': config.traktClientId ?? '', Authorization: `Bearer ${token}` };
   }
 
   private async getUsername(token: string): Promise<string> {
@@ -934,7 +936,7 @@ export class TraktConnector implements Connector {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npm test -- tests/library-trakt.test.ts`
-Expected: PASS (1 passing). Note: `probe` uses `/sync/last_activities` which the router maps to the default `[]` 200 response, so no refresh path is exercised here.
+Expected: PASS (1 passing). Note: `probe` uses `/sync/last_activities` which the router maps to the default `[]` 200 response, so no refresh path is exercised here. `headers()` reads `config.traktClientId ?? ''` (not `requireClient()`) so `fetchItems` runs without configured Trakt env under the injected fake fetch.
 
 - [ ] **Step 5: Commit**
 

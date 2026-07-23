@@ -2257,8 +2257,8 @@ git commit -m "feat(library): web page, connect flow, shelf, and nav"
 
 ## Final verification
 
-- [ ] **Backend:** `npm run typecheck && npm test` — all green, including `module-convention.test.ts` and `integration-smoke.test.ts`.
-- [ ] **Web:** `cd web && npm test && npm run build` — all green.
+- [x] **Backend:** `npm run typecheck && npm test` — all green, including `module-convention.test.ts` and `integration-smoke.test.ts`.
+- [x] **Web:** `cd web && npm test && npm run build` — all green.
 - [ ] **Manual smoke (optional, needs a DB + Trakt app):** set `TRAKT_CLIENT_ID/SECRET`, `npm run dev:all`, connect a Trakt account via the device code, sync, and confirm items appear on the shelf; create a LibraryThing connection and upload an Export Books JSON to confirm the fallback path.
 
 ---

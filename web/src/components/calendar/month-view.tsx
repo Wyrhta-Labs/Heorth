@@ -1,5 +1,5 @@
 import { monthGrid, groupByDay } from '@/lib/calendar-grid';
-import type { EventOccurrence } from '@/lib/types';
+import { isMirroredEvent, type EventOccurrence } from '@/lib/types';
 
 interface Props { year: number; month0: number; occurrences: EventOccurrence[]; onSelect: (o: EventOccurrence) => void; }
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -20,8 +20,17 @@ export default function MonthView({ year, month0, occurrences, onSelect }: Props
               <div className={`text-xs mb-1 ${inMonth ? 'text-ink' : 'text-ash/60'}`}>{Number(iso.slice(8, 10))}</div>
               <div className="space-y-0.5">
                 {(byDay[iso] ?? []).slice(0, 3).map((o) => (
-                  <button key={`${o.id}-${o.occurrenceStart}`} onClick={() => onSelect(o)}
-                    className="block w-full truncate rounded bg-ember/10 px-1 text-left text-[11px] hover:bg-ember/20">{o.title}</button>
+                  isMirroredEvent(o) ? (
+                    <div key={`${o.id}-${o.occurrenceStart}`}
+                      title={`From Microsoft 365${o.organizer ? ` · ${o.organizer}` : ''} (read-only)`}
+                      className="flex items-center gap-1 w-full truncate rounded border border-dashed border-sky/50 bg-sky/5 px-1 text-left text-[11px] text-ash">
+                      <span className="h-1 w-1 shrink-0 rounded-full bg-sky" aria-hidden />
+                      <span className="truncate">{o.title}</span>
+                    </div>
+                  ) : (
+                    <button key={`${o.id}-${o.occurrenceStart}`} onClick={() => onSelect(o)}
+                      className="block w-full truncate rounded bg-ember/10 px-1 text-left text-[11px] hover:bg-ember/20">{o.title}</button>
+                  )
                 ))}
               </div>
             </div>

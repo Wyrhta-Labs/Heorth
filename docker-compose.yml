@@ -2,7 +2,7 @@ services:
   api:
     build: .
     ports:
-      - "${API_PORT:-3000}:3000"
+      - "${API_PORT:-4000}:3000"
     environment:
       DATABASE_URL: postgres://heorth:${POSTGRES_PASSWORD}@db:5432/heorth
       JWT_SECRET: ${JWT_SECRET}

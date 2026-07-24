@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dev port moved to **4000** (`.env.example`, docker-compose host mapping,
+  Vite proxy, README) and `FEOH_BASE_URL` dev default to `http://localhost:4001`,
+  per the cross-service dev port allocation (Heorth 4000/5173, Feoh 4001,
+  KithLedger 4002/5174). Container-internal port stays 3000.
+
 ### Added
 
 - `README.md` (new) — quick start, API surface overview, Feoh satellite

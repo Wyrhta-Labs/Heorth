@@ -17,14 +17,14 @@ JWT_SECRET=<32+ char random string>
 HOUSEHOLD_NAME=Our Home
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=<password>
-API_PORT=3000
+API_PORT=4000
 JWT_TTL_SECONDS=604800
 CORS_ORIGIN=*
 DB_POOL_MAX=10
 POSTGRES_PASSWORD=<password>
 
 # Feoh satellite — required, both production and test
-FEOH_BASE_URL=http://localhost:3001
+FEOH_BASE_URL=http://localhost:4001
 FEOH_API_KEY=fe_change-me
 ```
 

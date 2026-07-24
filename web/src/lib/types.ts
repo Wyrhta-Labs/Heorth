@@ -45,8 +45,18 @@ export interface Event {
   attendeeIds: string[];
 }
 // A range query returns occurrences (recurrence expanded); each adds occurrenceStart.
+// Events mirrored from an external calendar (M365) carry a non-native `source`
+// and are READ-ONLY — the UI shows them but offers no edit affordance.
 export interface EventOccurrence extends Event {
   occurrenceStart: string;
+  source?: 'native' | 'm365' | string;
+  organizer?: string | null;
+  feedKey?: string;
+}
+
+/** Whether an occurrence is a read-only external mirror (not a native event). */
+export function isMirroredEvent(o: EventOccurrence): boolean {
+  return o.source !== undefined && o.source !== 'native';
 }
 
 // ---- Meals ----

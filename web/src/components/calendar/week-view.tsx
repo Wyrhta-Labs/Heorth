@@ -1,6 +1,6 @@
 import { weekDays, dayLabel, formatTime } from '@/lib/format';
 import { groupByDay } from '@/lib/calendar-grid';
-import type { EventOccurrence } from '@/lib/types';
+import { isMirroredEvent, type EventOccurrence } from '@/lib/types';
 
 interface Props { occurrences: EventOccurrence[]; onSelect: (o: EventOccurrence) => void; }
 
@@ -18,12 +18,27 @@ export default function WeekView({ occurrences, onSelect }: Props) {
               <div className="font-serif text-lg">{dom}</div>
             </div>
             <div className="space-y-1">
-              {(byDay[iso] ?? []).map((o) => (
-                <button key={`${o.id}-${o.occurrenceStart}`} onClick={() => onSelect(o)}
-                  className="w-full truncate rounded-md bg-ember/10 px-2 py-1 text-left text-xs text-ink hover:bg-ember/20">
-                  <span className="text-ember">{o.allDay ? '' : formatTime(o.occurrenceStart) + ' '}</span>{o.title}
-                </button>
-              ))}
+              {(byDay[iso] ?? []).map((o) => {
+                const time = <span className="text-ember">{o.allDay ? '' : formatTime(o.occurrenceStart) + ' '}</span>;
+                // Mirrored (external) events are read-only: rendered as a static
+                // chip with a subtle source marker and no click-to-edit.
+                if (isMirroredEvent(o)) {
+                  return (
+                    <div key={`${o.id}-${o.occurrenceStart}`}
+                      title={`From Microsoft 365${o.organizer ? ` · ${o.organizer}` : ''} (read-only)`}
+                      className="flex items-center gap-1 w-full truncate rounded-md border border-dashed border-sky/50 bg-sky/5 px-2 py-1 text-left text-xs text-ash">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky" aria-hidden />
+                      <span className="truncate">{time}{o.title}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <button key={`${o.id}-${o.occurrenceStart}`} onClick={() => onSelect(o)}
+                    className="w-full truncate rounded-md bg-ember/10 px-2 py-1 text-left text-xs text-ink hover:bg-ember/20">
+                    {time}{o.title}
+                  </button>
+                );
+              })}
             </div>
           </div>
         );

@@ -8,6 +8,7 @@ import AppShell from '@/components/layout/app-shell';
 import LoginPage from '@/pages/login';
 import DashboardPage from '@/pages/dashboard';
 import CalendarPage from '@/pages/calendar';
+import TasksPage from '@/pages/tasks';
 import MealsPage from '@/pages/meals';
 import FeohPage from '@/pages/feoh';
 import HouseholdPage from '@/pages/household';
@@ -39,6 +40,7 @@ const authRoute = createRoute({
 
 const dashboardRoute = createRoute({ getParentRoute: () => authRoute, path: '/', component: DashboardPage });
 const calendarRoute = createRoute({ getParentRoute: () => authRoute, path: '/calendar', component: CalendarPage });
+const tasksRoute = createRoute({ getParentRoute: () => authRoute, path: '/tasks', component: TasksPage });
 const mealsRoute = createRoute({ getParentRoute: () => authRoute, path: '/meals', component: MealsPage });
 const feohRoute = createRoute({ getParentRoute: () => authRoute, path: '/feoh', component: FeohPage });
 const householdRoute = createRoute({ getParentRoute: () => authRoute, path: '/household', component: HouseholdPage });
@@ -46,7 +48,7 @@ const libraryRoute = createRoute({ getParentRoute: () => authRoute, path: '/libr
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  authRoute.addChildren([dashboardRoute, calendarRoute, mealsRoute, feohRoute, householdRoute, libraryRoute]),
+  authRoute.addChildren([dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute, householdRoute, libraryRoute]),
 ]);
 
 const router = createRouter({ routeTree });

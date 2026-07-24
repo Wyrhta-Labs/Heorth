@@ -16,6 +16,9 @@ export const QUERY_KEYS = {
   summary: (month: string) => ['summary', month] as const,
   libraryConnections: ['library', 'connections'] as const,
   libraryItems: ['library', 'items'] as const,
+  tasks: ['tasks'] as const,
+  taskLists: ['tasks', 'lists'] as const,
+  taskAllowlist: ['tasks', 'allowlist'] as const,
 } as const;
 
 /** Member avatar palette (ember / taupe / sage / sky) — hex per the brand guide. */

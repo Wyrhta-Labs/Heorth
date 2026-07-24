@@ -235,3 +235,37 @@ export interface LibraryItem {
   tags: string[];
   sourceUrl: string | null;
 }
+
+// --- Tasks (Microsoft To Do mirror) ---------------------------------------
+export type TaskStatus = 'open' | 'completed';
+
+export interface Task {
+  id: string;
+  source: string;
+  feedKey: string;
+  externalId: string;
+  memberId: string;
+  listId: string;
+  listName: string | null;
+  title: string;
+  notes: string | null;
+  dueAt: string | null;
+  completedAt: string | null;
+  status: TaskStatus;
+  createdAt: string;
+  updatedAt: string;
+  syncedAt: string;
+}
+
+export interface AvailableTaskList {
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+export interface TodoAllowlistEntry {
+  id: string;
+  memberId: string;
+  listId: string;
+  listName: string | null;
+}

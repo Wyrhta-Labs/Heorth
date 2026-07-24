@@ -103,7 +103,17 @@ export class DelegatedClient {
     const cached = this.cache.get(memberId);
     if (cached && cached.expiresAt > Date.now() + EXPIRY_SKEW_MS) return cached.token;
 
-    const refreshToken = await this.store.getRefreshToken(memberId);
+    let refreshToken: string | null;
+    try {
+      refreshToken = await this.store.getRefreshToken(memberId);
+    } catch (e) {
+      // Decryption failure (e.g. JWT_SECRET rotated since the token was stored)
+      // is unrecoverable without re-consent — classify it exactly like a
+      // rejected refresh so the reconnect UX triggers.
+      await this.store.recordRefreshError(memberId, (e as Error).message, 'needs_reauth');
+      this.cache.delete(memberId);
+      throw new GraphError('Stored M365 refresh token could not be decrypted', 401, 'needs_reauth');
+    }
     if (!refreshToken) throw new GraphError('No M365 connection for member', 401, 'no_connection');
 
     let tok: TokenResponse;

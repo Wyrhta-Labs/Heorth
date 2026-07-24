@@ -63,4 +63,42 @@ describe('HearthWeek meal drag', () => {
 
     expect(onSwapMeal).not.toHaveBeenCalled();
   });
+
+  it('tears down the drag on pointercancel without committing a swap', () => {
+    const onSwapMeal = vi.fn();
+    render(<HearthWeek {...base} days={days} onSwapMeal={onSwapMeal} />);
+    const grips = screen.getAllByLabelText('Move meal');
+    hitTest('2026-07-21');
+
+    fireEvent.pointerDown(grips[0]!, { clientX: 10, clientY: 10 });
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 300, clientY: 10 }));
+    // Touch scroll takeover / palm rejection: pointercancel instead of pointerup.
+    fireEvent(window, new Event('pointercancel'));
+
+    expect(onSwapMeal).not.toHaveBeenCalled();
+    // Ghost/drag-source styling should be cleared, not stuck.
+    expect(screen.queryByText('Pie')).toBeInTheDocument(); // supper label still renders normally
+    expect(document.querySelector('.fixed.z-50')).not.toBeInTheDocument(); // no stuck ghost
+  });
+
+  it('removes window listeners left by an in-progress drag on unmount', () => {
+    const addSpy = vi.spyOn(window, 'addEventListener');
+    const removeSpy = vi.spyOn(window, 'removeEventListener');
+    const onSwapMeal = vi.fn();
+    const { unmount } = render(<HearthWeek {...base} days={days} onSwapMeal={onSwapMeal} />);
+    const grips = screen.getAllByLabelText('Move meal');
+
+    fireEvent.pointerDown(grips[0]!, { clientX: 10, clientY: 10 });
+    const addedTypes = addSpy.mock.calls.map((c) => c[0]);
+    expect(addedTypes).toEqual(expect.arrayContaining(['pointermove', 'pointerup', 'pointercancel']));
+
+    unmount();
+
+    const removedTypes = removeSpy.mock.calls.map((c) => c[0]);
+    expect(removedTypes).toEqual(expect.arrayContaining(['pointermove', 'pointerup', 'pointercancel']));
+    expect(onSwapMeal).not.toHaveBeenCalled();
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
 });

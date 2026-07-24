@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DayColumn from './day-column';
 import type { DayComposition, StalenessInfo } from '@/lib/hearth';
 import type { Member, Recipe, Task } from '@/lib/types';
@@ -32,6 +32,9 @@ export default function HearthWeek(props: Props) {
   const [ghost, setGhost] = useState<Ghost | null>(null);
   const dragFromRef = useRef<string | null>(null);
   const dropRef = useRef<string | null>(null);
+  // Holds the current drag's teardown (listener removal + state clear) so
+  // unmount can run it too, without duplicating the pointerup/pointercancel logic.
+  const teardownRef = useRef<(() => void) | null>(null);
 
   const dayUnderPoint = (x: number, y: number): string | null => {
     const el = document.elementFromPoint(x, y)?.closest('[data-hearth-day]');
@@ -56,21 +59,34 @@ export default function HearthWeek(props: Props) {
       setDropTarget(over);
       setGhost({ label, x: ev.clientX, y: ev.clientY });
     };
-    const up = () => {
+    // Shared teardown for pointerup (may commit) and pointercancel/unmount
+    // (never commits — a cancel means the gesture was taken over, e.g. a touch
+    // scroll or palm rejection on the wall's touch panel, not a real drop).
+    const teardown = (commit: boolean) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      teardownRef.current = null;
       const from = dragFromRef.current;
       const to = dropRef.current;
-      if (from && to && from !== to) onSwapMeal(from, to);
+      if (commit && from && to && from !== to) onSwapMeal(from, to);
       dragFromRef.current = null;
       dropRef.current = null;
       setDragFrom(null);
       setDropTarget(null);
       setGhost(null);
     };
+    const up = () => teardown(true);
+    const cancel = () => teardown(false);
+    teardownRef.current = () => teardown(false);
     window.addEventListener('pointermove', move, { passive: true });
     window.addEventListener('pointerup', up, { passive: true });
+    window.addEventListener('pointercancel', cancel, { passive: true });
   }, [days, recipesById, onSwapMeal]);
+
+  // Unmount mid-drag (e.g. navigating away from the wall): tear down the
+  // window listeners so nothing leaks past this component's lifetime.
+  useEffect(() => () => teardownRef.current?.(), []);
 
   return (
     <>

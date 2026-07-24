@@ -9,6 +9,18 @@ export interface RosterMember {
 }
 
 /**
+ * Thrown by {@link FeohRoster.partyIdFor} when a member is still unmapped
+ * after a successful re-sync (Feoh was reachable and the sync completed —
+ * this is not a "Feoh is down" case, see proxy.ts's error mapping).
+ */
+export class RosterMappingMissingError extends Error {
+  constructor(public readonly memberId: string) {
+    super(`No Feoh party mapped for Heorth member ${memberId} after re-sync`);
+    this.name = 'RosterMappingMissingError';
+  }
+}
+
+/**
  * Maintains the Heorth-member ↔ Feoh-party mapping.
  *
  * Feoh knows *parties*, not household members. Every Heorth member is mirrored
@@ -21,6 +33,9 @@ export interface RosterMember {
 export class FeohRoster {
   private memberToParty = new Map<string, string>();
   private partyToMember = new Map<string, string>();
+  // Shares one in-flight sync across concurrent callers instead of each
+  // triggering its own full roster sync (finding F).
+  private syncPromise: Promise<void> | null = null;
 
   constructor(
     private readonly client: FeohClient,
@@ -34,11 +49,34 @@ export class FeohRoster {
 
   /**
    * Upsert every household member into Feoh's parties and refresh the cache.
-   * Idempotent: safe to call at startup and again on a mapping miss. Propagates
-   * a `SatelliteUnreachableError` if Feoh is down so callers can decide (startup
-   * logs and continues; a proxy request maps it to 503).
+   * Idempotent: safe to call at startup and again on a mapping miss.
+   * Concurrent callers share one in-flight sync (see `syncPromise`) rather
+   * than each kicking off a redundant round of upserts. Propagates a
+   * `SatelliteUnreachableError` if Feoh is down so callers can decide
+   * (startup logs and continues; a proxy request maps it to 503).
    */
   async sync(): Promise<void> {
+    if (!this.syncPromise) {
+      this.syncPromise = this.runSync().finally(() => {
+        this.syncPromise = null;
+      });
+    }
+    return this.syncPromise;
+  }
+
+  /**
+   * Upsert a single member's Feoh party and refresh its cache entry —
+   * cheaper than a full {@link sync} when only one member changed (used for
+   * a best-effort re-upsert right after a `displayName` edit; see
+   * `household/service.ts#updateMember`).
+   */
+  async upsertMember(member: RosterMember): Promise<void> {
+    const displayName = member.displayName ?? member.handle ?? member.email;
+    const party = await this.client.upsertPartyByMember(member.id, { displayName });
+    this.record(member.id, party.id);
+  }
+
+  private async runSync(): Promise<void> {
     const members = await this.listMembers();
     for (const m of members) {
       const displayName = m.displayName ?? m.handle ?? m.email;
@@ -53,7 +91,7 @@ export class FeohRoster {
     if (cached) return cached;
     await this.sync();
     const resolved = this.memberToParty.get(memberId);
-    if (!resolved) throw new Error(`No Feoh party mapped for Heorth member ${memberId}`);
+    if (!resolved) throw new RosterMappingMissingError(memberId);
     return resolved;
   }
 

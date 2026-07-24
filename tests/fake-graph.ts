@@ -49,6 +49,34 @@ export interface FakeCalBatch {
   gone?: boolean;
 }
 
+/** A scripted To Do list (mapped to a Graph todoTaskList resource). */
+export interface FakeTodoList {
+  id: string;
+  displayName: string;
+}
+
+/** A scripted To Do task (mapped to a Graph todoTask by the fake). */
+export interface FakeTodoTask {
+  id: string;
+  title: string;
+  status?: 'open' | 'completed';
+  notes?: string;
+  dueUtc?: string;
+  completedUtc?: string;
+}
+
+/** One To Do delta page: upserted tasks and/or removed external ids. */
+export interface FakeTodoPage {
+  upserts?: FakeTodoTask[];
+  removed?: string[];
+}
+
+/** One To Do delta batch (same token/paging/gone semantics as FakeCalBatch). */
+export interface FakeTodoBatch {
+  pages: FakeTodoPage[];
+  gone?: boolean;
+}
+
 export interface FakeGraph {
   app: Hono;
   calls: FakeGraphCall[];
@@ -68,6 +96,20 @@ export interface FakeGraph {
   failDelta: Set<string>;
   /** Script a feed's delta batches (key: 'me' for delegated, mailbox for app-only). */
   setCalendar(key: string, batches: FakeCalBatch[]): void;
+
+  // --- To Do ---------------------------------------------------------------
+  /** Lists returned by GET /me/todo/lists. */
+  todoLists: FakeTodoList[];
+  /** Scripted tasks/delta batches, keyed by listId. */
+  todoTasks: Map<string, FakeTodoBatch[]>;
+  /** listIds whose next tasks/delta returns a 500 (per-feed error injection). */
+  failTodoDelta: Set<string>;
+  /** Number of tasks created via POST (creation counter). */
+  createdTaskCount: number;
+  /** Set the discoverable To Do lists. */
+  setTodoLists(lists: FakeTodoList[]): void;
+  /** Script a list's tasks/delta batches. */
+  setTodoTasks(listId: string, batches: FakeTodoBatch[]): void;
 }
 
 const TEST_CONFIG: M365Config = {
@@ -91,6 +133,12 @@ export function createFakeGraph(): FakeGraph {
     calendars: new Map(),
     failDelta: new Set(),
     setCalendar(key, batches) { state.calendars.set(key, batches); },
+    todoLists: [],
+    todoTasks: new Map(),
+    failTodoDelta: new Set(),
+    createdTaskCount: 0,
+    setTodoLists(lists) { state.todoLists = lists; },
+    setTodoTasks(listId, batches) { state.todoTasks.set(listId, batches); },
   };
 
   // --- calendarView/delta (used by the Graph calendar provider) -------------
@@ -146,6 +194,86 @@ export function createFakeGraph(): FakeGraph {
 
   state.app.get('/v1.0/me/calendarView/delta', (c) => handleDelta(c, 'me'));
   state.app.get('/v1.0/users/:mailbox/calendarView/delta', (c) => handleDelta(c, c.req.param('mailbox')));
+
+  // --- To Do (used by the Graph task provider) ------------------------------
+  const toGraphTask = (t: FakeTodoTask) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status === 'completed' ? 'completed' : 'notStarted',
+    body: t.notes ? { content: t.notes, contentType: 'text' } : undefined,
+    dueDateTime: t.dueUtc ? { dateTime: t.dueUtc, timeZone: 'UTC' } : undefined,
+    completedDateTime: t.completedUtc ? { dateTime: t.completedUtc, timeZone: 'UTC' } : undefined,
+  });
+
+  const todoDeltaUrl = (pathname: string, tok: string, kind: 'delta' | 'skip') =>
+    `https://graph.microsoft.com${pathname}?$${kind}token=${encodeURIComponent(tok)}`;
+
+  // GET /me/todo/lists — list discovery.
+  state.app.get('/v1.0/me/todo/lists', (c) => {
+    state.calls.push({ method: 'GET', path: '/v1.0/me/todo/lists' });
+    return c.json({ value: state.todoLists.map((l) => ({ id: l.id, displayName: l.displayName })) });
+  });
+
+  // GET /me/todo/lists/:listId/tasks/delta — incremental sync.
+  state.app.get('/v1.0/me/todo/lists/:listId/tasks/delta', (c) => {
+    const listId = c.req.param('listId');
+    const url = new URL(c.req.url);
+    state.calls.push({ method: 'GET', path: url.pathname, query: url.search.replace(/^\?/, '') });
+
+    if (state.failTodoDelta.has(listId)) {
+      return c.json({ error: { code: 'InternalServerError', message: 'boom' } }, 500);
+    }
+
+    const batches = state.todoTasks.get(listId) ?? [];
+    const token = c.req.query('$deltatoken') ?? c.req.query('$skiptoken');
+    let bi = 0;
+    let pi = 0;
+    if (token) { const [b, p] = token.split('.'); bi = Number(b); pi = Number(p); }
+
+    const batch = batches[bi];
+    if (batch?.gone) {
+      return c.json({ error: { code: 'syncStateNotFound', message: 'delta token expired' } }, 410);
+    }
+    if (!batch) {
+      return c.json({ value: [], '@odata.deltaLink': todoDeltaUrl(url.pathname, `${bi}.0`, 'delta') });
+    }
+
+    const page = batch.pages[pi] ?? {};
+    const value = [
+      ...(page.upserts ?? []).map(toGraphTask),
+      ...(page.removed ?? []).map((id) => ({ id, '@removed': { reason: 'deleted' } })),
+    ];
+    const hasMorePages = pi + 1 < batch.pages.length;
+    if (hasMorePages) {
+      return c.json({ value, '@odata.nextLink': todoDeltaUrl(url.pathname, `${bi}.${pi + 1}`, 'skip') });
+    }
+    return c.json({ value, '@odata.deltaLink': todoDeltaUrl(url.pathname, `${bi + 1}.0`, 'delta') });
+  });
+
+  // PATCH /me/todo/lists/:listId/tasks/:taskId — completion write-back.
+  state.app.patch('/v1.0/me/todo/lists/:listId/tasks/:taskId', async (c) => {
+    const url = new URL(c.req.url);
+    state.calls.push({ method: 'PATCH', path: url.pathname });
+    const body = await c.req.json().catch(() => ({})) as { status?: string };
+    return c.json({ id: c.req.param('taskId'), title: 'task', status: body.status ?? 'notStarted' });
+  });
+
+  // POST /me/todo/lists/:listId/tasks — creation.
+  state.app.post('/v1.0/me/todo/lists/:listId/tasks', async (c) => {
+    const url = new URL(c.req.url);
+    state.calls.push({ method: 'POST', path: url.pathname });
+    const body = await c.req.json().catch(() => ({})) as {
+      title?: string; body?: { content?: string }; dueDateTime?: { dateTime?: string };
+    };
+    state.createdTaskCount += 1;
+    return c.json({
+      id: `todo-created-${state.createdTaskCount}`,
+      title: body.title ?? '(untitled)',
+      status: 'notStarted',
+      body: body.body,
+      dueDateTime: body.dueDateTime,
+    }, 201);
+  });
 
   // Identity: token endpoint (authorization_code / refresh_token / client_credentials).
   state.app.post('/:tenant/oauth2/v2.0/token', async (c) => {

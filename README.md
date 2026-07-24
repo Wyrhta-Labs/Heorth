@@ -61,6 +61,7 @@ lists `ALL_MODULES`):
 | `/api/v1/events` | `src/modules/calendar/` | Calendar with server-side recurrence expansion |
 | `/api/v1/recipes`, `/api/v1/meals` | `src/modules/meals/` | Recipes, weekly meal plan, shopping list |
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |
+| `/api/v1/tasks` | `src/modules/tasks/` | Household tasks backed by Microsoft To Do — list/complete/create + per-member list allowlist (writes need M365 enabled) |
 | `/api/v1/feoh/*` | `src/satellites/feoh/` | Transparent proxy to the Feoh satellite (see below) — not a `HeorthModule`, mounted directly in `src/app.ts` |
 | `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
 
@@ -129,8 +130,9 @@ M365_SYNC_INTERVAL_SECONDS=300                      # mirror poll interval; floo
     **per-feed sync state** (feed key, last success, last error, consecutive
     failures — the delta token is never exposed); admin sees all connections and
     all feeds. This is the data the Hearth View staleness badges (Task 2.5) read.
-  - `POST /sync` (admin) → runs all calendar feeds once and returns the per-feed
-    result summary; used by dev/tests to drive sync without the scheduler.
+  - `POST /sync` (admin) → runs all calendar feeds then all To Do feeds once and
+    returns the combined per-feed result summary; used by dev/tests to drive sync
+    without the scheduler.
   - `DELETE /connection` (auth) → the acting member disconnects (row deleted).
 - **Read-only calendar mirror (Task 2.2):** a background poll
   (`M365_SYNC_INTERVAL_SECONDS`, default 300, floored at 60) pulls each connected
@@ -155,6 +157,28 @@ M365_SYNC_INTERVAL_SECONDS=300                      # mirror poll interval; floo
   timezone is kept as display metadata only (`source_time_zone`) — Heorth does
   not re-localize on write. The scheduler starts at boot only when enabled and
   never runs under tests.
+- **Household tasks + To Do sync (Task 2.3):** the Tasks surface
+  (`/api/v1/tasks`) is backed by Microsoft To Do as the system of record.
+  Sync is **delegated-only** and **allowlist-gated per member** — nothing syncs
+  until a member chooses lists (`GET /api/v1/tasks/lists` discovery,
+  `GET/PUT /api/v1/tasks/allowlist`); each allowlisted list becomes a feed
+  `todo:member:<id>:<listId>` pulled via `/me/todo/lists/{listId}/tasks/delta`
+  into a sibling `task_mirror` table (a `410`/periodic full re-sync replaces the
+  feed). Unlike the calendar, tasks are **interactive**:
+  `POST /api/v1/tasks/:id/complete` writes completion back (optimistic local
+  update, sync reconciles) and `POST /api/v1/tasks` creates a task into the
+  **shared household list** (`M365_SHARED_TODO_LIST`), resolved BY NAME through a
+  connected member who has allowlisted it — preferring the acting member, else
+  any member that has it. `GET /api/v1/tasks` lists the mirror with filters
+  (status / member / list / due range). All members may read; any authenticated
+  member (children included) may complete/create; a write against a
+  dead/absent connection returns a **classified** error (409 conflict, or 500
+  when the integration is off / an upstream failure), never a crash and never a
+  silent drop. MCP: `tasks.list` / `tasks.complete` / `tasks.create`. Task feeds
+  join the same scheduler tick and `POST /api/v1/m365/sync` (sequential after
+  calendar, same per-feed isolation) and appear in `GET /api/v1/m365/status`.
+  Reads work even when the integration is disabled (the mirror is simply empty);
+  only the write/discovery paths need it enabled.
 - **Auth modes:** per-member **delegated** (auth-code, refresh tokens encrypted
   at rest, access tokens cached in memory, rotated refresh tokens re-stored) for
   calendars + To Do; **app-only** (client-credentials, `.default`) for the

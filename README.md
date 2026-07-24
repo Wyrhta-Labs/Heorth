@@ -193,6 +193,36 @@ access against the real `.env` with `npx tsx scripts/m365-smoke.ts` (acquires
 an app-only token and probes `GET /users/{M365_FAMILY_MAILBOX}`; prints no
 secrets).
 
+## Phone PWA
+
+The web app (`web/`) installs to a phone homescreen and stays useful with a
+dead network for its one critical mobile surface, the shopping list.
+
+**Install to homescreen (iOS Safari):**
+1. Open the site in Safari (not Chrome/Firefox — only Safari drives the iOS
+   install flow).
+2. Tap the **Share** icon (square with an upward arrow) in the toolbar.
+3. Scroll down and tap **Add to Home Screen**.
+4. Confirm the name ("Heorth") and tap **Add**.
+5. Launch it from the homescreen icon — it opens full-screen (no browser
+   chrome), matching `display: standalone` in the manifest.
+
+Android (Chrome) picks up the same manifest and offers an "Install app"
+prompt automatically — supported, but untested/unpolished by design for this
+phase; iOS homescreen installability is the acceptance bar.
+
+**Offline behaviour:** the app shell (build assets) is cached so it still
+loads with no connection. The shopping list renders its last-known state with
+an "offline · data from …" banner, and check-offs made offline are queued and
+replayed automatically once the connection returns — nothing else is
+offline-capable by design (out of scope for this phase). A service worker
+update ships silently in the background; when one is ready, a small "Reload"
+banner appears rather than swapping the app under you mid-session.
+
+Icons are generated from the brand palette by `web/scripts/generate-icons.mjs`
+(re-run only if the ember/parchment colours change); no image-processing
+dependency is needed for it.
+
 ## Testing
 
 Integration tests hit a real PostgreSQL database (`tests/setup.ts` runs

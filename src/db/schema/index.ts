@@ -8,3 +8,4 @@ export * from '../../modules/calendar/schema.js';
 export * from '../../modules/meals/schema.js';
 // feoh tables removed — the finance domain now lives in the Feoh satellite service.
 export * from '../../modules/library/schema.js';
+export * from '../../m365/schema.js';

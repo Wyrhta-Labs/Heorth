@@ -50,6 +50,13 @@
       "when": 1784851279388,
       "tag": "0006_drop_feoh_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784894390997,
+      "tag": "0007_m365_foundation",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Microsoft 365 foundation** (`src/m365/`, Phase 2 Task 2.1): env wiring for
+  the `M365_*` group (optional as a group — all present or none; partial is a
+  startup error), delegated (auth-code) + app-only (client-credentials) Graph
+  auth clients with in-memory access-token caching and refresh-token rotation, a
+  `graphFetch` helper (bearer + 429 retry + typed `GraphError`), refresh tokens
+  encrypted at rest (AES-256-GCM, `src/m365/crypto.ts`), and the connection
+  routes `GET /api/v1/m365/connect|callback|status` + `DELETE .../connection`.
+  New tables `m365_connections` (per-member delegated connection) and
+  `m365_sync_state` (generic per-feed sync state for Tasks 2.2/2.3), migration
+  `0007_m365_foundation`. Disabled by default with **zero impact**: no routes
+  mount and `/api/v1/m365/*` returns the catch-all 404 when the env is absent.
+  Fake Graph test double (`tests/fake-graph.ts`) + manual smoke
+  (`scripts/m365-smoke.ts`). No Graph type or URL leaks outside `src/m365/`.
 - `.env` auto-load for local dev (`src/config/env.ts`): loaded from the working
   directory, never overriding exported variables. Test setup refuses to run
   against a `_dev` database. `.dockerignore` added so `.env` can never be baked

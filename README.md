@@ -135,19 +135,26 @@ M365_SYNC_INTERVAL_SECONDS=300                      # mirror poll interval; floo
 - **Read-only calendar mirror (Task 2.2):** a background poll
   (`M365_SYNC_INTERVAL_SECONDS`, default 300, floored at 60) pulls each connected
   member's **default calendar** (delegated) and the **family mailbox** (app-only)
-  via Graph `calendarView/delta` over a rolling window (−60d … +400d). Recurring
-  events are mirrored as Graph's expanded occurrences (rules are never
-  reconstructed). Mirrored events land in a sibling `calendar_mirror_events`
-  table and surface in the existing calendar range/week/dashboard/MCP queries
-  alongside native events — but are **read-only everywhere**: REST and MCP
-  update/move/delete of a mirrored event are rejected (`EVENT_READ_ONLY`), and
-  the web renders them with a subtle source marker and no edit affordance.
-  Delta tokens + per-feed errors persist in `m365_sync_state`; an expired token
-  (`410 Gone`) triggers a full feed re-sync, and a connection needing re-consent
-  is recorded as `needs_reauth` and skipped (not hot-retried). Absolute UTC
-  instants are stored; the source event's own timezone is kept as display
-  metadata only (`source_time_zone`) — Heorth does not re-localize on write.
-  The scheduler starts at boot only when enabled and never runs under tests.
+  via Graph `calendarView/delta` over a rolling window (−60d … +400d). A delta
+  token replays the SAME window it was minted with — it does not itself widen
+  or shift — so the mirror also does a deterministic **full re-window** every
+  `M365_FULL_RESYNC_INTERVAL_SECONDS` (default 7 days, independent of the
+  `M365_SYNC_INTERVAL_SECONDS` poll cadence), tracked per feed via
+  `m365_sync_state.last_full_sync_at`; this is what actually rolls the window
+  forward. Recurring events are mirrored as Graph's expanded occurrences (rules
+  are never reconstructed). Mirrored events land in a sibling
+  `calendar_mirror_events` table and surface in the existing calendar
+  range/week/dashboard/MCP queries alongside native events — but are
+  **read-only everywhere**: REST and MCP update/move/delete of a mirrored event
+  are rejected (`EVENT_READ_ONLY`), and the web renders them with a subtle
+  source marker and no edit affordance. Delta tokens + per-feed errors persist
+  in `m365_sync_state`; an expired token (`410 Gone`) also triggers a full feed
+  re-sync (in addition to the deterministic schedule above), and a connection
+  needing re-consent is recorded as `needs_reauth` and skipped (not
+  hot-retried). Absolute UTC instants are stored; the source event's own
+  timezone is kept as display metadata only (`source_time_zone`) — Heorth does
+  not re-localize on write. The scheduler starts at boot only when enabled and
+  never runs under tests.
 - **Auth modes:** per-member **delegated** (auth-code, refresh tokens encrypted
   at rest, access tokens cached in memory, rotated refresh tokens re-stored) for
   calendars + To Do; **app-only** (client-credentials, `.default`) for the

@@ -64,6 +64,13 @@
       "when": 1784896052445,
       "tag": "0008_calendar_mirror",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784897418063,
+      "tag": "0009_m365_sync_last_full_sync",
+      "breakpoints": true
     }
   ]
 }

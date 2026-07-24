@@ -15,6 +15,10 @@ export interface FakeGraphCall {
   method: string;
   path: string;
   grantType?: string;
+  /** Raw query string (no leading `?`), when present — lets tests assert on
+   * whether a delta request carried a fresh window (`startDateTime=...`) vs. a
+   * replayed token (`$deltatoken=...`/`$skiptoken=...`). */
+  query?: string;
 }
 
 /** A scripted calendar event (mapped to a Graph event resource by the fake). */
@@ -105,8 +109,9 @@ export function createFakeGraph(): FakeGraph {
     `https://graph.microsoft.com${pathname}?$${kind}token=${encodeURIComponent(tok)}`;
 
   const handleDelta = (c: any, key: string) => {
-    const pathname = new URL(c.req.url).pathname;
-    state.calls.push({ method: 'GET', path: pathname });
+    const url = new URL(c.req.url);
+    const pathname = url.pathname;
+    state.calls.push({ method: 'GET', path: pathname, query: url.search.replace(/^\?/, '') });
 
     if (state.failDelta.has(key)) {
       return c.json({ error: { code: 'InternalServerError', message: 'boom' } }, 500);

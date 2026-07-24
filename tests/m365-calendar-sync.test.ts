@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
+import { m365SyncState } from '../src/m365/schema.js';
 import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
 import * as calendar from '../src/modules/calendar/service.js';
 import { calendarRouter } from '../src/modules/calendar/routes.js';
@@ -225,6 +226,115 @@ describe('m365 calendar mirror — sync', () => {
     const tokenAfter2 = (await rt.store.getSyncState(feedKey))!.deltaToken;
     expect(tokenAfter2).toBeTruthy();
     expect(tokenAfter1).toBeTruthy();
+  });
+
+  // --- deterministic periodic re-window (the rolling window actually rolls) --
+
+  function deltaCallsFor(fake: FakeGraph) {
+    return fake.calls.filter((c) => c.path.endsWith('/me/calendarView/delta'));
+  }
+
+  it('re-windows a feed whose last full sync is older than the threshold, even with a valid token', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
+      ev('e2', 'Soccer', '2026-08-02T14:00:00.000Z', '2026-08-02T15:00:00.000Z'),
+    ] }] }]);
+    await runCalendarSync(rt);
+    expect((await mirrorRows(feedKey)).length).toBe(2);
+    const initialCall = deltaCallsFor(fake)[0]!;
+    expect(initialCall.query).toContain('startDateTime=');
+
+    // Age the feed's last full sync past the (default 7-day) threshold.
+    const stale = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    await db.update(m365SyncState).set({ lastFullSyncAt: stale }).where(eq(m365SyncState.feedKey, feedKey));
+
+    // The stored delta token still points at a valid batch (NOT gone) — a
+    // stale-but-alive token replay would otherwise happily reuse the frozen
+    // window forever. Fresh batches simulate what a re-windowed query returns.
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('e1', 'Dentist (rescheduled)', '2026-08-20T09:00:00.000Z', '2026-08-20T10:00:00.000Z'),
+    ] }] }]);
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    // Fresh window params were sent (not the stored deltaLink/token).
+    const calls = deltaCallsFor(fake);
+    const lastCall = calls[calls.length - 1]!;
+    expect(lastCall.query).toContain('startDateTime=');
+    expect(lastCall.query).not.toContain('deltatoken');
+    expect(lastCall.query).not.toContain('skiptoken');
+
+    // Feed contents were REPLACED (e2 is gone), same as the 410 recovery path.
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId)).toEqual(['e1']);
+    expect(rows[0]!.title).toBe('Dentist (rescheduled)');
+  });
+
+  it('does NOT re-window a feed whose last full sync is recent — plain delta replay', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
+      ev('e2', 'Soccer', '2026-08-02T14:00:00.000Z', '2026-08-02T15:00:00.000Z'),
+    ] }] }]);
+    await runCalendarSync(rt); // last full sync is "now" — well under the threshold
+
+    // Next batch is a normal incremental delta: update e1, no mention of e2.
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] },
+      { pages: [{ upserts: [ev('e1', 'Dentist (moved)', '2026-08-01T11:00:00.000Z', '2026-08-01T12:00:00.000Z')] }] },
+    ]);
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    const calls = deltaCallsFor(fake);
+    const lastCall = calls[calls.length - 1]!;
+    expect(lastCall.query).not.toContain('startDateTime=');
+    expect(lastCall.query).toMatch(/deltatoken|skiptoken/);
+
+    // e2 survives (merge, not replace) — proof this was a delta, not a re-window.
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId).sort()).toEqual(['e1', 'e2']);
+    expect(rows.find((r) => r.externalId === 'e1')!.title).toBe('Dentist (moved)');
+  });
+
+  it('records lastFullSyncAt on a full sync and leaves it untouched on a plain delta', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt); // initial pull is a full sync
+    const afterInitial = (await rt.store.getSyncState(feedKey))!;
+    expect(afterInitial.lastFullSyncAt).toBeTruthy();
+    const firstStamp = afterInitial.lastFullSyncAt!.getTime();
+
+    // A plain incremental delta must NOT move the stamp forward.
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] },
+      { pages: [{ upserts: [ev('e2', 'Soccer', '2026-08-02T14:00:00.000Z', '2026-08-02T15:00:00.000Z')] }] },
+    ]);
+    await runCalendarSync(rt);
+    const afterDelta = (await rt.store.getSyncState(feedKey))!;
+    expect(afterDelta.lastFullSyncAt!.getTime()).toBe(firstStamp);
+
+    // Force the feed past the threshold and re-sync: the stamp advances.
+    await db.update(m365SyncState).set({
+      lastFullSyncAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    }).where(eq(m365SyncState.feedKey, feedKey));
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt);
+    const afterRewindow = (await rt.store.getSyncState(feedKey))!;
+    expect(afterRewindow.lastFullSyncAt!.getTime()).toBeGreaterThan(firstStamp);
   });
 });
 

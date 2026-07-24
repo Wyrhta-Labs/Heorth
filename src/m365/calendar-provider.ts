@@ -82,7 +82,9 @@ export class GraphCalendarProvider implements CalendarProvider {
     return feeds;
   }
 
-  async pullChanges(feedKey: string, syncToken: string | null): Promise<PullResult> {
+  async pullChanges(
+    feedKey: string, syncToken: string | null, forceFullResync = false,
+  ): Promise<PullResult> {
     const feed = this.parseFeed(feedKey);
     const isFamily = feed.kind === 'family';
 
@@ -97,11 +99,14 @@ export class GraphCalendarProvider implements CalendarProvider {
 
     let fullResync = false;
     let path: string;
-    if (syncToken) {
+    if (syncToken && !forceFullResync) {
       path = syncToken; // opaque absolute deltaLink URL
     } else {
+      // No prior token, OR the caller determined this feed is due for its
+      // periodic re-window (`forceFullResync`) — either way this is a fresh
+      // full snapshot over a freshly-computed window, not a delta replay.
       path = `${basePath}?${windowParams()}`;
-      fullResync = true; // no prior token → this is a full snapshot for the feed
+      fullResync = true;
     }
 
     const upserts: MirroredEvent[] = [];

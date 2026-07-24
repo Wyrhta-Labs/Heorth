@@ -118,15 +118,26 @@ export class M365Store {
     return this.db.select().from(m365SyncState).orderBy(m365SyncState.feedKey);
   }
 
-  /** Record a successful sync tick: store the new delta token, clear errors. */
-  async recordSyncSuccess(feedKey: string, deltaToken: string | null): Promise<M365SyncStateRow> {
+  /**
+   * Record a successful sync tick: store the new delta token, clear errors.
+   * `fullResync` marks this tick as a fresh full (windowed) sync — stamps
+   * `lastFullSyncAt` so the runner can decide when the feed is due for its next
+   * deterministic re-window (see `calendar-sync.ts`). Incremental delta-replay
+   * ticks leave `lastFullSyncAt` untouched.
+   */
+  async recordSyncSuccess(
+    feedKey: string, deltaToken: string | null, fullResync = false,
+  ): Promise<M365SyncStateRow> {
+    const now = new Date();
     const [row] = await this.db.insert(m365SyncState).values({
-      feedKey, deltaToken, lastSuccessAt: new Date(), lastError: null, consecutiveFailures: 0,
+      feedKey, deltaToken, lastSuccessAt: now, lastError: null, consecutiveFailures: 0,
+      lastFullSyncAt: fullResync ? now : null,
     }).onConflictDoUpdate({
       target: m365SyncState.feedKey,
       set: {
-        deltaToken, lastSuccessAt: new Date(), lastError: null,
-        consecutiveFailures: 0, updatedAt: new Date(),
+        deltaToken, lastSuccessAt: now, lastError: null,
+        consecutiveFailures: 0, updatedAt: now,
+        ...(fullResync ? { lastFullSyncAt: now } : {}),
       },
     }).returning();
     return row!;

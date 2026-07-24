@@ -5,6 +5,7 @@ import {
 import { AuthProvider } from '@/hooks/use-auth';
 import { TOKEN_KEY } from '@/api/client';
 import AppShell from '@/components/layout/app-shell';
+import UpdateBanner from '@/components/pwa/update-banner';
 import LoginPage from '@/pages/login';
 import DashboardPage from '@/pages/dashboard';
 import CalendarPage from '@/pages/calendar';
@@ -13,6 +14,9 @@ import MealsPage from '@/pages/meals';
 import FeohPage from '@/pages/feoh';
 import HouseholdPage from '@/pages/household';
 import LibraryPage from '@/pages/library';
+import TodayPage from '@/pages/today';
+import ShoppingPage from '@/pages/shopping';
+import CapturePage from '@/pages/capture';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -45,10 +49,16 @@ const mealsRoute = createRoute({ getParentRoute: () => authRoute, path: '/meals'
 const feohRoute = createRoute({ getParentRoute: () => authRoute, path: '/feoh', component: FeohPage });
 const householdRoute = createRoute({ getParentRoute: () => authRoute, path: '/household', component: HouseholdPage });
 const libraryRoute = createRoute({ getParentRoute: () => authRoute, path: '/library', component: LibraryPage });
+const todayRoute = createRoute({ getParentRoute: () => authRoute, path: '/today', component: TodayPage });
+const shoppingRoute = createRoute({ getParentRoute: () => authRoute, path: '/shopping', component: ShoppingPage });
+const captureRoute = createRoute({ getParentRoute: () => authRoute, path: '/capture', component: CapturePage });
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  authRoute.addChildren([dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute, householdRoute, libraryRoute]),
+  authRoute.addChildren([
+    dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute, householdRoute, libraryRoute,
+    todayRoute, shoppingRoute, captureRoute,
+  ]),
 ]);
 
 const router = createRouter({ routeTree });
@@ -60,6 +70,7 @@ export default function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
+        <UpdateBanner />
         <RouterProvider router={router} />
       </QueryClientProvider>
     </AuthProvider>

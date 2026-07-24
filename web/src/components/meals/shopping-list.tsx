@@ -28,13 +28,20 @@ export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGener
         <span className="text-sm text-ash">{items.filter((i) => !i.checked).length} to buy</span>
         <Button variant="outline" size="sm" onClick={onGenerate}>Generate from this week</Button>
       </div>
-      <ul className="space-y-1">
+      <ul className="space-y-1.5">
         {sorted.map((item) => (
           <li key={item.id} className="flex items-center gap-2 rounded-lg border border-tan bg-card px-3 py-2">
-            <input type="checkbox" checked={item.checked} onChange={(e) => onToggle(item.id, e.target.checked)} />
-            <span className={`flex-1 text-sm ${item.checked ? 'line-through text-ash' : 'text-ink'}`}>
-              {item.name}{item.qty ? ` · ${item.qty}${item.unit ? ' ' + item.unit : ''}` : ''}
-            </span>
+            <label className="flex flex-1 items-center gap-3 min-w-0 py-1 cursor-pointer">
+              <input
+                type="checkbox"
+                className="h-5 w-5 shrink-0 accent-ember"
+                checked={item.checked}
+                onChange={(e) => onToggle(item.id, e.target.checked)}
+              />
+              <span className={`flex-1 text-sm truncate ${item.checked ? 'line-through text-ash' : 'text-ink'}`}>
+                {item.name}{item.qty ? ` · ${item.qty}${item.unit ? ' ' + item.unit : ''}` : ''}
+              </span>
+            </label>
             <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)}>
               <Trash2 className="h-3.5 w-3.5 text-red-500" />
             </Button>

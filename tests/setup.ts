@@ -1,5 +1,15 @@
 import { beforeAll, beforeEach } from 'vitest';
 
+// The .env auto-loader (src/config/env.ts) fills DATABASE_URL when it isn't
+// exported. This destructive suite truncates tables — refuse dev databases.
+// (The ??= defaults below run before src is imported, so an unexported
+// DATABASE_URL gets the test default, never the .env dev value.)
+if ((process.env['DATABASE_URL'] ?? '').includes('_dev')) {
+  throw new Error(
+    'Refusing to run tests against a _dev database — export a dedicated test DATABASE_URL.',
+  );
+}
+
 // Set required env BEFORE importing modules that read process.env at load time.
 process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:5432/heorth';
 process.env['JWT_SECRET'] ??= 'test-secret-test-secret-test-secret-123';

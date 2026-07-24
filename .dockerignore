@@ -1,0 +1,9 @@
+.git
+node_modules
+**/node_modules
+.env
+*.env
+!.env.example
+dist
+web/dist
+.superpowers

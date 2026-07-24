@@ -62,6 +62,7 @@ lists `ALL_MODULES`):
 | `/api/v1/recipes`, `/api/v1/meals` | `src/modules/meals/` | Recipes, weekly meal plan, shopping list |
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |
 | `/api/v1/feoh/*` | `src/satellites/feoh/` | Transparent proxy to the Feoh satellite (see below) — not a `HeorthModule`, mounted directly in `src/app.ts` |
+| `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
 
 `/mcp` (mounted in `src/index.ts`) exposes one MCP-over-HTTP server
 (`@wyrhta/core`'s scaffold) assembling every module's tool registry plus a
@@ -96,6 +97,48 @@ service, with Heorth mounting a transparent request proxy at the same
   `500 ROSTER_MAPPING_MISSING` (a different condition from "Feoh is down" —
   see the docstring in `proxy.ts`).
 
+## Microsoft 365 (optional integration)
+
+Heorth can mirror the household's M365 calendars and sync Microsoft To Do
+(Phase 2). The foundation lives in `src/m365/` — the **only** place Graph
+types and URLs appear. It is **optional as a group**: set all six `M365_*`
+variables to enable it, or none to leave it fully disabled.
+
+```
+# Microsoft 365 — all six or none (partial config is a startup error)
+M365_TENANT_ID=<tenant guid>
+M365_CLIENT_ID=<app registration client id>
+M365_CLIENT_SECRET=<client secret>
+M365_REDIRECT_URI=http://localhost:4000/api/v1/m365/callback
+M365_FAMILY_MAILBOX=family-calendar@example.com   # shared mailbox (app-only)
+M365_SHARED_TODO_LIST=Household                    # write-target To Do list
+```
+
+- **Disabled (default):** when the group is absent, the M365 module registers
+  as a no-op — no routes are mounted, so `/api/v1/m365/*` returns the app's
+  catch-all `404`. Zero impact on boot, existing routes, or tests.
+- **Enabled:** the connection routes mount at `/api/v1/m365`:
+  - `GET /connect` (auth) → 302 to Microsoft consent; the `state` is a signed
+    token binding the flow to the acting member.
+  - `GET /callback` → exchanges the code, resolves the account via `/me`, and
+    stores the **encrypted** refresh token (one row per member).
+  - `GET /status` (auth) → the acting member's connection + last errors (admin
+    sees all connections).
+  - `DELETE /connection` (auth) → the acting member disconnects (row deleted).
+- **Auth modes:** per-member **delegated** (auth-code, refresh tokens encrypted
+  at rest, access tokens cached in memory, rotated refresh tokens re-stored) for
+  calendars + To Do; **app-only** (client-credentials, `.default`) for the
+  family shared mailbox, so the family calendar never hangs off one member's
+  token.
+- **Secrets:** refresh tokens are AES-256-GCM encrypted (`src/m365/crypto.ts`,
+  key derived from `JWT_SECRET`); token material is never logged or returned
+  over the API.
+
+Real-tenant behaviour is out of CI scope. A human can smoke-test app-only
+access against the real `.env` with `npx tsx scripts/m365-smoke.ts` (acquires
+an app-only token and probes `GET /users/{M365_FAMILY_MAILBOX}`; prints no
+secrets).
+
 ## Testing
 
 Integration tests hit a real PostgreSQL database (`tests/setup.ts` runs
@@ -114,6 +157,9 @@ npm test
 database connection needs to be supplied. Feoh-satellite tests
 (`tests/feoh-proxy.test.ts`) never make a real network call — they install
 an in-process fake Feoh (`tests/fake-feoh.ts`) via `setFeohRuntime`.
+`tests/setup.ts` also blanks the `M365_*` group so the integration is disabled
+in the suite regardless of a local `.env`; M365 tests that need it enabled
+install an in-process fake Graph (`tests/fake-graph.ts`) via `setM365Runtime`.
 
 ## Changelog
 

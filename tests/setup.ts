@@ -20,6 +20,17 @@ process.env['ADMIN_PASSWORD'] ??= 'test-admin-password';
 // via setFeohRuntime, so no real network call is ever made against these.
 process.env['FEOH_BASE_URL'] ??= 'http://feoh.test';
 process.env['FEOH_API_KEY'] ??= 'fe_test-service-key';
+// Force the M365 integration DISABLED for the suite regardless of a local `.env`
+// (whose real dev credentials the auto-loader would otherwise inject). Set to
+// '' — the env schema treats blank as absent — so config.m365 is null and no
+// real-tenant credentials or calls ever enter the test process. Enabled-path
+// tests inject a fake-Graph runtime via setM365Runtime instead.
+for (const k of [
+  'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
+  'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX', 'M365_SHARED_TODO_LIST',
+]) {
+  process.env[k] = '';
+}
 
 const { migrate } = await import('drizzle-orm/postgres-js/migrator');
 const { db } = await import('../src/db/index.js');

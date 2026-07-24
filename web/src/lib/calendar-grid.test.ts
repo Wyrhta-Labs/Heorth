@@ -1,3 +1,9 @@
+// Force a fixed non-UTC offset for this file BEFORE any other import touches
+// Date/Intl, so the local-day-boundary assertions below are meaningful in a
+// UTC CI runner and not just an accidental pass. Europe/Berlin matches the
+// household's assumed locale (UTC+1/+2 with DST) called out in the finding.
+process.env.TZ = 'Europe/Berlin';
+
 import { describe, it, expect } from 'vitest';
 import { monthGrid, groupByDay } from './calendar-grid';
 import type { EventOccurrence } from './types';
@@ -27,5 +33,29 @@ describe('groupByDay', () => {
     ]);
     expect(map['2026-07-10']!.map((o) => o.id)).toEqual(['a', 'b']);
     expect(map['2026-07-11']!.length).toBe(1);
+  });
+
+  it('buckets a late-evening UTC instant into the LOCAL next day (Europe/Berlin, UTC+2 in July)', () => {
+    const occ = (id: string, start: string): EventOccurrence => ({
+      id, createdAt: '', updatedAt: '', title: id, startAt: start, endAt: start,
+      allDay: false, location: null, notes: null, category: null, color: null,
+      createdBy: 'u', recurrence: null, attendeeIds: [], occurrenceStart: start,
+    });
+    // 22:30 UTC on 2026-07-10 is 00:30 local on 2026-07-11 in Europe/Berlin (UTC+2).
+    const map = groupByDay([occ('a', '2026-07-10T22:30:00.000Z')]);
+    expect(map['2026-07-10']).toBeUndefined();
+    expect(map['2026-07-11']!.map((o) => o.id)).toEqual(['a']);
+  });
+
+  it('keeps an event safely inside a local day on that same day', () => {
+    const occ = (id: string, start: string): EventOccurrence => ({
+      id, createdAt: '', updatedAt: '', title: id, startAt: start, endAt: start,
+      allDay: false, location: null, notes: null, category: null, color: null,
+      createdBy: 'u', recurrence: null, attendeeIds: [], occurrenceStart: start,
+    });
+    // 09:00 UTC on 2026-07-10 is 11:00 local — well inside the same local day.
+    const map = groupByDay([occ('a', '2026-07-10T09:00:00.000Z')]);
+    expect(map['2026-07-10']!.map((o) => o.id)).toEqual(['a']);
+    expect(map['2026-07-11']).toBeUndefined();
   });
 });

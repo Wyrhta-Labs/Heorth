@@ -217,7 +217,9 @@ an "offline · data from …" banner, and check-offs made offline are queued and
 replayed automatically once the connection returns — nothing else is
 offline-capable by design (out of scope for this phase). A service worker
 update ships silently in the background; when one is ready, a small "Reload"
-banner appears rather than swapping the app under you mid-session.
+banner appears rather than swapping the app under you mid-session. **Except on
+`/hearth`** — see the Hearth View section below for why the wall never shows
+that banner.
 
 Icons are generated from the brand palette by `web/scripts/generate-icons.mjs`
 (re-run only if the ember/parchment colours change); no image-processing
@@ -259,13 +261,29 @@ survives Wi-Fi blips without blanking (the last-known view stays up, with an
 "as of HH:MM" stamp). Per-feed staleness comes from `GET /api/v1/m365/status`:
 a member whose feed has gone silent has their items greyed and a footer note
 ("<member> — last synced 2h ago"); a feed needing re-auth reads "reconnect from
-your phone" — the wall **never** starts an auth flow itself.
+your phone" — the wall **never** starts an auth flow itself. `status`'s
+`feeds[]` array is **household-visible to any authenticated session** (not just
+admins) — a feed status carries no secrets (feed key, last success time, a
+classified error, failure count), and the wall composes every member's events,
+so a non-admin kiosk session must be able to see when *another* member's feed
+has gone dead. **Admin login is not required** for the wall to show accurate
+staleness. Only connection details (account UPN, the full connections list)
+stay scoped to the acting member / admin-only.
 
 **Always-on care.** The whole surface drifts a few pixels over four minutes
 (pure CSS, disabled under `prefers-reduced-motion`) so a static layout never
 burns fixed edges into the panel, and it dims after a few minutes of inactivity
 (any touch wakes it). Query pages paged away from are capped (`gcTime`) so the
 cache can't grow unbounded during an all-day session.
+
+**Software updates.** The wall never shows the app's "Reload" update banner
+(nobody is standing in front of it to tap Reload) and never swaps the app out
+from under an active glance. Instead, when a new deploy ships, the wall applies
+the update itself the next time it goes idle (the same idle-dim signal used for
+screen-burn care above) — the brief reload flash then lands while nobody is
+reading the screen. This is the least-intrusive of the options considered
+(banner-on-wall, immediate silent reload, reload-at-idle); see
+`web/src/components/pwa/update-banner.tsx` for the implementation.
 
 **Kiosk session (phase-1, pragmatic).** The wall runs a normal logged-in
 session — log in once on the device; there is **no** device-token machinery yet

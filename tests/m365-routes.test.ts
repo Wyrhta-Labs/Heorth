@@ -5,6 +5,7 @@ import { ALL_MODULES } from '../src/modules/index.js';
 import { m365Router } from '../src/m365/routes.js';
 import { setM365Runtime } from '../src/m365/runtime.js';
 import { signConnectState } from '../src/m365/state.js';
+import { feedKeys } from '../src/m365/feed-keys.js';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { m365Connections } from '../src/m365/schema.js';
@@ -59,7 +60,7 @@ describe('m365 routes (enabled)', () => {
     expect(body.error.code).toBe('M365_STATE_INVALID');
   });
 
-  it('GET /status returns the acting member connection; admin sees all', async () => {
+  it('GET /status returns the acting member connection; admin sees all connections', async () => {
     setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
     const { admin, adult } = await seedTestHousehold();
     const state = await signConnectState(adult.user.id);
@@ -72,6 +73,36 @@ describe('m365 routes (enabled)', () => {
     const all = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(admin.jwt) });
     const allBody = await all.json() as { data: { connections: unknown[] } };
     expect(allBody.data.connections).toHaveLength(1);
+  });
+
+  it('GET /status exposes every feed status to a non-admin session (household-visible staleness, Finding 2)', async () => {
+    const rt = runtimeForFakeGraph(createFakeGraph());
+    setM365Runtime(rt);
+    const { admin, adult, child } = await seedTestHousehold();
+
+    // Sync state for a feed the acting member (adult) does not own — the
+    // child's calendar feed, gone dead — must still show up for a non-admin.
+    await rt.store.recordSyncFailure(feedKeys.calendarMember(child.user.id), 'graph_401');
+    await rt.store.recordSyncSuccess(feedKeys.calendarFamily(), null);
+
+    const res = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
+    const body = await res.json() as { data: { connection: unknown; feeds: { feedKey: string }[] } };
+    const feedKeysSeen = body.data.feeds.map((f) => f.feedKey);
+    expect(feedKeysSeen).toContain(feedKeys.calendarMember(child.user.id));
+    expect(feedKeysSeen).toContain(feedKeys.calendarFamily());
+
+    // Same feeds[] set for the admin — feeds[] doesn't vary by role, only
+    // `connection`/`connections` (member-private) does.
+    const adminRes = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(admin.jwt) });
+    const adminBody = await adminRes.json() as { data: { feeds: { feedKey: string }[] } };
+    expect(adminBody.data.feeds.map((f) => f.feedKey).sort()).toEqual(feedKeysSeen.sort());
+
+    // Connection stays member-scoped for the non-admin session: adult has no
+    // connection of their own here, so it must be null, not the child's or
+    // a household-wide list.
+    const body2 = body as { data: { connection: unknown } };
+    expect(body2.data.connection).toBeNull();
+    expect('connections' in body.data).toBe(false);
   });
 
   it('DELETE /connection disconnects the acting member', async () => {

@@ -112,6 +112,9 @@ M365_CLIENT_SECRET=<client secret>
 M365_REDIRECT_URI=http://localhost:4000/api/v1/m365/callback
 M365_FAMILY_MAILBOX=family-calendar@example.com   # shared mailbox (app-only)
 M365_SHARED_TODO_LIST=Household                    # write-target To Do list
+
+# Optional, INDEPENDENT of the group above (a tuning knob, not a credential):
+M365_SYNC_INTERVAL_SECONDS=300                      # mirror poll interval; floored at 60
 ```
 
 - **Disabled (default):** when the group is absent, the M365 module registers
@@ -122,9 +125,29 @@ M365_SHARED_TODO_LIST=Household                    # write-target To Do list
     token binding the flow to the acting member.
   - `GET /callback` → exchanges the code, resolves the account via `/me`, and
     stores the **encrypted** refresh token (one row per member).
-  - `GET /status` (auth) → the acting member's connection + last errors (admin
-    sees all connections).
+  - `GET /status` (auth) → the acting member's connection + last errors and
+    **per-feed sync state** (feed key, last success, last error, consecutive
+    failures — the delta token is never exposed); admin sees all connections and
+    all feeds. This is the data the Hearth View staleness badges (Task 2.5) read.
+  - `POST /sync` (admin) → runs all calendar feeds once and returns the per-feed
+    result summary; used by dev/tests to drive sync without the scheduler.
   - `DELETE /connection` (auth) → the acting member disconnects (row deleted).
+- **Read-only calendar mirror (Task 2.2):** a background poll
+  (`M365_SYNC_INTERVAL_SECONDS`, default 300, floored at 60) pulls each connected
+  member's **default calendar** (delegated) and the **family mailbox** (app-only)
+  via Graph `calendarView/delta` over a rolling window (−60d … +400d). Recurring
+  events are mirrored as Graph's expanded occurrences (rules are never
+  reconstructed). Mirrored events land in a sibling `calendar_mirror_events`
+  table and surface in the existing calendar range/week/dashboard/MCP queries
+  alongside native events — but are **read-only everywhere**: REST and MCP
+  update/move/delete of a mirrored event are rejected (`EVENT_READ_ONLY`), and
+  the web renders them with a subtle source marker and no edit affordance.
+  Delta tokens + per-feed errors persist in `m365_sync_state`; an expired token
+  (`410 Gone`) triggers a full feed re-sync, and a connection needing re-consent
+  is recorded as `needs_reauth` and skipped (not hot-retried). Absolute UTC
+  instants are stored; the source event's own timezone is kept as display
+  metadata only (`source_time_zone`) — Heorth does not re-localize on write.
+  The scheduler starts at boot only when enabled and never runs under tests.
 - **Auth modes:** per-member **delegated** (auth-code, refresh tokens encrypted
   at rest, access tokens cached in memory, rotated refresh tokens re-stored) for
   calendars + To Do; **app-only** (client-credentials, `.default`) for the

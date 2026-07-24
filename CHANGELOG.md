@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Microsoft 365 read-only calendar mirror** (Phase 2 Task 2.2): a
+  provider-agnostic `CalendarProvider` / `MirroredEvent` contract
+  (`src/modules/calendar/providers/`) with a Graph implementation
+  (`src/m365/calendar-provider.ts`) over the Task 2.1 foundation — per-member
+  **default calendar** (delegated) and the **family mailbox** (app-only) pulled
+  via `calendarView/delta` on a rolling window (−60d … +400d); recurring events
+  are mirrored as Graph's expanded occurrences. Mirrored events live in a
+  sibling `calendar_mirror_events` table (migration `0008_calendar_mirror`) and
+  merge into the existing calendar range/week/dashboard/MCP queries, but are
+  **read-only everywhere** — REST + MCP mutations of a mirrored event are
+  rejected (`EVENT_READ_ONLY`) and the web shows them with a source marker and no
+  edit affordance. A background scheduler (`M365_SYNC_INTERVAL_SECONDS`, default
+  300, floored at 60; optional, independent of the all-or-nothing group) polls
+  all feeds, isolating and recording per-feed errors in `m365_sync_state`
+  (short classified strings only); `410 Gone` triggers a full feed re-sync and
+  `needs_reauth` connections are skipped, not hot-retried. New `POST
+  /api/v1/m365/sync` (admin) drives a sync on demand and `GET /api/v1/m365/status`
+  now returns per-feed sync state (delta token never exposed). Absolute UTC
+  instants are stored; the source timezone is kept as display metadata only. The
+  scheduler never runs under tests; `tests/fake-graph.ts` gains a scriptable
+  `calendarView/delta` double. Zero impact when the integration is disabled.
 - **Microsoft 365 foundation** (`src/m365/`, Phase 2 Task 2.1): env wiring for
   the `M365_*` group (optional as a group — all present or none; partial is a
   startup error), delegated (auth-code) + app-only (client-credentials) Graph

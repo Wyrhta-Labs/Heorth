@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `README.md` (new) — quick start, API surface overview, Feoh satellite
+  proxy summary, and the testing gotcha (export `DATABASE_URL` manually).
+
+### Changed
+
+- **Roster mapping misses are now classified, not a generic 500.** If a
+  member is still unmapped to a Feoh party after a *successful* re-sync, the
+  finance proxy now returns `500 ROSTER_MAPPING_MISSING` with the member id
+  logged, instead of letting the error escape unclassified. (Distinct from
+  the existing `503 SERVICE_UNAVAILABLE` used when Feoh itself is
+  unreachable.)
+- **Concurrent roster-sync misses now share one in-flight sync** —
+  `FeohRoster.sync()` dedups overlapping calls instead of each cache miss
+  triggering its own full upsert round.
+- **Member `displayName` changes now best-effort re-upsert the Feoh party**
+  immediately (`household/service.ts#updateMember`), rather than waiting for
+  the next boot sync or lazy re-sync to pick it up. A re-upsert failure
+  never fails the profile update itself.
+
 ## [0.2.0] - 2026-07-24
 
 ### Added

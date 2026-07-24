@@ -7,6 +7,7 @@ import * as tasks from '../src/modules/tasks/service.js';
 import { tasksRouter } from '../src/modules/tasks/routes.js';
 import { tasksTools } from '../src/modules/tasks/mcp.js';
 import { setTaskProvider } from '../src/modules/tasks/provider.js';
+import { TaskProviderError, type TaskProvider } from '../src/modules/tasks/providers/types.js';
 import { runTaskSync } from '../src/m365/task-sync.js';
 import { runCalendarSync } from '../src/m365/calendar-sync.js';
 import { GraphTaskProvider } from '../src/m365/task-provider.js';
@@ -333,6 +334,68 @@ describe('m365 tasks — REST + MCP', () => {
     });
     expect(res.status).toBe(409);
     expect((await res.json() as { error: { code: string } }).error.code).toBe('NO_CONNECTION');
+  });
+
+  /** A provider stub whose write paths throw a scripted classified error. */
+  function failingProvider(reason: string): TaskProvider {
+    return {
+      source: 'm365',
+      async listAvailableLists() { return []; },
+      async pullChanges() { throw new Error('unused in this test'); },
+      async setCompleted() { throw new TaskProviderError(reason, `boom (${reason})`); },
+      async createTask() { throw new Error('unused in this test'); },
+    };
+  }
+
+  it('a Graph 5xx during write-back surfaces as 502, not 500', async () => {
+    const { fake, rt } = wire();
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+    await allow(adult.user.id, 'L1', 'Groceries');
+    fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
+    await runTaskSync(rt);
+    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+
+    setTaskProvider(failingProvider('graph_503'));
+    const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
+      method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
+    });
+    expect(res.status).toBe(502);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe('GRAPH_503');
+  });
+
+  it('a network failure during write-back surfaces as 503, not 500', async () => {
+    const { fake, rt } = wire();
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+    await allow(adult.user.id, 'L1', 'Groceries');
+    fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
+    await runTaskSync(rt);
+    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+
+    setTaskProvider(failingProvider('network_error'));
+    const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
+      method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
+    });
+    expect(res.status).toBe(503);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe('NETWORK_ERROR');
+  });
+
+  it('a non-transient Graph error still maps to 500 (unchanged)', async () => {
+    const { fake, rt } = wire();
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+    await allow(adult.user.id, 'L1', 'Groceries');
+    fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
+    await runTaskSync(rt);
+    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+
+    setTaskProvider(failingProvider('graph_404'));
+    const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
+      method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
+    });
+    expect(res.status).toBe(500);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe('GRAPH_404');
   });
 
   it('GET/PUT allowlist round-trips for the acting member', async () => {

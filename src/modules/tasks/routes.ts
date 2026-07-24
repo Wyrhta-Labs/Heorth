@@ -22,14 +22,26 @@ tasksRouter.use('*', requireAuth);
  * Map a classified provider error to an HTTP status; rethrow anything else.
  *  - 409 CONFLICT: a member-actionable state — the relevant connection needs
  *    re-consent / is absent, or the shared/requested list is unavailable.
- *  - 500: the integration is off or an upstream Graph/network failure occurred.
+ *  - 502 (upstream Graph said 5xx, `graph_5xx`) / 503 (`network_error` — Graph
+ *    unreachable): transient upstream failures, distinguished the same way
+ *    feoh/proxy.ts (unreachable → 503) and library/routes.ts (upstream failure
+ *    → 502) already split them, so the signal isn't flattened into a generic 500.
+ *  - 500: everything else — the integration is off (`provider_unavailable`), a
+ *    non-5xx Graph error, or an unclassified failure.
  */
 function writeError(c: Context, e: unknown): Response {
   if (e instanceof TaskProviderError) {
     const conflict =
       e.reason === 'needs_reauth' || e.reason === 'no_connection'
       || e.reason === 'shared_list_unavailable' || e.reason === 'unknown_list';
-    return err(c, e.reason.toUpperCase(), e.message, conflict ? 409 : 500);
+    if (conflict) return err(c, e.reason.toUpperCase(), e.message, 409);
+    if (/^graph_5\d\d$/.test(e.reason)) {
+      return c.json({ error: { code: e.reason.toUpperCase(), message: e.message } }, 502);
+    }
+    if (e.reason === 'network_error') {
+      return c.json({ error: { code: 'NETWORK_ERROR', message: e.message } }, 503);
+    }
+    return err(c, e.reason.toUpperCase(), e.message, 500);
   }
   throw e;
 }

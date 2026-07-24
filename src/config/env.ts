@@ -16,6 +16,11 @@ try {
   // no .env file — rely on the real environment (CI, docker, production)
 }
 
+/** Treat an empty string as "not provided" (undefined), then apply `inner`. */
+function emptyToUndefined<T extends z.ZodTypeAny>(inner: T) {
+  return z.preprocess((v) => (v === '' ? undefined : v), inner.optional());
+}
+
 export function buildEnvSchema() {
   return z.object({
     DATABASE_URL: z.string().url(),
@@ -35,6 +40,35 @@ export function buildEnvSchema() {
     TRAKT_CLIENT_ID: z.string().min(1).optional(),
     TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
     LIBRARY_ENCRYPTION_KEY: z.string().min(1).optional(),
+    // Microsoft 365 integration (Phase 2). Optional AS A GROUP: either all six
+    // present (integration enabled) or all absent (integration disabled). Partial
+    // presence is a startup error (see superRefine). Absent = zero impact: the
+    // m365 area does not register any routes and boot/tests are unaffected.
+    // `emptyToUndefined` so a blank value (e.g. a placeholder-only `.env`, or a
+    // test that explicitly blanks the group) counts as absent, not as a
+    // validation error — this is what keeps the group cleanly all-or-nothing.
+    M365_TENANT_ID: emptyToUndefined(z.string().min(1)),
+    M365_CLIENT_ID: emptyToUndefined(z.string().min(1)),
+    M365_CLIENT_SECRET: emptyToUndefined(z.string().min(1)),
+    M365_REDIRECT_URI: emptyToUndefined(z.string().url()),
+    M365_FAMILY_MAILBOX: emptyToUndefined(z.string().min(1)),
+    M365_SHARED_TODO_LIST: emptyToUndefined(z.string().min(1)),
+  }).superRefine((env, ctx) => {
+    const m365Keys = [
+      'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
+      'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX', 'M365_SHARED_TODO_LIST',
+    ] as const;
+    const present = m365Keys.filter((k) => env[k] !== undefined && env[k] !== '');
+    if (present.length > 0 && present.length < m365Keys.length) {
+      const missing = m365Keys.filter((k) => env[k] === undefined || env[k] === '');
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['M365'],
+        message:
+          `M365 integration is partially configured — set all of [${m365Keys.join(', ')}] ` +
+          `or none. Missing: ${missing.join(', ')}.`,
+      });
+    }
   });
 }
 
@@ -61,4 +95,21 @@ export const config = {
   traktClientId: parsed.data.TRAKT_CLIENT_ID,
   traktClientSecret: parsed.data.TRAKT_CLIENT_SECRET,
   libraryEncryptionKey: parsed.data.LIBRARY_ENCRYPTION_KEY,
+  // Resolved M365 config, or null when the integration is disabled (env absent).
+  // The env schema guarantees this is all-or-nothing, so the presence of
+  // M365_TENANT_ID implies the whole group is present.
+  m365:
+    parsed.data.M365_TENANT_ID
+      ? {
+          tenantId: parsed.data.M365_TENANT_ID,
+          clientId: parsed.data.M365_CLIENT_ID!,
+          clientSecret: parsed.data.M365_CLIENT_SECRET!,
+          redirectUri: parsed.data.M365_REDIRECT_URI!,
+          familyMailbox: parsed.data.M365_FAMILY_MAILBOX!,
+          sharedTodoList: parsed.data.M365_SHARED_TODO_LIST!,
+        }
+      : null,
 } as const;
+
+/** The resolved Microsoft 365 config shape (present only when enabled). */
+export type M365Config = NonNullable<typeof config.m365>;

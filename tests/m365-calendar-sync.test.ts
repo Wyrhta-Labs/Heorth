@@ -1,0 +1,330 @@
+import { describe, it, expect, afterEach } from 'vitest';
+import { Hono } from 'hono';
+import { eq } from 'drizzle-orm';
+import { db } from '../src/db/index.js';
+import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
+import * as calendar from '../src/modules/calendar/service.js';
+import { calendarRouter } from '../src/modules/calendar/routes.js';
+import { calendarTools } from '../src/modules/calendar/mcp.js';
+import { runCalendarSync } from '../src/m365/calendar-sync.js';
+import { m365Router } from '../src/m365/routes.js';
+import { feedKeys } from '../src/m365/feed-keys.js';
+import { setM365Runtime } from '../src/m365/runtime.js';
+import type { M365Runtime } from '../src/m365/runtime.js';
+import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph } from './fake-graph.js';
+import { seedTestHousehold, authHeaders, invokeTool } from './helpers.js';
+
+afterEach(() => setM365Runtime(null));
+
+/** Seed a household and a connected M365 connection for the adult member. */
+async function seedConnectedMember(rt: M365Runtime) {
+  const seeded = await seedTestHousehold();
+  await rt.store.upsertConnection({
+    memberId: seeded.adult.user.id,
+    accountUpn: 'adult@contoso.test',
+    refreshToken: 'refresh-initial',
+    scopes: 'Calendars.Read offline_access',
+  });
+  return seeded;
+}
+
+function ev(id: string, subject: string, startUtc: string, endUtc: string, extra: Record<string, unknown> = {}) {
+  return { id, subject, startUtc, endUtc, ...extra };
+}
+
+const WINDOW = { from: '2026-07-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' };
+
+async function mirrorRows(feedKey: string) {
+  return db.select().from(calendarMirrorEvents).where(eq(calendarMirrorEvents.feedKey, feedKey));
+}
+
+describe('m365 calendar mirror — sync', () => {
+  it('initial full sync mirrors a member feed (across nextLink paging)', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    // Two pages to exercise @odata.nextLink within one pull.
+    fake.setCalendar('me', [{
+      pages: [
+        { upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z', { location: 'Clinic', organizer: 'Reception' })] },
+        { upserts: [ev('e2', 'Soccer', '2026-08-02T14:00:00.000Z', '2026-08-02T15:00:00.000Z')] },
+      ],
+    }]);
+
+    const results = await runCalendarSync(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const memberResult = results.find((r) => r.feedKey === feedKey)!;
+    expect(memberResult.status).toBe('ok');
+    expect(memberResult.upserted).toBe(2);
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId).sort()).toEqual(['e1', 'e2']);
+    const e1 = rows.find((r) => r.externalId === 'e1')!;
+    expect(e1.title).toBe('Dentist');
+    expect(e1.location).toBe('Clinic');
+    expect(e1.organizer).toBe('Reception');
+    expect(e1.memberId).toBe(adult.user.id);
+    expect(e1.source).toBe('m365');
+
+    // A delta token is persisted for the next incremental run.
+    const state = await rt.store.getSyncState(feedKey);
+    expect(state?.deltaToken).toBeTruthy();
+    expect(state?.lastSuccessAt).toBeTruthy();
+    expect(state?.consecutiveFailures).toBe(0);
+  });
+
+  it('applies an incremental delta (add + update)', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt);
+
+    // Next token now points at batch 1: an update to e1 and a new e3.
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] },
+      { pages: [{ upserts: [
+        ev('e1', 'Dentist (moved)', '2026-08-01T11:00:00.000Z', '2026-08-01T12:00:00.000Z'),
+        ev('e3', 'Piano', '2026-08-03T16:00:00.000Z', '2026-08-03T17:00:00.000Z'),
+      ] }] },
+    ]);
+    await runCalendarSync(rt);
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId).sort()).toEqual(['e1', 'e3']);
+    expect(rows.find((r) => r.externalId === 'e1')!.title).toBe('Dentist (moved)');
+  });
+
+  it('handles a @removed deletion in a delta', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
+      ev('e2', 'Soccer', '2026-08-02T14:00:00.000Z', '2026-08-02T15:00:00.000Z'),
+    ] }] }]);
+    await runCalendarSync(rt);
+
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [] }] },
+      { pages: [{ removed: ['e2'] }] },
+    ]);
+    await runCalendarSync(rt);
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId)).toEqual(['e1']);
+  });
+
+  it('does a full re-sync (replace) when the delta token is 410 Gone', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
+      ev('e2', 'Soccer', '2026-08-02T14:00:00.000Z', '2026-08-02T15:00:00.000Z'),
+    ] }] }]);
+    await runCalendarSync(rt);
+    expect((await mirrorRows(feedKey)).length).toBe(2);
+
+    // The stored token now points at batch 1 (410); batch 0 is a fresh, smaller
+    // snapshot. The re-sync must REPLACE the feed (e2 disappears).
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [ev('e1', 'Dentist (rescheduled)', '2026-08-05T09:00:00.000Z', '2026-08-05T10:00:00.000Z')] }] },
+      { pages: [], gone: true },
+    ]);
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId)).toEqual(['e1']);
+    expect(rows[0]!.title).toBe('Dentist (rescheduled)');
+  });
+
+  it('mirrors the family feed via app-only auth', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    await seedTestHousehold(); // no member connection needed for the family feed
+    fake.setCalendar(fakeM365Config.familyMailbox, [{ pages: [{ upserts: [
+      ev('fam1', 'Bin day', '2026-08-04T07:00:00.000Z', '2026-08-04T07:30:00.000Z'),
+    ] }] }]);
+
+    const results = await runCalendarSync(rt);
+    const familyResult = results.find((r) => r.feedKey === feedKeys.calendarFamily())!;
+    expect(familyResult.status).toBe('ok');
+    expect(fake.appTokenCount).toBeGreaterThan(0); // client_credentials was used
+
+    const rows = await mirrorRows(feedKeys.calendarFamily());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.memberId).toBeNull(); // shared feed — no member attribution
+  });
+
+  it('isolates a per-feed error — a failing feed does not stop the others', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const memberKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.failDelta.add('me'); // member feed errors (500)
+    fake.setCalendar(fakeM365Config.familyMailbox, [{ pages: [{ upserts: [
+      ev('fam1', 'Bin day', '2026-08-04T07:00:00.000Z', '2026-08-04T07:30:00.000Z'),
+    ] }] }]);
+
+    const results = await runCalendarSync(rt);
+    const member = results.find((r) => r.feedKey === memberKey)!;
+    const family = results.find((r) => r.feedKey === feedKeys.calendarFamily())!;
+    expect(member.status).toBe('error');
+    expect(member.reason).toBe('graph_500');
+    expect(family.status).toBe('ok'); // the loop continued past the failure
+
+    // Failure is recorded (short classified string), success is recorded too.
+    const memberState = await rt.store.getSyncState(memberKey);
+    expect(memberState?.lastError).toBe('graph_500');
+    expect(memberState?.consecutiveFailures).toBe(1);
+    expect((await mirrorRows(feedKeys.calendarFamily()))).toHaveLength(1);
+  });
+
+  it('records needs_reauth without hot-retrying the token', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const memberKey = feedKeys.calendarMember(adult.user.id);
+    // Mark the connection as needing re-consent.
+    await rt.store.recordRefreshError(adult.user.id, 'refresh token expired', 'needs_reauth');
+
+    const before = fake.refreshCount;
+    const results = await runCalendarSync(rt);
+    const member = results.find((r) => r.feedKey === memberKey)!;
+    expect(member.status).toBe('skipped');
+    expect(member.reason).toBe('needs_reauth');
+    expect(fake.refreshCount).toBe(before); // no token refresh attempted
+
+    const state = await rt.store.getSyncState(memberKey);
+    expect(state?.lastError).toBe('needs_reauth');
+  });
+
+  it('persists and reuses the delta token across runs', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'A', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt);
+    const tokenAfter1 = (await rt.store.getSyncState(feedKey))!.deltaToken;
+
+    // Second run with no new batch → the stored token is sent back to Graph.
+    await runCalendarSync(rt);
+    const deltaCalls = fake.calls.filter((c) => c.path.endsWith('/me/calendarView/delta'));
+    expect(deltaCalls.length).toBeGreaterThanOrEqual(2);
+    const tokenAfter2 = (await rt.store.getSyncState(feedKey))!.deltaToken;
+    expect(tokenAfter2).toBeTruthy();
+    expect(tokenAfter1).toBeTruthy();
+  });
+});
+
+describe('m365 calendar mirror — visibility + read-only', () => {
+  async function syncOneMemberEvent() {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const seeded = await seedConnectedMember(rt);
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
+    ] }] }]);
+    await runCalendarSync(rt);
+    const [row] = await mirrorRows(feedKeys.calendarMember(seeded.adult.user.id));
+    return { seeded, mirrorId: row!.id };
+  }
+
+  it('mirrored events appear in the existing range query alongside native events', async () => {
+    const { seeded } = await syncOneMemberEvent();
+    // A native event in the same window.
+    await calendar.createEvent(
+      { title: 'Native', startAt: '2026-08-01T12:00:00.000Z', endAt: '2026-08-01T13:00:00.000Z', allDay: false, attendeeIds: [] } as never,
+      seeded.adult.user.id,
+    );
+    const { rows } = await calendar.listEvents({ from: WINDOW.from, to: WINDOW.to });
+    const sources = (rows as Array<{ title: string; source: string }>).map((r) => `${r.source}:${r.title}`);
+    expect(sources).toContain('m365:Dentist');
+    expect(sources).toContain('native:Native');
+  });
+
+  it('rejects a REST update/delete of a mirrored event with a read-only error', async () => {
+    const { seeded, mirrorId } = await syncOneMemberEvent();
+    const app = new Hono();
+    app.route('/api/v1/events', calendarRouter);
+
+    const patch = await app.request(`/api/v1/events/${mirrorId}`, {
+      method: 'PATCH', headers: authHeaders(seeded.admin.jwt), body: JSON.stringify({ title: 'Hijack' }),
+    });
+    expect(patch.status).toBe(403);
+    expect((await patch.json() as { error: { code: string } }).error.code).toBe('EVENT_READ_ONLY');
+
+    const del = await app.request(`/api/v1/events/${mirrorId}`, {
+      method: 'DELETE', headers: authHeaders(seeded.admin.jwt),
+    });
+    expect(del.status).toBe(403);
+  });
+
+  it('rejects an MCP update of a mirrored event', async () => {
+    const { seeded, mirrorId } = await syncOneMemberEvent();
+    await expect(invokeTool(calendarTools, 'calendar.update_event',
+      { userId: seeded.admin.user.id, role: 'admin' }, { id: mirrorId, title: 'Hijack' },
+    )).rejects.toThrow(/read-only/i);
+  });
+
+  it('service.updateEvent throws ReadOnlyEventError for a mirrored id', async () => {
+    const { mirrorId } = await syncOneMemberEvent();
+    await expect(calendar.updateEvent(mirrorId, { title: 'x' } as never)).rejects.toThrow(calendar.ReadOnlyEventError);
+  });
+});
+
+describe('m365 sync route + health surface', () => {
+  function enabledApp() {
+    const app = new Hono();
+    app.route('/api/v1/m365', m365Router);
+    return app;
+  }
+
+  it('POST /sync (admin) drives a sync and GET /status exposes per-feed state', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    setM365Runtime(rt);
+    const { admin, adult } = await seedConnectedMember(rt);
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
+    ] }] }]);
+
+    const sync = await enabledApp().request('/api/v1/m365/sync', { method: 'POST', headers: authHeaders(admin.jwt) });
+    expect(sync.status).toBe(200);
+    const syncBody = await sync.json() as { data: { results: Array<{ feedKey: string; status: string }> } };
+    expect(syncBody.data.results.some((r) => r.status === 'ok')).toBe(true);
+
+    // Admin sees all feed states; the delta token is NOT exposed.
+    const statusAdmin = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(admin.jwt) });
+    const adminBody = await statusAdmin.json() as { data: { feeds: Array<Record<string, unknown>> } };
+    const memberFeed = adminBody.data.feeds.find((f) => f['feedKey'] === feedKeys.calendarMember(adult.user.id))!;
+    expect(memberFeed['lastSuccessAt']).toBeTruthy();
+    expect(memberFeed).not.toHaveProperty('deltaToken');
+
+    // A member sees only their own + family feed state.
+    const statusMember = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
+    const memberBody = await statusMember.json() as { data: { feeds: Array<{ feedKey: string }> } };
+    const keys = memberBody.data.feeds.map((f) => f.feedKey);
+    expect(keys).toContain(feedKeys.calendarMember(adult.user.id));
+    expect(keys.every((k) => k === feedKeys.calendarMember(adult.user.id) || k === feedKeys.calendarFamily())).toBe(true);
+  });
+
+  it('POST /sync is admin-only', async () => {
+    const fake = createFakeGraph();
+    setM365Runtime(runtimeForFakeGraph(fake));
+    const { adult } = await seedTestHousehold();
+    const res = await enabledApp().request('/api/v1/m365/sync', { method: 'POST', headers: authHeaders(adult.jwt) });
+    expect(res.status).toBe(403);
+  });
+});

@@ -17,6 +17,34 @@ export interface FakeGraphCall {
   grantType?: string;
 }
 
+/** A scripted calendar event (mapped to a Graph event resource by the fake). */
+export interface FakeCalEvent {
+  id: string;
+  subject: string;
+  startUtc: string; // ISO-8601 with Z
+  endUtc: string;
+  allDay?: boolean;
+  location?: string;
+  organizer?: string;
+  timeZone?: string; // originalStartTimeZone
+}
+
+/** One delta page: upserted events and/or removed external ids. */
+export interface FakeCalPage {
+  upserts?: FakeCalEvent[];
+  removed?: string[];
+}
+
+/**
+ * One delta "batch" = the changes returned for a single sync token. Multiple
+ * `pages` exercise `@odata.nextLink` paging within one pull; `gone: true` makes
+ * the delta request for that batch return `410 Gone` (expired token).
+ */
+export interface FakeCalBatch {
+  pages: FakeCalPage[];
+  gone?: boolean;
+}
+
 export interface FakeGraph {
   app: Hono;
   calls: FakeGraphCall[];
@@ -30,6 +58,12 @@ export interface FakeGraph {
   failRefresh: boolean;
   /** UPN returned by GET /me. */
   meUpn: string;
+  /** Scripted calendarView/delta batches, keyed by 'me' or a mailbox UPN. */
+  calendars: Map<string, FakeCalBatch[]>;
+  /** Keys whose next calendarView/delta returns a 500 (per-feed error injection). */
+  failDelta: Set<string>;
+  /** Script a feed's delta batches (key: 'me' for delegated, mailbox for app-only). */
+  setCalendar(key: string, batches: FakeCalBatch[]): void;
 }
 
 const TEST_CONFIG: M365Config = {
@@ -50,7 +84,63 @@ export function createFakeGraph(): FakeGraph {
     throttleNextGraph: false,
     failRefresh: false,
     meUpn: 'member@contoso.test',
+    calendars: new Map(),
+    failDelta: new Set(),
+    setCalendar(key, batches) { state.calendars.set(key, batches); },
   };
+
+  // --- calendarView/delta (used by the Graph calendar provider) -------------
+  const toGraphEvent = (e: FakeCalEvent) => ({
+    id: e.id,
+    subject: e.subject,
+    isAllDay: e.allDay ?? false,
+    start: { dateTime: e.startUtc, timeZone: 'UTC' },
+    end: { dateTime: e.endUtc, timeZone: 'UTC' },
+    location: e.location ? { displayName: e.location } : undefined,
+    organizer: e.organizer ? { emailAddress: { name: e.organizer } } : undefined,
+    originalStartTimeZone: e.timeZone,
+  });
+
+  const deltaUrl = (pathname: string, tok: string, kind: 'delta' | 'skip') =>
+    `https://graph.microsoft.com${pathname}?$${kind}token=${encodeURIComponent(tok)}`;
+
+  const handleDelta = (c: any, key: string) => {
+    const pathname = new URL(c.req.url).pathname;
+    state.calls.push({ method: 'GET', path: pathname });
+
+    if (state.failDelta.has(key)) {
+      return c.json({ error: { code: 'InternalServerError', message: 'boom' } }, 500);
+    }
+
+    const batches = state.calendars.get(key) ?? [];
+    const token = c.req.query('$deltatoken') ?? c.req.query('$skiptoken');
+    let bi = 0;
+    let pi = 0;
+    if (token) { const [b, p] = token.split('.'); bi = Number(b); pi = Number(p); }
+
+    const batch = batches[bi];
+    if (batch?.gone) {
+      return c.json({ error: { code: 'syncStateNotFound', message: 'delta token expired' } }, 410);
+    }
+    if (!batch) {
+      // No changes beyond what we've served — stable deltaLink, empty value.
+      return c.json({ value: [], '@odata.deltaLink': deltaUrl(pathname, `${bi}.0`, 'delta') });
+    }
+
+    const page = batch.pages[pi] ?? {};
+    const value = [
+      ...(page.upserts ?? []).map(toGraphEvent),
+      ...(page.removed ?? []).map((id) => ({ id, '@removed': { reason: 'deleted' } })),
+    ];
+    const hasMorePages = pi + 1 < batch.pages.length;
+    if (hasMorePages) {
+      return c.json({ value, '@odata.nextLink': deltaUrl(pathname, `${bi}.${pi + 1}`, 'skip') });
+    }
+    return c.json({ value, '@odata.deltaLink': deltaUrl(pathname, `${bi + 1}.0`, 'delta') });
+  };
+
+  state.app.get('/v1.0/me/calendarView/delta', (c) => handleDelta(c, 'me'));
+  state.app.get('/v1.0/users/:mailbox/calendarView/delta', (c) => handleDelta(c, c.req.param('mailbox')));
 
   // Identity: token endpoint (authorization_code / refresh_token / client_credentials).
   state.app.post('/:tenant/oauth2/v2.0/token', async (c) => {

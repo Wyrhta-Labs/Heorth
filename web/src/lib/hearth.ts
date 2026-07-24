@@ -3,6 +3,7 @@
 // directly — the React components in components/hearth/ are thin renderers over
 // these functions.
 
+import { format } from 'date-fns';
 import { MEMBER_COLORS } from './constants';
 import { isMirroredEvent, type EventOccurrence, type MealPlanEntry, type Member, type Task } from './types';
 
@@ -79,8 +80,19 @@ export interface DayComposition {
   tasks: DayTasks;
 }
 
+/**
+ * Local-day bucket key for an ISO instant. Household timezone === server/
+ * browser local (this is a self-hosted, single-household deployment — there is
+ * no cross-timezone household to reconcile), so the LOCAL calendar day is the
+ * correct reset/bucketing boundary. A naive `dateStr.slice(0, 10)` reads the
+ * UTC date instead: in UTC+1/+2 that shifts the midnight reset to 01:00–02:00
+ * local and mis-buckets late-evening timed events into the wrong day column.
+ * `todayIso` and the column keys are already local-formatted (see
+ * `dayLabel`/`format` in pages/hearth.tsx), so every comparison against them
+ * must go through this same local formatting.
+ */
 function isoOf(dateStr: string): string {
-  return dateStr.slice(0, 10);
+  return format(new Date(dateStr), 'yyyy-MM-dd');
 }
 
 /** Events whose occurrence falls on `iso`, all-day first then chronological. */

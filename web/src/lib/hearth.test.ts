@@ -1,3 +1,9 @@
+// Force a fixed non-UTC offset for this file BEFORE any other import touches
+// Date/Intl, so the local-day-boundary assertions below are meaningful in a
+// UTC CI runner and not just an accidental pass. Europe/Berlin matches the
+// household's assumed locale (UTC+1/+2 with DST) called out in the finding.
+process.env.TZ = 'Europe/Berlin';
+
 import { describe, it, expect } from 'vitest';
 import {
   composeDay, computeMealSwap, deriveStaleness, eventsForDay, formatAge,
@@ -111,7 +117,10 @@ describe('tasksForDay completed cap + midnight reset', () => {
   });
 
   it('drops completions from a previous day (reset at the boundary)', () => {
-    const tasks = [mk('old', '2026-07-23T22:00:00Z')];
+    // Comfortably mid-day on the 23rd in every TZ this suite might run under,
+    // so it's unambiguously "yesterday" relative to the LOCAL iso ('2026-07-24')
+    // regardless of the runtime's UTC offset.
+    const tasks = [mk('old', '2026-07-23T10:00:00Z')];
     const r = tasksForDay(tasks, iso, iso);
     expect(r.completed).toHaveLength(0);
   });
@@ -121,6 +130,37 @@ describe('tasksForDay completed cap + midnight reset', () => {
     const r = tasksForDay(tasks, iso, iso, new Set(['o1']));
     expect(r.open).toHaveLength(0);
     expect(r.completed.map((t) => t.id)).toEqual(['o1']);
+  });
+});
+
+// ---- local-day bucketing / midnight reset (not UTC) -----------------------
+// Europe/Berlin is DST-aware (UTC+2 in July), so these use an explicit +02:00
+// offset in the fixtures to stay unambiguous regardless of the exact TZ the
+// runner resolves DST rules with, while still exercising the local (not UTC)
+// bucketing path end to end (process.env.TZ is set at the top of this file).
+describe('local-day boundary (not UTC) for events and task completion', () => {
+  it('buckets a late-evening timed event into the LOCAL day, not the UTC day', () => {
+    // 23:30 UTC on the 23rd == 01:30 local (+02:00) on the 24th.
+    const occ = [ev({ id: 'late', occurrenceStart: '2026-07-23T23:30:00+00:00', title: 'Late one' })];
+    expect(eventsForDay(occ, '2026-07-24').map((o) => o.id)).toEqual(['late']);
+    expect(eventsForDay(occ, '2026-07-23')).toHaveLength(0);
+  });
+
+  it('treats a task completed after local midnight as completed on the LOCAL next day', () => {
+    // 22:50 UTC on the 23rd == 00:50 local (+02:00) on the 24th: completed-today
+    // must be judged against the LOCAL "today", not the UTC calendar date.
+    const t = task({ id: 'late-done', dueAt: '2026-07-24T00:00:00+00:00', status: 'completed', completedAt: '2026-07-23T22:50:00+00:00' });
+    const todayLocalIso = '2026-07-24'; // the LOCAL day the completion actually falls on
+    const r = tasksForDay([t], todayLocalIso, todayLocalIso);
+    expect(r.completed.map((x) => x.id)).toEqual(['late-done']);
+  });
+
+  it('does NOT show that same completion as "today" against the UTC day (regression guard)', () => {
+    const t = task({ id: 'late-done-2', dueAt: '2026-07-23T00:00:00+00:00', status: 'completed', completedAt: '2026-07-23T22:50:00+00:00' });
+    // The UTC calendar date of the completion instant is still the 23rd — if
+    // bucketing regressed to UTC slicing, this would be the day it shows under.
+    const r = tasksForDay([t], '2026-07-23', '2026-07-23');
+    expect(r.completed).toHaveLength(0);
   });
 });
 

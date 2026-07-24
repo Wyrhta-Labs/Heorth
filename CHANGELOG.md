@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hearth View — always-on kitchen wall** (Phase 2 Task 2.5): `/hearth`, a
+  full-bleed kiosk surface for a 1920×1080 touchscreen, rendered outside the app
+  chrome. Composes the calendar mirror (2.2), To Do tasks (2.3), and the meal
+  plan into a calm noticeboard: a **week view** of seven day columns (events +
+  planned supper + due tasks), a **now/next strip** for today, and a one-tap
+  **month view**, with paging between weeks/months. Member events carry their
+  avatar colour; **family-calendar events render as the household's shared amber
+  band** (distinct from every member colour — the delegated family-feed colour
+  policy). Glance-and-tap interactions only: tap a task to complete it
+  (write-through to To Do, with a gentle "couldn't reach Microsoft" toast on the
+  502/503 transient path — never a stack trace), tap a meal for a **large-type
+  recipe reading overlay**, and **drag a supper between days** (the single edit
+  gesture; persists via the meal-plan API). Completed tasks strike through and
+  reset at midnight, capped at three per day with a "+N done" collapse.
+  Auto-refresh via TanStack Query polling (tasks ~30s, events ~60s, meals ~120s)
+  with refetch-on-reconnect and a stale-while-revalidate "as of HH:MM" stamp so
+  Wi-Fi blips never blank the wall; **per-feed staleness** from
+  `GET /api/v1/m365/status` greys a member's items and points recovery at the
+  phone ("reconnect from your phone") — no auth flow ever runs on the wall.
+  Screen-burn-friendly always-on treatment: a slow CSS drift of the whole
+  surface (off under `prefers-reduced-motion`) and an idle dim, plus a capped
+  query `gcTime` so an all-day session's cache stays bounded. Pure composition
+  logic (`web/src/lib/hearth.ts`) is unit-tested independently of the React
+  layer. The wall uses the app's normal login (JWT TTL `JWT_TTL_SECONDS`,
+  default 7 days → re-login weekly; raise the env var on a trusted device) — no
+  device-token machinery this phase, by explicit decision.
+
 - **Installable phone PWA** (Phase 2 Task 2.4): the web app now installs to
   an iOS/Android homescreen (`web/public/manifest.webmanifest`, apple-touch
   and maskable icon set generated from the brand palette — `web/scripts/

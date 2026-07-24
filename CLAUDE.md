@@ -50,6 +50,19 @@ directly.
   (`{ config, store, delegated, appOnly, graphFetch }`), `feedKeys`, `M365Store`
   / `PublicM365Connection`, `graphFetch` / `GraphError` / `GRAPH_BASE`,
   `DELEGATED_SCOPES`, and the row/type exports.
+- **Calendar mirror (Task 2.2).** The provider-agnostic contract
+  (`CalendarProvider`, `MirroredEvent`) lives with the calendar module
+  (`src/modules/calendar/providers/`); the Graph implementation
+  (`src/m365/calendar-provider.ts`) depends on it, never the reverse (so a future
+  Google/CalDAV provider slots in beside it with no Graph coupling). Mirrored
+  events are a **sibling** table `calendar_mirror_events` (NOT columns on
+  `events`), merged into the calendar service's range query and **read-only
+  everywhere** — the REST/MCP mutation guards reject any id resolving to a mirror
+  row (`EVENT_READ_ONLY` / `ReadOnlyEventError`). The sync runner
+  (`calendar-sync.ts`) + scheduler (`scheduler.ts`) inherit the enablement gate
+  and **never run under tests** (started from `main()` in `src/index.ts`, guarded
+  on `VITEST`); tests drive sync via `runCalendarSync` or `POST /api/v1/m365/sync`.
+  Store absolute UTC instants; keep the source timezone as display metadata only.
 
 ## Common commands
 

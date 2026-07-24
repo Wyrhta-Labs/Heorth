@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import * as api from '@/api/meals';
 
@@ -26,13 +26,20 @@ export function useDeleteRecipe() {
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.recipes }),
   });
 }
-export function useWeekPlan(from: string, to: string) {
-  return useQuery({ queryKey: [...QUERY_KEYS.mealPlan, from, to], queryFn: () => api.getWeekPlan(from, to) });
+export function useWeekPlan(from: string, to: string, opts: { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData } = {}) {
+  return useQuery({ queryKey: [...QUERY_KEYS.mealPlan, from, to], queryFn: () => api.getWeekPlan(from, to), ...opts });
 }
 export function useUpsertPlanEntry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: api.PlanEntryInput) => api.upsertPlanEntry(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.mealPlan }),
+  });
+}
+export function useDeletePlanEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deletePlanEntry(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.mealPlan }),
   });
 }

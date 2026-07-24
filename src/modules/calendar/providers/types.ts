@@ -83,6 +83,13 @@ export interface CalendarProvider {
    * Pull changes for one feed since `syncToken` (null = initial full sync).
    * Providers handle their own token-invalidation internally and signal it via
    * {@link PullResult.fullResync}.
+   *
+   * `forceFullResync`, when true, tells the provider to ignore `syncToken` and
+   * do a fresh full (re-windowed) snapshot even though a token is present. The
+   * sync runner sets this on a deterministic schedule (tracked via
+   * `m365_sync_state.lastFullSyncAt`) so a rolling time window actually rolls
+   * forward instead of staying pinned to the window computed when the token
+   * was first minted.
    */
-  pullChanges(feedKey: string, syncToken: string | null): Promise<PullResult>;
+  pullChanges(feedKey: string, syncToken: string | null, forceFullResync?: boolean): Promise<PullResult>;
 }

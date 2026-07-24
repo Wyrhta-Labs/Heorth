@@ -52,6 +52,11 @@ export const m365SyncState = pgTable('m365_sync_state', {
   // Graph delta/skip token for incremental sync (whichever the feed uses).
   deltaToken: text('delta_token'),
   lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  // When the feed last did a FULL (freshly-windowed) sync — either the initial
+  // pull, a 410 recovery, or a deterministic periodic re-window (see
+  // `calendar-sync.ts`). Incremental delta-replay ticks do NOT update this.
+  // Null means "never" (forces a full sync on the next tick).
+  lastFullSyncAt: timestamp('last_full_sync_at', { withTimezone: true }),
   lastError: text('last_error'),
   consecutiveFailures: integer('consecutive_failures').notNull().default(0),
 }, (t) => [

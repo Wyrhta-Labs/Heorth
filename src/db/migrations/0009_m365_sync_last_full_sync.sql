@@ -1,0 +1,1 @@
+ALTER TABLE "m365_sync_state" ADD COLUMN "last_full_sync_at" timestamp with time zone;

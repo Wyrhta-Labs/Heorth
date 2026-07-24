@@ -5,9 +5,11 @@ import { seedHousehold } from '@wyrhta/core/household';
 import { createUser, users } from '@wyrhta/core/identity';
 import { db } from './db/index.js';
 import { config } from './config/env.js';
+import { logError } from '@wyrhta/core/lib';
 import { createApp } from './app.js';
 import { ALL_MODULES } from './modules/index.js';
 import { buildMcpServer } from './mcp/server.js';
+import { getFeohRuntime } from './satellites/feoh/runtime.js';
 
 /**
  * Seed the single admin user (idempotent). Core's `seedHousehold` creates only
@@ -36,6 +38,13 @@ export async function bootstrap(): Promise<{
   await migrate(db, { migrationsFolder: './src/db/migrations' });
   await seedHousehold(db, { name: config.householdName });
   await seedAdmin();
+
+  // Mirror the household roster into Feoh's parties. Best-effort: if Feoh is
+  // down at boot we log and continue — the finance proxy re-syncs lazily on its
+  // first use, so Heorth never fails to start because a satellite is unavailable.
+  await getFeohRuntime()
+    .roster.sync()
+    .catch((e) => logError('feoh roster: initial sync failed (will retry lazily)', e));
 
   const app = createApp(ALL_MODULES);
   const mcpServer = buildMcpServer(ALL_MODULES);

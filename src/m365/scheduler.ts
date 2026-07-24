@@ -2,6 +2,7 @@ import { config } from '../config/env.js';
 import { logError } from '@wyrhta/core/lib';
 import { isM365Enabled } from './runtime.js';
 import { runCalendarSync } from './calendar-sync.js';
+import { runTaskSync } from './task-sync.js';
 
 /**
  * Background poll loop for the M365 read-only mirror. Started at boot ONLY when
@@ -29,9 +30,13 @@ export function startM365Scheduler(): SchedulerHandle | null {
   const seconds = Math.max(60, config.m365SyncIntervalSeconds);
 
   const tick = () => {
-    // The runner never rejects for per-feed failures; guard anyway so an
-    // unexpected error (e.g. listFeeds/app-only token) can't crash the process.
-    runCalendarSync().catch((e) => logError('m365 calendar sync tick failed', e));
+    // Calendar then tasks, sequentially, in one tick. The runners never reject
+    // for per-feed failures; guard anyway so an unexpected error (e.g. an
+    // app-only token failure surfaced by listFeeds) can't crash the process.
+    runCalendarSync()
+      .catch((e) => logError('m365 calendar sync tick failed', e))
+      .then(() => runTaskSync())
+      .catch((e) => logError('m365 task sync tick failed', e));
   };
 
   const timer = setInterval(tick, seconds * 1000);

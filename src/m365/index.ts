@@ -1,29 +1,36 @@
 import type { Hono } from 'hono';
 import type { HeorthModule, McpRegistry } from '../modules/registry.js';
 import { m365Router } from './routes.js';
-import { isM365Enabled } from './runtime.js';
+import { getM365Runtime, isM365Enabled } from './runtime.js';
+import { GraphTaskProvider } from './task-provider.js';
+import { setTaskProvider } from '../modules/tasks/provider.js';
 
 /**
  * The Microsoft 365 area registers as a module but is a NO-OP when the
  * integration is disabled (no `M365_*` env). Disabled means zero impact: no
  * routes are mounted, so `/api/v1/m365/*` returns the app's catch-all 404 and
- * boot/tests are unaffected. When enabled it mounts the connection routes.
- *
- * Task 2.2/2.3 will contribute calendar/task MCP tools here.
+ * boot/tests are unaffected. When enabled it mounts the connection routes AND
+ * installs the Graph To Do provider into the tasks module's write-path seam (the
+ * tasks module never imports a Graph type itself).
  */
 export const m365Module: HeorthModule = {
   name: 'm365',
   register(app: Hono, _mcp: McpRegistry): void {
     if (!isM365Enabled()) return;
     app.route('/api/v1/m365', m365Router);
+    const rt = getM365Runtime();
+    setTaskProvider(new GraphTaskProvider(rt), rt.config.sharedTodoList);
   },
 };
 
 // Public surface for Tasks 2.2/2.3 (calendar + To Do providers).
 export { getM365Runtime, setM365Runtime, createM365Runtime, isM365Enabled, type M365Runtime } from './runtime.js';
 export { startM365Scheduler, stopM365Scheduler, type SchedulerHandle } from './scheduler.js';
-export { runCalendarSync, type FeedSyncResult } from './calendar-sync.js';
+export { runCalendarSync } from './calendar-sync.js';
+export { runTaskSync } from './task-sync.js';
+export type { FeedSyncResult } from './sync-runner.js';
 export { GraphCalendarProvider } from './calendar-provider.js';
+export { GraphTaskProvider } from './task-provider.js';
 export { feedKeys } from './feed-keys.js';
 export { GraphError, graphFetch, GRAPH_BASE } from './graph.js';
 export { M365Store, type PublicM365Connection } from './store.js';

@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { db } from '../src/db/index.js';
+import { m365Connections } from '../src/m365/schema.js';
 import { GraphError } from '../src/m365/graph.js';
 import { createFakeGraph, runtimeForFakeGraph } from './fake-graph.js';
 import { seedTestHousehold } from './helpers.js';
@@ -54,6 +57,37 @@ describe('m365 delegated client', () => {
     const conn = await rt.store.getConnection(adult.user.id);
     expect(conn!.status).toBe('needs_reauth');
     expect(conn!.lastRefreshError).toBeTruthy();
+  });
+
+  it('marks the connection needs_reauth (not a raw throw) when the stored refresh token cannot be decrypted', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedTestHousehold();
+    await rt.store.upsertConnection({
+      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
+    });
+
+    // Simulate a JWT_SECRET rotation (or any at-rest corruption): the derived
+    // key no longer matches, so decryptToken's AES-GCM auth-tag check fails.
+    await db.update(m365Connections)
+      .set({ refreshTokenEncrypted: 'not:valid:ciphertext' })
+      .where(eq(m365Connections.memberId, adult.user.id));
+
+    // Does not throw a raw/opaque error — surfaces a typed GraphError.
+    const err = await rt.delegated.getAccessToken(adult.user.id).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(GraphError);
+    expect((err as GraphError).status).toBe(401);
+    expect((err as GraphError).code).toBe('needs_reauth');
+
+    // Classified exactly like a rejected refresh: status + lastRefreshError set.
+    const conn = await rt.store.getConnection(adult.user.id);
+    expect(conn!.status).toBe('needs_reauth');
+    expect(conn!.lastRefreshError).toBeTruthy();
+
+    // A subsequent store read reflects the same classification (no lingering
+    // opaque state) — i.e. the reconnect UX has something stable to show.
+    const conn2 = await rt.store.getConnection(adult.user.id);
+    expect(conn2!.status).toBe('needs_reauth');
   });
 });
 

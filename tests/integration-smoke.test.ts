@@ -1,11 +1,20 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createApp } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
+import { householdCore } from '../src/wiring.js';
+import { setFeohRuntime } from '../src/satellites/feoh/runtime.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
+import { createFakeFeoh, runtimeForFake } from './fake-feoh.js';
 
 const app = createApp(ALL_MODULES);
 
 describe('integration smoke (all modules, one app)', () => {
+  beforeEach(() => {
+    // Finance now lives in the Feoh satellite; the proxy talks to an in-process fake.
+    setFeohRuntime(runtimeForFake(createFakeFeoh(), () => householdCore.listMembers()));
+  });
+  afterEach(() => setFeohRuntime(null));
+
   it('an adult can move through calendar, meals and feoh; a child is blocked from finance writes', async () => {
     const { adult, child } = await seedTestHousehold();
 

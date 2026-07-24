@@ -6,6 +6,10 @@ process.env['JWT_SECRET'] ??= 'test-secret-test-secret-test-secret-123';
 process.env['HOUSEHOLD_NAME'] ??= 'Test Household';
 process.env['ADMIN_EMAIL'] ??= 'admin@test.local';
 process.env['ADMIN_PASSWORD'] ??= 'test-admin-password';
+// Feoh satellite — a stub URL/key; tests install an in-process fake Feoh runtime
+// via setFeohRuntime, so no real network call is ever made against these.
+process.env['FEOH_BASE_URL'] ??= 'http://feoh.test';
+process.env['FEOH_API_KEY'] ??= 'fe_test-service-key';
 
 const { migrate } = await import('drizzle-orm/postgres-js/migrator');
 const { db } = await import('../src/db/index.js');

@@ -1,9 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { household } from '@wyrhta/core/household';
 import type { Role } from '@wyrhta/core/identity';
+import { logError } from '@wyrhta/core/lib';
 import { db } from '../db/index.js';
 import { config } from '../config/env.js';
 import { identity, householdCore } from '../wiring.js';
+import { getFeohRuntime } from '../satellites/feoh/runtime.js';
 import type { CreateMemberInput, UpdateMemberInput, UpdateHouseholdInput } from './validators.js';
 
 export function getHousehold() {
@@ -48,8 +50,24 @@ export async function createMember(input: CreateMemberInput) {
   }
 }
 
-export function updateMember(id: string, input: UpdateMemberInput) {
-  return identity.updateUser(id, input);
+// The single choke-point where a member's profile (incl. displayName) is
+// edited (see modules/feoh's `README`/proxy docs — this is finding G's
+// resolution: everywhere else, Feoh's roster mirror only refreshes at
+// startup or lazily on a mapping miss, so a renamed member would otherwise
+// show stale in Feoh until one of those fires).
+export async function updateMember(id: string, input: UpdateMemberInput) {
+  const member = await identity.updateUser(id, input);
+  if (member && input.displayName !== undefined) {
+    // Best-effort, fire-and-forget: a re-upsert failure (e.g. Feoh down)
+    // must never fail the profile update itself — the lazy re-sync on the
+    // next finance request will still self-heal the mapping.
+    void getFeohRuntime()
+      .roster.upsertMember(member)
+      .catch((e: unknown) => {
+        logError(`feoh roster: best-effort re-upsert after displayName change failed (memberId=${id})`, e);
+      });
+  }
+  return member;
 }
 
 export function setMemberRole(id: string, role: Role) {

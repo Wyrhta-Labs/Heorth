@@ -6,5 +6,5 @@ export { household } from '@wyrhta/core/household';
 // export * from './../../household/schema.js';  (Heorth-local, if any)
 export * from '../../modules/calendar/schema.js';
 export * from '../../modules/meals/schema.js';
-export * from '../../modules/feoh/schema.js';
+// feoh tables removed — the finance domain now lives in the Feoh satellite service.
 export * from '../../modules/library/schema.js';

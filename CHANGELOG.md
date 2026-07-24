@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Installable phone PWA** (Phase 2 Task 2.4): the web app now installs to
+  an iOS/Android homescreen (`web/public/manifest.webmanifest`, apple-touch
+  and maskable icon set generated from the brand palette — `web/scripts/
+  generate-icons.mjs`) and works offline for its one critical mobile surface.
+  A hand-rolled service worker (`web/public/sw.js`, no Workbox/vite-plugin-pwa
+  — small and easy to reason about at this scale) caches the build shell
+  cache-first and lets `/api/*` calls through network-first; a new deploy's
+  worker waits until the user taps "Reload" on an in-app update banner
+  (`src/components/pwa/update-banner.tsx`), never yanking the page out from
+  under someone mid-session. The **shopping list** renders its last-known
+  state with an "offline · data from …" indicator when the network is down,
+  and check-offs made offline are queued (`src/lib/shopping-offline.ts`) and
+  replayed once connectivity returns — safe to replay because the check-off
+  endpoint is an absolute `{checked}` set, not a toggle. Three phone-first
+  screens: **Shopping list** (`/shopping`, one-handed, big touch targets),
+  **Today** (`/today`, compact agenda + tonight's supper + due tasks), and
+  **Quick capture** (`/capture`, add a task to the shared list or a free-text
+  meal note in two taps). A bottom tab bar (`src/components/layout/
+  mobile-nav.tsx`) surfaces these on phone widths; the sidebar/desktop layout
+  is unchanged above the `md` breakpoint. No push notifications — quiet by
+  design.
+
 - **Household Tasks + Microsoft To Do sync** (Phase 2 Task 2.3): the household
   task surface, backed by Microsoft To Do as the system of record. A
   provider-agnostic `TaskProvider` / `MirroredTask` contract

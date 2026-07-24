@@ -5,6 +5,7 @@ import { getM365Runtime } from './runtime.js';
 import { signConnectState, verifyConnectState } from './state.js';
 import { feedKeys } from './feed-keys.js';
 import { runCalendarSync } from './calendar-sync.js';
+import { runTaskSync } from './task-sync.js';
 import type { M365SyncStateRow } from './schema.js';
 
 /**
@@ -76,21 +77,26 @@ m365Router.get('/status', requireAuth, async (c) => {
     return ok(c, { connections: await rt.store.listConnections(), feeds });
   }
   // A member sees their own connection plus the sync state of their own calendar
-  // feed and the shared family feed.
+  // feed, the shared family feed, and each of their own To Do list feeds.
   const conn = await rt.store.getConnection(auth.userId);
   const mine = new Set([feedKeys.calendarMember(auth.userId), feedKeys.calendarFamily()]);
-  return ok(c, { connection: conn, feeds: feeds.filter((f) => mine.has(f.feedKey)) });
+  const todoPrefix = `todo:member:${auth.userId}:`;
+  return ok(c, {
+    connection: conn,
+    feeds: feeds.filter((f) => mine.has(f.feedKey) || f.feedKey.startsWith(todoPrefix)),
+  });
 });
 
 /**
- * Manual sync trigger (admin only) — runs all calendar feeds once and returns
- * the per-feed result summary. Used by dev + tests to drive sync deterministically
- * without waiting for the background scheduler tick.
+ * Manual sync trigger (admin only) — runs all calendar feeds then all To Do
+ * feeds once and returns the combined per-feed result summary. Used by dev +
+ * tests to drive sync deterministically without waiting for the scheduler tick.
  */
 m365Router.post('/sync', requireAuth, requireRole('admin'), async (c) => {
   const rt = getM365Runtime();
-  const results = await runCalendarSync(rt);
-  return ok(c, { results });
+  const calendar = await runCalendarSync(rt);
+  const tasks = await runTaskSync(rt);
+  return ok(c, { results: [...calendar, ...tasks] });
 });
 
 m365Router.delete('/connection', requireAuth, async (c) => {

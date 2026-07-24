@@ -74,6 +74,17 @@ Recipes → weekly plan → generated shopping list.
 
 ## Module — Feoh (Finance)
 
+> **Superseded (2026-07, Phase 1 extraction).** Feoh is no longer an in-process
+> Heorth module. The finance domain (this schema, service, MCP tools) was
+> extracted into the standalone **Feoh satellite service** (its own repo + DB).
+> Heorth now mounts a transparent **proxy** at the same `/api/v1/feoh/*` paths
+> (`src/satellites/feoh/`) that forwards to Feoh authenticated with one service
+> key, and mirrors household members into Feoh's `parties` boundary
+> (`memberId ↔ partyId`). Two new env vars: `FEOH_BASE_URL`, `FEOH_API_KEY`.
+> Feoh's own `feoh.*` MCP tools now live on the Feoh service's `/mcp`, not
+> Heorth's. The section below documents the original in-Heorth design for the
+> historical record.
+
 Double-entry under the hood, envelopes on top. Plain text in, plain text out.
 
 **Schema**

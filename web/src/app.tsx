@@ -23,7 +23,17 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 });
 
-const rootRoute = createRootRoute({ component: () => <Outlet /> });
+// UpdateBanner is mounted here (inside the router tree, at the root) rather
+// than beside <RouterProvider> so it can read the current route (it needs
+// router context to suppress itself on /hearth — see the component for why).
+const rootRoute = createRootRoute({
+  component: () => (
+    <>
+      <UpdateBanner />
+      <Outlet />
+    </>
+  ),
+});
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -85,7 +95,6 @@ export default function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
-        <UpdateBanner />
         <RouterProvider router={router} />
       </QueryClientProvider>
     </AuthProvider>

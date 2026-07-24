@@ -3,7 +3,6 @@ import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../wiring.js';
 import { getM365Runtime } from './runtime.js';
 import { signConnectState, verifyConnectState } from './state.js';
-import { feedKeys } from './feed-keys.js';
 import { runCalendarSync } from './calendar-sync.js';
 import { runTaskSync } from './task-sync.js';
 import type { M365SyncStateRow } from './schema.js';
@@ -30,7 +29,11 @@ function toPublicFeed(row: M365SyncStateRow) {
  *
  *  GET    /connect     (auth)  → 302 to Microsoft consent (state binds the member)
  *  GET    /callback            → exchange code, store encrypted refresh token
- *  GET    /status      (auth)  → acting member's connection (admin sees all)
+ *  GET    /status      (auth)  → acting member's connection (admin sees all
+ *                                connections); `feeds[]` is EVERY feed's sync
+ *                                status regardless of role — no secrets in it,
+ *                                and the Hearth View needs household-wide
+ *                                staleness even for a non-admin kiosk session.
  *  DELETE /connection  (auth)  → acting member disconnects (row deleted)
  */
 export const m365Router = new Hono();
@@ -72,19 +75,19 @@ m365Router.get('/callback', async (c) => {
 m365Router.get('/status', requireAuth, async (c) => {
   const rt = getM365Runtime();
   const auth = c.get('auth');
+  // feeds[] is household-visible to ANY authenticated session (Phase 2 review,
+  // Finding 2): a feed status carries no secrets (feedKey, lastSuccessAt, a
+  // classified lastError, consecutiveFailures, updatedAt — see toPublicFeed),
+  // and the Hearth View composes every member's events, so a non-admin kiosk
+  // session must be able to see staleness for feeds it doesn't own — otherwise
+  // the wall can look current while another member's feed is silently dead.
+  // Connection details (account UPN etc.) stay member-scoped for non-admins.
   const feeds = (await rt.store.listSyncState()).map(toPublicFeed);
   if (auth.role === 'admin') {
     return ok(c, { connections: await rt.store.listConnections(), feeds });
   }
-  // A member sees their own connection plus the sync state of their own calendar
-  // feed, the shared family feed, and each of their own To Do list feeds.
   const conn = await rt.store.getConnection(auth.userId);
-  const mine = new Set([feedKeys.calendarMember(auth.userId), feedKeys.calendarFamily()]);
-  const todoPrefix = `todo:member:${auth.userId}:`;
-  return ok(c, {
-    connection: conn,
-    feeds: feeds.filter((f) => mine.has(f.feedKey) || f.feedKey.startsWith(todoPrefix)),
-  });
+  return ok(c, { connection: conn, feeds });
 });
 
 /**

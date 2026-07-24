@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createApp } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 import { householdCore } from '../src/wiring.js';
@@ -148,6 +148,25 @@ describe('feoh finance proxy → Feoh satellite', () => {
     expect(fake.calls.some((k) => k.method === 'POST' && k.path === '/api/v1/feoh/envelopes')).toBe(false);
   });
 
+  it('maps a roster mapping miss (still unmapped after a successful re-sync) to a classified 500', async () => {
+    const { adult } = await seedTestHousehold();
+    // listMembers returns no members at all, so even a full re-sync leaves
+    // the acting member unmapped — Feoh itself is reachable throughout, so
+    // this must NOT be classified as a 503.
+    setFeohRuntime(runtimeForFake(fake, () => Promise.resolve([])));
+
+    const res = await app.request('/api/v1/feoh/transactions', {
+      method: 'POST', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({
+        date: '2026-07-05', payee: 'Market', amount: 50,
+        postings: [{ accountId: 'ignored', debit: 50, credit: 0 }, { accountId: 'ignored2', debit: 0, credit: 50 }],
+      }),
+    });
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('ROSTER_MAPPING_MISSING');
+  });
+
   it('maps an unreachable Feoh to a 503 in Heorth’s envelope', async () => {
     const { adult } = await seedTestHousehold();
     const down: FeohRuntime = (() => {
@@ -164,6 +183,27 @@ describe('feoh finance proxy → Feoh satellite', () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe('SERVICE_UNAVAILABLE');
+  });
+});
+
+describe('feoh roster re-upsert on displayName change (finding G)', () => {
+  afterEach(() => setFeohRuntime(null));
+
+  it('best-effort re-upserts the Feoh party right after a member PATCHes their displayName', async () => {
+    const { adult } = await seedTestHousehold();
+    const fake = createFakeFeoh();
+    const runtime = runtimeForFake(fake, listMembers);
+    setFeohRuntime(runtime);
+    await runtime.roster.sync(); // establish the initial mapping, like startup does
+
+    const res = await app.request(`/api/v1/members/${adult.user.id}`, {
+      method: 'PATCH', headers: authHeaders(adult.jwt), body: JSON.stringify({ displayName: 'Renamed Adult' }),
+    });
+    expect(res.status).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(fake.partiesByMember.get(adult.user.id)!.displayName).toBe('Renamed Adult');
+    });
   });
 });
 
@@ -198,5 +238,25 @@ describe('feoh roster sync', () => {
     // No sync() called first — partyIdFor must self-heal.
     const partyId = await runtime.roster.partyIdFor(adult.user.id);
     expect(fake.partiesByMember.get(adult.user.id)!.id).toBe(partyId);
+  });
+
+  it('shares one in-flight sync across concurrent mapping misses (finding F)', async () => {
+    const { adult, child } = await seedTestHousehold();
+    const fake = createFakeFeoh();
+    let listMembersCalls = 0;
+    const runtime = runtimeForFake(fake, async () => {
+      listMembersCalls += 1;
+      return listMembers();
+    });
+
+    // Both are cache misses at the same tick — should collapse to one sync.
+    const [adultPartyId, childPartyId] = await Promise.all([
+      runtime.roster.partyIdFor(adult.user.id),
+      runtime.roster.partyIdFor(child.user.id),
+    ]);
+
+    expect(listMembersCalls).toBe(1);
+    expect(adultPartyId).toBe(fake.partiesByMember.get(adult.user.id)!.id);
+    expect(childPartyId).toBe(fake.partiesByMember.get(child.user.id)!.id);
   });
 });

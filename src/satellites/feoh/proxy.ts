@@ -4,7 +4,7 @@ import { logError } from '@wyrhta/core/lib';
 import { requireAuth, requireRole } from '../../wiring.js';
 import { SatelliteUnreachableError, type SatelliteRequest } from '../satellite-client.js';
 import { getFeohRuntime } from './runtime.js';
-import type { FeohRoster } from './roster.js';
+import { RosterMappingMissingError, type FeohRoster } from './roster.js';
 
 /**
  * Finance proxy: replaces the old in-process `feoh` module's routes with
@@ -29,7 +29,12 @@ import type { FeohRoster } from './roster.js';
  * Error mapping: a Feoh 4xx/5xx passes straight through with its envelope and
  * status (Feoh reuses core's error codes, so VALIDATION_ERROR/UNBALANCED/
  * NOT_FOUND/etc. are preserved). A Feoh that is unreachable or times out
- * becomes a 503 in Heorth's error envelope.
+ * becomes a 503 in Heorth's error envelope. A `RosterMappingMissingError`
+ * (the acting member is still unmapped after a *successful* re-sync — Feoh
+ * was reachable, so this isn't a 503) becomes a 500 `ROSTER_MAPPING_MISSING`
+ * with the member id logged for investigation: it signals an unexpected
+ * invariant violation (a household member with no corresponding Feoh party),
+ * not a transient/retryable condition a 503 would imply.
  */
 
 type Json = Record<string, unknown>;
@@ -41,6 +46,14 @@ function serviceUnavailable(c: Context, e: unknown) {
   return c.json(
     { error: { code: 'SERVICE_UNAVAILABLE', message: 'The finance service is currently unavailable' } },
     503,
+  );
+}
+
+function rosterMappingMissing(c: Context, e: RosterMappingMissingError) {
+  logError(`feoh proxy: roster mapping missing after re-sync (memberId=${e.memberId})`, e);
+  return c.json(
+    { error: { code: 'ROSTER_MAPPING_MISSING', message: 'No Feoh party is mapped for the acting household member' } },
+    500,
   );
 }
 
@@ -84,6 +97,7 @@ async function forwardJson(
     return c.json(out, res.status as ContentfulStatusCode);
   } catch (e) {
     if (e instanceof SatelliteUnreachableError) return serviceUnavailable(c, e);
+    if (e instanceof RosterMappingMissingError) return rosterMappingMissing(c, e);
     throw e;
   }
 }
@@ -219,6 +233,7 @@ export function createFeohProxyRouter(): Hono {
       return c.json(parsed, res.status as ContentfulStatusCode);
     } catch (e) {
       if (e instanceof SatelliteUnreachableError) return serviceUnavailable(c, e);
+      if (e instanceof RosterMappingMissingError) return rosterMappingMissing(c, e);
       throw e;
     }
   });

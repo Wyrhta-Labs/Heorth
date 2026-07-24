@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-24
+
 ### Added
 
 - **Hearth View — always-on kitchen wall** (Phase 2 Task 2.5): `/hearth`, a
@@ -26,14 +28,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Auto-refresh via TanStack Query polling (tasks ~30s, events ~60s, meals ~120s)
   with refetch-on-reconnect and a stale-while-revalidate "as of HH:MM" stamp so
   Wi-Fi blips never blank the wall; **per-feed staleness** from
-  `GET /api/v1/m365/status` greys a member's items and points recovery at the
-  phone ("reconnect from your phone") — no auth flow ever runs on the wall.
+  `GET /api/v1/m365/status` — **household-visible to any authenticated
+  session** (no secrets in the `feeds[]` payload), so a dead feed on any
+  member's connection is visible on the shared wall, not just to that member —
+  greys the affected items and points recovery at the phone ("reconnect from
+  your phone"); no auth flow ever runs on the wall. As an unattended kiosk,
+  `/hearth` also suppresses the PWA update-banner prompt entirely and instead
+  silently applies a waiting service-worker update the next time the wall goes
+  idle, so nobody has to tap "Reload" on a screen no one is minding.
   Screen-burn-friendly always-on treatment: a slow CSS drift of the whole
   surface (off under `prefers-reduced-motion`) and an idle dim, plus a capped
-  query `gcTime` so an all-day session's cache stays bounded. Pure composition
-  logic (`web/src/lib/hearth.ts`) is unit-tested independently of the React
-  layer. The wall uses the app's normal login (JWT TTL `JWT_TTL_SECONDS`,
-  default 7 days → re-login weekly; raise the env var on a trusted device) — no
+  query `gcTime` so an all-day session's cache stays bounded. Both the Hearth
+  week/month grid and the calendar-grid day bucketing use the household's
+  **local calendar day** (not a UTC-sliced instant) for completion resets and
+  day-column placement, so the boundary lands at local midnight rather than
+  01:00–02:00 local in UTC+1/+2. Pure composition logic
+  (`web/src/lib/hearth.ts`) is unit-tested independently of the React layer.
+  The wall uses the app's normal login (JWT TTL `JWT_TTL_SECONDS`, default 7
+  days → re-login weekly; raise the env var on a trusted device) — no
   device-token machinery this phase, by explicit decision.
 
 - **Installable phone PWA** (Phase 2 Task 2.4): the web app now installs to
@@ -76,7 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   /api/v1/tasks` lists the mirror with filters (status / member / list / due
   range). All members may read; any authenticated member (children included) may
   complete/create; a write against a dead/absent connection returns a
-  **classified** error (409 / 500), never a crash and never a silent drop. MCP
+  **classified** error — 409 for a member-actionable state (needs re-consent, or
+  the shared/requested list is unavailable), **502/503 for a transient Graph
+  5xx or network failure** (mirroring the Feoh/Library precedent, not
+  flattened into a generic 500), 500 for everything else — never a crash and
+  never a silent drop. MCP
   tools `tasks.list` / `tasks.complete` / `tasks.create`. Task feeds join the
   existing M365 scheduler tick and `POST /api/v1/m365/sync` (sequential after
   calendar, same per-feed isolation), and appear in `GET /api/v1/m365/status`.
@@ -92,7 +108,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`src/modules/calendar/providers/`) with a Graph implementation
   (`src/m365/calendar-provider.ts`) over the Task 2.1 foundation — per-member
   **default calendar** (delegated) and the **family mailbox** (app-only) pulled
-  via `calendarView/delta` on a rolling window (−60d … +400d); recurring events
+  via `calendarView/delta` on a rolling window (−60d … +400d). A delta token
+  replays the same window it was minted with, so each feed also forces a
+  deterministic **full re-window** every `M365_FULL_RESYNC_INTERVAL_SECONDS`
+  (default 7 days, independent of the poll cadence), tracked via
+  `m365_sync_state.last_full_sync_at` — this is what actually rolls the
+  −60d/+400d window forward over time, rather than leaving it pinned to
+  wherever it was when the token was first minted. Recurring events
   are mirrored as Graph's expanded occurrences. Mirrored events live in a
   sibling `calendar_mirror_events` table (migration `0008_calendar_mirror`) and
   merge into the existing calendar range/week/dashboard/MCP queries, but are
@@ -126,6 +148,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against a `_dev` database. `.dockerignore` added so `.env` can never be baked
   into images. `.env.example` gains the canonical `M365_*` variable names for
   the Phase 2 integration (placeholders only).
+- `README.md` (new) — quick start, API surface overview, Feoh satellite
+  proxy summary, and the testing gotcha (export `DATABASE_URL` manually).
 
 ### Changed
 
@@ -133,14 +157,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Vite proxy, README) and `FEOH_BASE_URL` dev default to `http://localhost:4001`,
   per the cross-service dev port allocation (Heorth 4000/5173, Feoh 4001,
   KithLedger 4002/5174). Container-internal port stays 3000.
-
-### Added
-
-- `README.md` (new) — quick start, API surface overview, Feoh satellite
-  proxy summary, and the testing gotcha (export `DATABASE_URL` manually).
-
-### Changed
-
 - **Roster mapping misses are now classified, not a generic 500.** If a
   member is still unmapped to a Feoh party after a *successful* re-sync, the
   finance proxy now returns `500 ROSTER_MAPPING_MISSING` with the member id
@@ -154,6 +170,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   immediately (`household/service.ts#updateMember`), rather than waiting for
   the next boot sync or lazy re-sync to pick it up. A re-upsert failure
   never fails the profile update itself.
+
+### Fixed
+
+- **Calendar mirror feeds now actually roll their window forward.** A Graph
+  `calendarView/delta` token replays the same `startDateTime`/`endDateTime` it
+  was minted with, so the −60d/+400d mirror window was staying pinned to
+  whenever the token was first issued instead of advancing; feeds now force a
+  full re-window every `M365_FULL_RESYNC_INTERVAL_SECONDS` (default 7 days)
+  even while the delta token is still valid.
+- **Task write-back no longer flattens transient failures to a generic 500.**
+  `POST /api/v1/tasks/:id/complete` and `POST /api/v1/tasks` now map a Graph
+  5xx to 502 and a network failure to 503, matching the Feoh/Library
+  precedent; non-transient classified errors (409, or 500 for the integration
+  being off) are unchanged.
+- **Hearth View and calendar-grid day bucketing use local calendar days, not
+  UTC-sliced instants.** Completed-today resets, day-column placement (week
+  and month views), and the calendar grid were rolling over at 01:00–02:00
+  local time in UTC+1/+2 instead of local midnight.
+- **Hearth View drag-and-drop tears down cleanly on `pointercancel`** (touch
+  scroll takeover / palm rejection) instead of leaving a stale in-progress drag
+  state, and clears any in-flight drag's listeners on unmount.
+- **The Hearth wall no longer shows the PWA "Reload" update banner** (nobody
+  taps it on an unattended kiosk) — a waiting service-worker update is applied
+  silently the next time the wall goes idle instead.
+- **Per-feed M365 staleness is now household-visible, not member-scoped.** A
+  non-admin kiosk session on `/hearth` previously only saw its own member's
+  feed staleness from `GET /api/v1/m365/status`, so another member's dead feed
+  could look current on the shared wall; `feeds[]` is now visible to any
+  authenticated session (no secrets in it), while `connection`/`connections`
+  stay member/admin-scoped as before.
 
 ## [0.2.0] - 2026-07-24
 

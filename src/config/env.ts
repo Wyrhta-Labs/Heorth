@@ -53,6 +53,10 @@ export function buildEnvSchema() {
     M365_REDIRECT_URI: emptyToUndefined(z.string().url()),
     M365_FAMILY_MAILBOX: emptyToUndefined(z.string().min(1)),
     M365_SHARED_TODO_LIST: emptyToUndefined(z.string().min(1)),
+    // Background mirror poll interval. OPTIONAL and INDEPENDENT of the all-or-
+    // nothing group above (a tuning knob, not a credential): default 300s, floored
+    // at 60s by the scheduler. Absent when the integration is disabled anyway.
+    M365_SYNC_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
@@ -95,6 +99,9 @@ export const config = {
   traktClientId: parsed.data.TRAKT_CLIENT_ID,
   traktClientSecret: parsed.data.TRAKT_CLIENT_SECRET,
   libraryEncryptionKey: parsed.data.LIBRARY_ENCRYPTION_KEY,
+  // Mirror poll interval (seconds). Independent optional tuning knob; the
+  // scheduler floors it at 60s and only runs when the integration is enabled.
+  m365SyncIntervalSeconds: parsed.data.M365_SYNC_INTERVAL_SECONDS,
   // Resolved M365 config, or null when the integration is disabled (env absent).
   // The env schema guarantees this is all-or-nothing, so the presence of
   // M365_TENANT_ID implies the whole group is present.

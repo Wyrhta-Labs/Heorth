@@ -113,6 +113,11 @@ export class M365Store {
     return row ?? null;
   }
 
+  /** All per-feed sync state rows (health surface / Hearth View staleness). */
+  async listSyncState(): Promise<M365SyncStateRow[]> {
+    return this.db.select().from(m365SyncState).orderBy(m365SyncState.feedKey);
+  }
+
   /** Record a successful sync tick: store the new delta token, clear errors. */
   async recordSyncSuccess(feedKey: string, deltaToken: string | null): Promise<M365SyncStateRow> {
     const [row] = await this.db.insert(m365SyncState).values({

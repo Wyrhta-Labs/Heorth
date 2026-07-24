@@ -7,8 +7,13 @@ import { createEventSchema, updateEventSchema, moveEventSchema, listEventsQueryS
 export const calendarRouter = new Hono();
 calendarRouter.use('*', requireAuth);
 
-/** Child may only mutate events they created. */
+/** Guard mutations: mirrored (external) events are read-only; children may only
+ *  mutate events they created. */
 async function assertCanMutate(c: Parameters<typeof requireAuth>[0], id: string): Promise<Response | null> {
+  const source = await service.getEventSource(id);
+  if (source === 'mirror') {
+    return err(c, 'EVENT_READ_ONLY', 'Mirrored M365 events are read-only', 403);
+  }
   const auth = c.get('auth');
   if (auth.role !== 'child') return null;
   const owner = await service.getEventOwner(id);

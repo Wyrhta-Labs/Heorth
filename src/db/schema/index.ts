@@ -5,6 +5,7 @@ export { household } from '@wyrhta/core/household';
 // Module tables are appended here as each module lands:
 // export * from './../../household/schema.js';  (Heorth-local, if any)
 export * from '../../modules/calendar/schema.js';
+export * from '../../modules/calendar/mirror-schema.js';
 export * from '../../modules/meals/schema.js';
 // feoh tables removed — the finance domain now lives in the Feoh satellite service.
 export * from '../../modules/library/schema.js';

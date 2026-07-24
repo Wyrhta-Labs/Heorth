@@ -10,6 +10,7 @@ import { createApp } from './app.js';
 import { ALL_MODULES } from './modules/index.js';
 import { buildMcpServer } from './mcp/server.js';
 import { getFeohRuntime } from './satellites/feoh/runtime.js';
+import { startM365Scheduler } from './m365/scheduler.js';
 
 /**
  * Seed the single admin user (idempotent). Core's `seedHousehold` creates only
@@ -61,6 +62,10 @@ async function main() {
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(`Heorth running on http://localhost:${info.port}`);
   });
+
+  // Start the M365 read-only mirror poll loop. No-op when the integration is
+  // disabled or under tests (see scheduler.ts) — zero impact in either case.
+  startM365Scheduler();
 }
 
 // Only auto-run when executed directly (not when imported by tests).

@@ -3,6 +3,23 @@ import { events, eventAttendees, type Event, type EventOccurrence } from './sche
 import { expandEvent } from './recurrence.js';
 import { eq, and, or, lte, gte, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
 import type { CreateEventInput, UpdateEventInput, ListEventsQuery } from './validators.js';
+import { listMirrorInRange, mirrorRowToOccurrence, isMirrorEvent, getMirrorEvent } from './mirror-store.js';
+
+/** An occurrence carrying its source; native events are `'native'`. */
+export type OccurrenceView = EventOccurrence & {
+  attendeeIds: string[];
+  source: string;
+  feedKey?: string;
+  organizer?: string | null;
+};
+
+/** Thrown when a caller tries to mutate a read-only mirrored (external) event. */
+export class ReadOnlyEventError extends Error {
+  constructor() {
+    super('Mirrored M365 events are read-only');
+    this.name = 'ReadOnlyEventError';
+  }
+}
 
 async function attendeeMap(eventIds: string[]): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
@@ -46,12 +63,19 @@ export async function listEvents(query: ListEventsQuery) {
     }
 
     const attendees = await attendeeMap(filtered.map((e) => e.id));
-    const occurrences: Array<EventOccurrence & { attendeeIds: string[] }> = [];
+    const occurrences: OccurrenceView[] = [];
     for (const e of filtered) {
       for (const occ of expandEvent(e, from, to)) {
-        occurrences.push({ ...occ, attendeeIds: attendees.get(e.id) ?? [] });
+        occurrences.push({ ...occ, attendeeIds: attendees.get(e.id) ?? [], source: 'native' });
       }
     }
+
+    // Merge read-only mirrored external events (M365, etc.) into the same range
+    // result so dashboard / week / MCP list surfaces show them alongside native
+    // events. Mirrored occurrences are already expanded (no recurrence).
+    const mirrored = await listMirrorInRange(from, to, query.member_id);
+    for (const row of mirrored) occurrences.push(mirrorRowToOccurrence(row));
+
     occurrences.sort((a, b) => a.occurrenceStart.localeCompare(b.occurrenceStart));
     return { rows: occurrences, total: occurrences.length, limit: occurrences.length, offset: 0 };
   }
@@ -70,9 +94,19 @@ export async function listEvents(query: ListEventsQuery) {
 
 export async function getEvent(id: string) {
   const [row] = await db.select().from(events).where(eq(events.id, id)).limit(1);
-  if (!row) return null;
+  if (!row) {
+    // Fall back to the read-only mirror so external events have a detail view.
+    return getMirrorEvent(id);
+  }
   const attendees = await attendeeMap([id]);
-  return { ...row, attendeeIds: attendees.get(id) ?? [] };
+  return { ...row, attendeeIds: attendees.get(id) ?? [], source: 'native' as const };
+}
+
+/** Classify an id: a native event, a read-only mirrored event, or unknown. */
+export async function getEventSource(id: string): Promise<'native' | 'mirror' | null> {
+  const [row] = await db.select({ id: events.id }).from(events).where(eq(events.id, id)).limit(1);
+  if (row) return 'native';
+  return (await isMirrorEvent(id)) ? 'mirror' : null;
 }
 
 export async function createEvent(input: CreateEventInput, createdBy: string) {
@@ -93,6 +127,7 @@ export async function createEvent(input: CreateEventInput, createdBy: string) {
 }
 
 export async function updateEvent(id: string, input: UpdateEventInput) {
+  if (await isMirrorEvent(id)) throw new ReadOnlyEventError();
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (input.title !== undefined) patch['title'] = input.title;
   if (input.startAt !== undefined) patch['startAt'] = new Date(input.startAt);
@@ -111,6 +146,7 @@ export async function updateEvent(id: string, input: UpdateEventInput) {
 }
 
 export async function moveEvent(id: string, startAt: string, endAt?: string) {
+  if (await isMirrorEvent(id)) throw new ReadOnlyEventError();
   const [existing] = await db.select().from(events).where(eq(events.id, id)).limit(1);
   if (!existing) return null;
   const newStart = new Date(startAt);
@@ -122,6 +158,7 @@ export async function moveEvent(id: string, startAt: string, endAt?: string) {
 }
 
 export async function deleteEvent(id: string) {
+  if (await isMirrorEvent(id)) throw new ReadOnlyEventError();
   const [row] = await db.delete(events).where(eq(events.id, id)).returning();
   return row ?? null;
 }

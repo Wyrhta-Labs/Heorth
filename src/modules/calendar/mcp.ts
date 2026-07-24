@@ -8,6 +8,8 @@ function result(data: unknown): McpToolResult {
 }
 
 async function assertCanMutate(ctx: McpToolContext, id: string): Promise<void> {
+  const source = await service.getEventSource(id);
+  if (source === 'mirror') throw new Error('Mirrored M365 events are read-only');
   if (ctx.principal.role !== 'child') return;
   const owner = await service.getEventOwner(id);
   if (owner === null) throw new Error('Event not found');

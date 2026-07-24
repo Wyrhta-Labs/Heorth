@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `.env` auto-load for local dev (`src/config/env.ts`): loaded from the working
+  directory, never overriding exported variables. Test setup refuses to run
+  against a `_dev` database. `.dockerignore` added so `.env` can never be baked
+  into images. `.env.example` gains the canonical `M365_*` variable names for
+  the Phase 2 integration (placeholders only).
+
 ### Changed
 
 - Dev port moved to **4000** (`.env.example`, docker-compose host mapping,

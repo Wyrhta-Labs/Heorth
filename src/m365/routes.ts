@@ -1,8 +1,26 @@
 import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
-import { requireAuth } from '../wiring.js';
+import { requireAuth, requireRole } from '../wiring.js';
 import { getM365Runtime } from './runtime.js';
 import { signConnectState, verifyConnectState } from './state.js';
+import { feedKeys } from './feed-keys.js';
+import { runCalendarSync } from './calendar-sync.js';
+import type { M365SyncStateRow } from './schema.js';
+
+/**
+ * Public projection of per-feed sync state for the health surface / Hearth View
+ * staleness badges (Task 2.5). Never exposes the delta token (an opaque Graph
+ * URL that embeds the mailbox) — only the classified last error and counters.
+ */
+function toPublicFeed(row: M365SyncStateRow) {
+  return {
+    feedKey: row.feedKey,
+    lastSuccessAt: row.lastSuccessAt,
+    lastError: row.lastError,
+    consecutiveFailures: row.consecutiveFailures,
+    updatedAt: row.updatedAt,
+  };
+}
 
 /**
  * M365 connection routes. Mounted at `/api/v1/m365` ONLY when the integration is
@@ -53,11 +71,26 @@ m365Router.get('/callback', async (c) => {
 m365Router.get('/status', requireAuth, async (c) => {
   const rt = getM365Runtime();
   const auth = c.get('auth');
+  const feeds = (await rt.store.listSyncState()).map(toPublicFeed);
   if (auth.role === 'admin') {
-    return ok(c, { connections: await rt.store.listConnections() });
+    return ok(c, { connections: await rt.store.listConnections(), feeds });
   }
+  // A member sees their own connection plus the sync state of their own calendar
+  // feed and the shared family feed.
   const conn = await rt.store.getConnection(auth.userId);
-  return ok(c, { connection: conn });
+  const mine = new Set([feedKeys.calendarMember(auth.userId), feedKeys.calendarFamily()]);
+  return ok(c, { connection: conn, feeds: feeds.filter((f) => mine.has(f.feedKey)) });
+});
+
+/**
+ * Manual sync trigger (admin only) — runs all calendar feeds once and returns
+ * the per-feed result summary. Used by dev + tests to drive sync deterministically
+ * without waiting for the background scheduler tick.
+ */
+m365Router.post('/sync', requireAuth, requireRole('admin'), async (c) => {
+  const rt = getM365Runtime();
+  const results = await runCalendarSync(rt);
+  return ok(c, { results });
 });
 
 m365Router.delete('/connection', requireAuth, async (c) => {

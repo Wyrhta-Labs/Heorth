@@ -21,6 +21,9 @@ export const m365Module: HeorthModule = {
 
 // Public surface for Tasks 2.2/2.3 (calendar + To Do providers).
 export { getM365Runtime, setM365Runtime, createM365Runtime, isM365Enabled, type M365Runtime } from './runtime.js';
+export { startM365Scheduler, stopM365Scheduler, type SchedulerHandle } from './scheduler.js';
+export { runCalendarSync, type FeedSyncResult } from './calendar-sync.js';
+export { GraphCalendarProvider } from './calendar-provider.js';
 export { feedKeys } from './feed-keys.js';
 export { GraphError, graphFetch, GRAPH_BASE } from './graph.js';
 export { M365Store, type PublicM365Connection } from './store.js';

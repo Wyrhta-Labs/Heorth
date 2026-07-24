@@ -57,6 +57,13 @@
       "when": 1784894390997,
       "tag": "0007_m365_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784896052445,
+      "tag": "0008_calendar_mirror",
+      "breakpoints": true
     }
   ]
 }

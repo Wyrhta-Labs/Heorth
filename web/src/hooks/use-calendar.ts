@@ -1,9 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import * as api from '@/api/calendar';
 
-export function useEvents(params: api.ListEventsParams = {}) {
-  return useQuery({ queryKey: [...QUERY_KEYS.events, params], queryFn: () => api.listEvents(params) });
+/** Extra react-query options callers (e.g. the always-on Hearth wall) can pass to tune polling. */
+type QueryOpts = { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData };
+
+export function useEvents(params: api.ListEventsParams = {}, opts: QueryOpts = {}) {
+  return useQuery({ queryKey: [...QUERY_KEYS.events, params], queryFn: () => api.listEvents(params), ...opts });
 }
 export function useCreateEvent() {
   const qc = useQueryClient();

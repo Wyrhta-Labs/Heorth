@@ -39,3 +39,23 @@ h1, h2, h3, h4 {
   font-family: var(--font-serif);
   letter-spacing: -0.01em;
 }
+
+/*
+ * Hearth wall: a very slow, sub-pixel-scale drift of the whole surface so a
+ * static always-on layout never burns fixed edges into the panel. Pure CSS, a
+ * few pixels over minutes — imperceptible in use, but the pixels are never
+ * lit identically for long. Disabled for reduced-motion users.
+ */
+@keyframes hearth-drift {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(4px, 3px); }
+  50%  { transform: translate(0, 6px); }
+  75%  { transform: translate(-4px, 3px); }
+  100% { transform: translate(0, 0); }
+}
+.hearth-drift {
+  animation: hearth-drift 240s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hearth-drift { animation: none; }
+}

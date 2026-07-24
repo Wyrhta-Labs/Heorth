@@ -1,9 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import * as api from '@/api/tasks';
 
-export function useTasks(params: api.ListTasksParams = {}) {
-  return useQuery({ queryKey: [...QUERY_KEYS.tasks, params], queryFn: () => api.listTasks(params) });
+type QueryOpts = { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData };
+
+export function useTasks(params: api.ListTasksParams = {}, opts: QueryOpts = {}) {
+  return useQuery({ queryKey: [...QUERY_KEYS.tasks, params], queryFn: () => api.listTasks(params), ...opts });
 }
 
 export function useAvailableLists(enabled: boolean) {

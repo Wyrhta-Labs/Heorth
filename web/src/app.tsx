@@ -17,6 +17,7 @@ import LibraryPage from '@/pages/library';
 import TodayPage from '@/pages/today';
 import ShoppingPage from '@/pages/shopping';
 import CapturePage from '@/pages/capture';
+import HearthPage from '@/pages/hearth';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -42,6 +43,19 @@ const authRoute = createRoute({
   component: AppShell,
 });
 
+// The Hearth wall is auth-gated like the app, but renders full-bleed OUTSIDE the
+// AppShell chrome (no sidebar / mobile nav / top bar) — its own kiosk surface.
+const hearthRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/hearth',
+  beforeLoad: ({ location }) => {
+    if (!localStorage.getItem(TOKEN_KEY)) {
+      throw redirect({ to: '/login', search: { redirect: location.href } });
+    }
+  },
+  component: HearthPage,
+});
+
 const dashboardRoute = createRoute({ getParentRoute: () => authRoute, path: '/', component: DashboardPage });
 const calendarRoute = createRoute({ getParentRoute: () => authRoute, path: '/calendar', component: CalendarPage });
 const tasksRoute = createRoute({ getParentRoute: () => authRoute, path: '/tasks', component: TasksPage });
@@ -55,6 +69,7 @@ const captureRoute = createRoute({ getParentRoute: () => authRoute, path: '/capt
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  hearthRoute,
   authRoute.addChildren([
     dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute, householdRoute, libraryRoute,
     todayRoute, shoppingRoute, captureRoute,

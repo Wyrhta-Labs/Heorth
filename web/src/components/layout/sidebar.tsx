@@ -1,7 +1,7 @@
 import { Link, useRouter } from '@tanstack/react-router';
 import {
   LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library,
-  Sun, ShoppingCart, PlusCircle,
+  Sun, ShoppingCart, PlusCircle, Tv,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +16,7 @@ export const navItems = [
   { to: '/feoh', label: 'Feoh', icon: Wallet },
   { to: '/library', label: 'Library', icon: Library },
   { to: '/household', label: 'Household', icon: Home },
+  { to: '/hearth', label: 'Hearth (wall)', icon: Tv },
 ];
 
 export default function Sidebar() {

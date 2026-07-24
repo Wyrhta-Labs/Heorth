@@ -223,6 +223,60 @@ Icons are generated from the brand palette by `web/scripts/generate-icons.mjs`
 (re-run only if the ember/parchment colours change); no image-processing
 dependency is needed for it.
 
+## Hearth View (kitchen wall)
+
+`/hearth` is the always-on wall surface — designed for a Raspberry Pi driving a
+21.5" Full-HD touchscreen (**1920×1080 landscape**, touch-only, read at arm's
+length) running Chromium in kiosk mode. It renders full-bleed **outside** the
+normal app chrome (no sidebar, top bar, or mobile nav) and composes the calendar
+mirror (2.2), To Do tasks (2.3), and the meal plan into one glanceable
+noticeboard.
+
+**Layout.** A **week view** by default: seven day columns, each merging that
+day's calendar events (native + mirrored M365, family feed included), the
+planned supper, and tasks due that day. A **now/next strip** across the top shows
+today's current-or-next event, tonight's supper, and how many tasks are due
+today. A **month view** is one tap away (the week/month toggle), and the arrows
+page between weeks/months (a "back to today" control appears once you've paged
+away).
+
+**Colour / attribution.** Each member's events carry their avatar colour
+(ember / taupe / sage / sky). **Family-calendar events** (the shared M365 feed,
+which carries no member attribution) render as the household's own **shared amber
+band** — deliberately distinct from any member colour, so the family layer reads
+as "belongs to the whole house".
+
+**Interactions (glance-and-tap only).** Tap a task to mark it done (writes
+through to Microsoft To Do; a gentle toast — never a stack trace — appears if
+Microsoft can't be reached). Tap a planned meal to open a **large-type recipe
+reading overlay** for cooking. Drag a supper's grip handle to **swap/move it to
+another day** (the one edit gesture; persists via the meal-plan API). Everything
+else is read-only — no event editing, no forms, no auth flows on the wall.
+
+**Freshness & staleness.** Data auto-refreshes via TanStack Query polling (tasks
+~30s, events ~60s, meals ~120s, sync-health ~60s) plus refetch on reconnect, and
+survives Wi-Fi blips without blanking (the last-known view stays up, with an
+"as of HH:MM" stamp). Per-feed staleness comes from `GET /api/v1/m365/status`:
+a member whose feed has gone silent has their items greyed and a footer note
+("<member> — last synced 2h ago"); a feed needing re-auth reads "reconnect from
+your phone" — the wall **never** starts an auth flow itself.
+
+**Always-on care.** The whole surface drifts a few pixels over four minutes
+(pure CSS, disabled under `prefers-reduced-motion`) so a static layout never
+burns fixed edges into the panel, and it dims after a few minutes of inactivity
+(any touch wakes it). Query pages paged away from are capped (`gcTime`) so the
+cache can't grow unbounded during an all-day session.
+
+**Kiosk session (phase-1, pragmatic).** The wall runs a normal logged-in
+session — log in once on the device; there is **no** device-token machinery yet
+(a later phase, by explicit decision). The JWT TTL is `JWT_TTL_SECONDS` (default
+`604800` = **7 days**), so **the wall needs a re-login roughly weekly**. To cut
+that chore on a trusted in-home device, raise `JWT_TTL_SECONDS` (e.g. `2592000`
+for 30 days) — it is the only knob involved; do not build a separate device
+auth path for this phase. Kiosk OS plumbing (autostart Chromium in `--kiosk`
+at `http://<host>/hearth`, screen-blanking policy) is deployment config, outside
+the app.
+
 ## Testing
 
 Integration tests hit a real PostgreSQL database (`tests/setup.ts` runs

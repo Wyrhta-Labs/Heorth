@@ -1,11 +1,17 @@
 import { Link, useRouter } from '@tanstack/react-router';
-import { LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library } from 'lucide-react';
+import {
+  LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library,
+  Sun, ShoppingCart, PlusCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const navItems = [
+export const navItems = [
   { to: '/', label: 'This week', icon: LayoutDashboard, exact: true },
+  { to: '/today', label: 'Today', icon: Sun },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/tasks', label: 'Tasks', icon: ListChecks },
+  { to: '/shopping', label: 'Shopping list', icon: ShoppingCart },
+  { to: '/capture', label: 'Quick capture', icon: PlusCircle },
   { to: '/meals', label: 'Meals', icon: UtensilsCrossed },
   { to: '/feoh', label: 'Feoh', icon: Wallet },
   { to: '/library', label: 'Library', icon: Library },
@@ -16,7 +22,7 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = router.state.location.pathname;
   return (
-    <aside className="flex flex-col w-60 min-h-screen bg-ink text-parchment">
+    <aside className="hidden md:flex flex-col w-60 min-h-screen bg-ink text-parchment">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-white/10">
         <Flame className="h-6 w-6 text-ember-soft" />
         <span className="font-serif text-xl">Heorth</span>

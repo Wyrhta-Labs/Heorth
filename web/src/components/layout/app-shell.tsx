@@ -1,6 +1,7 @@
 import { Outlet, useRouter } from '@tanstack/react-router';
 import Sidebar from './sidebar';
 import TopBar from './top-bar';
+import MobileNav from './mobile-nav';
 import { ToastProvider } from '@/components/ui/toast';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -10,6 +11,9 @@ const PAGE_TITLES: Record<string, string> = {
   '/feoh': 'Feoh',
   '/library': 'Library',
   '/household': 'Household',
+  '/today': 'Today',
+  '/shopping': 'Shopping list',
+  '/capture': 'Quick capture',
 };
 
 export default function AppShell() {
@@ -21,10 +25,11 @@ export default function AppShell() {
         <Sidebar />
         <div className="flex flex-col flex-1 min-w-0">
           <TopBar title={title} />
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 p-3 sm:p-6 pb-20 md:pb-6 overflow-auto">
             <Outlet />
           </main>
         </div>
+        <MobileNav />
       </div>
     </ToastProvider>
   );

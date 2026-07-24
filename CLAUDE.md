@@ -63,6 +63,24 @@ directly.
   and **never run under tests** (started from `main()` in `src/index.ts`, guarded
   on `VITEST`); tests drive sync via `runCalendarSync` or `POST /api/v1/m365/sync`.
   Store absolute UTC instants; keep the source timezone as display metadata only.
+- **Tasks + To Do (Task 2.3).** Same provider-split as the calendar: the
+  provider-agnostic `TaskProvider` / `MirroredTask` contract lives with the tasks
+  module (`src/modules/tasks/providers/`); the Graph impl
+  (`src/m365/task-provider.ts`) depends on it. To Do is **delegated-only** and
+  **allowlist-gated per member** (`todo_list_allowlist`) — nothing syncs by
+  default. Mirrored tasks are a sibling `task_mirror` table (feed key
+  `todo:member:<id>:<listId>`); unlike the calendar it is **NOT read-only** —
+  completion writes back (PATCH) and Heorth creates tasks outward into the shared
+  list (`M365_SHARED_TODO_LIST`, resolved BY NAME via the allowlist store,
+  preferring the acting member). The write paths run through a **provider seam**
+  (`src/modules/tasks/provider.ts`, `setTaskProvider`) so the module never imports
+  a Graph type; `m365Module.register` installs the Graph provider when enabled and
+  tests install a fake-backed one. Provider write failures surface as a Graph-free
+  classified `TaskProviderError` (`needs_reauth` / `no_connection` / `graph_<n>` /
+  `shared_list_unavailable` / `provider_unavailable` / …). The per-feed sync
+  machinery is shared: `src/m365/sync-runner.ts` (`syncOneFeed`, `classify`,
+  `isFullResyncDue`) backs BOTH `calendar-sync.ts` and `task-sync.ts`. Task feeds
+  join the scheduler tick + `POST /api/v1/m365/sync` (sequential after calendar).
 
 ## Common commands
 

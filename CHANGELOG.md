@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Household Tasks + Microsoft To Do sync** (Phase 2 Task 2.3): the household
+  task surface, backed by Microsoft To Do as the system of record. A
+  provider-agnostic `TaskProvider` / `MirroredTask` contract
+  (`src/modules/tasks/providers/`) with a Graph implementation
+  (`src/m365/task-provider.ts`) — **delegated-only** (every feed runs on a
+  member connection). To Do is **allowlist-gated per member**: nothing syncs
+  until a member selects lists (`GET/PUT /api/v1/tasks/allowlist`,
+  `GET /api/v1/tasks/lists` for discovery). Allowlisted lists sync via
+  `/me/todo/lists/{listId}/tasks/delta` into a sibling `task_mirror` table
+  (migration `0010_tasks_mirror`); feed key `todo:member:<id>:<listId>`. Unlike
+  the calendar, tasks are **interactive**: `POST /api/v1/tasks/:id/complete`
+  writes completion back (PATCH) with an optimistic local update, and
+  `POST /api/v1/tasks` creates a task into the **shared household list**
+  (`M365_SHARED_TODO_LIST`, resolved BY NAME through a connected member who has
+  it — the acting member if possible, else any member that does). `GET
+  /api/v1/tasks` lists the mirror with filters (status / member / list / due
+  range). All members may read; any authenticated member (children included) may
+  complete/create; a write against a dead/absent connection returns a
+  **classified** error (409 / 500), never a crash and never a silent drop. MCP
+  tools `tasks.list` / `tasks.complete` / `tasks.create`. Task feeds join the
+  existing M365 scheduler tick and `POST /api/v1/m365/sync` (sequential after
+  calendar, same per-feed isolation), and appear in `GET /api/v1/m365/status`.
+  The per-feed sync machinery (connection short-circuit, periodic full re-sync,
+  error classification, isolation) was extracted to a shared `src/m365/sync-runner.ts`
+  used by both the calendar and To Do runners. A modest web Tasks page (grouped
+  open tasks, check-off, quick-add, per-member list toggles) ships alongside.
+  `tests/fake-graph.ts` gains scriptable To Do list/delta/PATCH/POST doubles.
+  Zero impact when the integration is disabled (mirror empty; writes return
+  `PROVIDER_UNAVAILABLE`).
 - **Microsoft 365 read-only calendar mirror** (Phase 2 Task 2.2): a
   provider-agnostic `CalendarProvider` / `MirroredEvent` contract
   (`src/modules/calendar/providers/`) with a Graph implementation

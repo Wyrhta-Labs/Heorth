@@ -57,7 +57,7 @@ lists `ALL_MODULES`):
 
 | Prefix | Module | Notes |
 |---|---|---|
-| `/api/v1/household`, `/api/v1/members`, `/api/v1/auth` | `src/household/` | Household singleton, member CRUD/roles, login, `he_` API keys |
+| `/api/v1/household`, `/api/v1/members`, `/api/v1/auth` | `src/household/` | Household singleton (`GET /household/options` serves the allowed timezone/locale values a `PATCH` accepts), member CRUD/roles, login, `he_` API keys |
 | `/api/v1/events` | `src/modules/calendar/` | Calendar with server-side recurrence expansion |
 | `/api/v1/recipes`, `/api/v1/meals` | `src/modules/meals/` | Recipes, weekly meal plan, shopping list |
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |

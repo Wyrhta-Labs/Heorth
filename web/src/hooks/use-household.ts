@@ -10,6 +10,17 @@ export function useWhoami() {
 export function useHousehold() {
   return useQuery({ queryKey: QUERY_KEYS.household, queryFn: () => api.getHousehold() });
 }
+/**
+ * Timezone/locale option lists. Static server-side config, so it is cached for
+ * the session rather than refetched with the rest of the household data.
+ */
+export function useHouseholdOptions() {
+  return useQuery({
+    queryKey: QUERY_KEYS.householdOptions,
+    queryFn: () => api.getHouseholdOptions(),
+    staleTime: Infinity,
+  });
+}
 export function useMembers() {
   return useQuery({ queryKey: QUERY_KEYS.members, queryFn: () => api.listMembers() });
 }

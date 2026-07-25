@@ -55,6 +55,38 @@ describe('household & members routes', () => {
     expect(other.status).toBe(403);
   });
 
+  it('serves the timezone/locale option lists to any authenticated member', async () => {
+    const { child } = await seedTestHousehold();
+    const res = await app.request('/api/v1/household/options', { headers: authHeaders(child.jwt) });
+    expect(res.status).toBe(200);
+    const { data } = await res.json() as { data: { timezones: string[]; locales: { value: string; label: string }[] } };
+    // UTC is the seeded default and must always be offered.
+    expect(data.timezones[0]).toBe('UTC');
+    expect(data.timezones).toContain('Europe/Berlin');
+    expect(data.locales.map((l) => l.value)).toContain('en-GB');
+  });
+
+  it('rejects a timezone or locale outside the option lists', async () => {
+    const { admin } = await seedTestHousehold();
+    const patch = (body: unknown) => app.request('/api/v1/household', {
+      method: 'PATCH', headers: authHeaders(admin.jwt), body: JSON.stringify(body),
+    });
+
+    const badZone = await patch({ timezone: 'Berlin' });
+    expect(badZone.status).toBe(400);
+    expect((await badZone.json() as { error: { message: string } }).error.message).toBe('Unsupported timezone');
+
+    const badLocale = await patch({ locale: 'klingon' });
+    expect(badLocale.status).toBe(400);
+    expect((await badLocale.json() as { error: { message: string } }).error.message).toBe('Unsupported locale');
+
+    const good = await patch({ timezone: 'Europe/Berlin', locale: 'de-DE' });
+    expect(good.status).toBe(200);
+    const { data } = await good.json() as { data: { timezone: string; locale: string } };
+    expect(data.timezone).toBe('Europe/Berlin');
+    expect(data.locale).toBe('de-DE');
+  });
+
   it('logs in and returns a token; whoami reflects the caller', async () => {
     await seedTestHousehold();
     const login = await app.request('/api/v1/auth/token', {

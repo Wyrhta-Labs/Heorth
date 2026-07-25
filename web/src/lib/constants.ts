@@ -2,6 +2,9 @@ import type { AvatarColor, MealSlot } from './types';
 
 export const QUERY_KEYS = {
   household: ['household'] as const,
+  // Deliberately not nested under `household`: saving the household invalidates
+  // that key by prefix, and the option lists are static config.
+  householdOptions: ['householdOptions'] as const,
   members: ['members'] as const,
   whoami: ['whoami'] as const,
   apiKeys: ['apiKeys'] as const,

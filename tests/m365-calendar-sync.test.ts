@@ -12,7 +12,7 @@ import { m365Router } from '../src/m365/routes.js';
 import { feedKeys } from '../src/m365/feed-keys.js';
 import { setM365Runtime } from '../src/m365/runtime.js';
 import type { M365Runtime } from '../src/m365/runtime.js';
-import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph } from './fake-graph.js';
+import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph, type FakeCalEvent } from './fake-graph.js';
 import { seedTestHousehold, authHeaders, invokeTool } from './helpers.js';
 
 afterEach(() => setM365Runtime(null));
@@ -335,6 +335,259 @@ describe('m365 calendar mirror — sync', () => {
     await runCalendarSync(rt);
     const afterRewindow = (await rt.store.getSyncState(feedKey))!;
     expect(afterRewindow.lastFullSyncAt!.getTime()).toBeGreaterThan(firstStamp);
+  });
+});
+
+describe('m365 calendar mirror — recurring series (master enrichment)', () => {
+  function masterFetches(fake: FakeGraph) {
+    return fake.calls.filter((c) => c.method === 'GET' && /\/events\//.test(c.path));
+  }
+
+  it('mirrors sparse occurrences enriched from the master in the same pull; never mirrors the master itself', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      // The series master carries the ORIGINAL 1932 start — must never surface.
+      ev('bday-master', 'Birthday Alice', '1932-05-01T00:00:00.000Z', '1932-05-02T00:00:00.000Z', { allDay: true, type: 'seriesMaster' }),
+      ev('bday-2026', '', '2026-08-01T00:00:00.000Z', '2026-08-02T00:00:00.000Z', { type: 'occurrence', seriesMasterId: 'bday-master' }),
+      ev('bday-2027', '', '2026-12-01T00:00:00.000Z', '2026-12-02T00:00:00.000Z', { type: 'occurrence', seriesMasterId: 'bday-master' }),
+    ] }] }]);
+
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId).sort()).toEqual(['bday-2026', 'bday-2027']);
+    for (const row of rows) {
+      expect(row.title).toBe('Birthday Alice');
+      expect(row.allDay).toBe(true);
+    }
+    const first = rows.find((r) => r.externalId === 'bday-2026')!;
+    expect(first.startAt.toISOString()).toBe('2026-08-01T00:00:00.000Z');
+    expect(first.endAt.toISOString()).toBe('2026-08-02T00:00:00.000Z');
+    // The master was in the pull — no GET /events/{id} round-trip.
+    expect(masterFetches(fake)).toHaveLength(0);
+  });
+
+  it('fetches the master via GET /me/events/{id} when a delta delivers an occurrence without it', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt);
+
+    fake.setEventById('me', ev('standup-master', 'Standup', '2025-01-06T08:00:00.000Z', '2025-01-06T08:15:00.000Z', { type: 'seriesMaster', location: 'Kitchen' }) as FakeCalEvent);
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [] }] },
+      { pages: [{ upserts: [
+        ev('standup-2026-08-03', '', '2026-08-03T08:00:00.000Z', '2026-08-03T08:15:00.000Z', { type: 'occurrence', seriesMasterId: 'standup-master' }),
+      ] }] },
+    ]);
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    const rows = await mirrorRows(feedKey);
+    const occ = rows.find((r) => r.externalId === 'standup-2026-08-03')!;
+    expect(occ.title).toBe('Standup');
+    expect(occ.allDay).toBe(false);
+    expect(occ.location).toBe('Kitchen');
+    expect(occ.startAt.toISOString()).toBe('2026-08-03T08:00:00.000Z');
+    const fetches = masterFetches(fake);
+    expect(fetches).toHaveLength(1);
+    expect(fetches[0]!.path).toBe('/v1.0/me/events/standup-master');
+  });
+
+  it('fetches a missing master only ONCE for multiple occurrences of the same series (per-pull cache)', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt);
+
+    fake.setEventById('me', ev('standup-master', 'Standup', '2025-01-06T08:00:00.000Z', '2025-01-06T08:15:00.000Z', { type: 'seriesMaster' }) as FakeCalEvent);
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [] }] },
+      { pages: [{ upserts: [
+        ev('standup-a', '', '2026-08-03T08:00:00.000Z', '2026-08-03T08:15:00.000Z', { type: 'occurrence', seriesMasterId: 'standup-master' }),
+        ev('standup-b', '', '2026-08-04T08:00:00.000Z', '2026-08-04T08:15:00.000Z', { type: 'occurrence', seriesMasterId: 'standup-master' }),
+      ] }] },
+    ]);
+    await runCalendarSync(rt);
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.filter((r) => r.title === 'Standup').map((r) => r.externalId).sort()).toEqual(['standup-a', 'standup-b']);
+    expect(masterFetches(fake)).toHaveLength(1);
+  });
+
+  it('skips an occurrence whose master fetch 404s (series just deleted) without failing the pull', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt);
+
+    // No setEventById — GET /events/gone-master returns 404.
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [] }] },
+      { pages: [{ upserts: [
+        ev('orphan-occ', '', '2026-08-03T08:00:00.000Z', '2026-08-03T08:15:00.000Z', { type: 'occurrence', seriesMasterId: 'gone-master' }),
+      ] }] },
+    ]);
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId)).toEqual(['e1']); // orphan skipped, pull intact
+  });
+
+  it('an exception keeps its own overrides and inherits the rest from the master', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('party-master', 'Party', '2020-06-01T00:00:00.000Z', '2020-06-02T00:00:00.000Z', { allDay: true, type: 'seriesMaster' }),
+      // Own subject, NO isAllDay on the wire → inherits allDay=true from master.
+      ev('party-exc', 'Moved party', '2026-09-01T00:00:00.000Z', '2026-09-02T00:00:00.000Z', { type: 'exception', seriesMasterId: 'party-master' }),
+    ] }] }]);
+    await runCalendarSync(rt);
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId)).toEqual(['party-exc']);
+    expect(rows[0]!.title).toBe('Moved party');
+    expect(rows[0]!.allDay).toBe(true);
+  });
+
+  it('cascades a series deletion: @removed for the master removes its mirrored occurrences', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('bday-master', 'Birthday Alice', '1932-05-01T00:00:00.000Z', '1932-05-02T00:00:00.000Z', { allDay: true, type: 'seriesMaster' }),
+      ev('bday-2026', '', '2026-08-01T00:00:00.000Z', '2026-08-02T00:00:00.000Z', { type: 'occurrence', seriesMasterId: 'bday-master' }),
+      ev('bday-2027', '', '2026-12-01T00:00:00.000Z', '2026-12-02T00:00:00.000Z', { type: 'occurrence', seriesMasterId: 'bday-master' }),
+      ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
+    ] }] }]);
+    await runCalendarSync(rt);
+    expect((await mirrorRows(feedKey)).map((r) => r.externalId).sort()).toEqual(['bday-2026', 'bday-2027', 'e1']);
+
+    // The whole series is deleted — Graph tombstones the MASTER id only.
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [] }] },
+      { pages: [{ removed: ['bday-master'] }] },
+    ]);
+    await runCalendarSync(rt);
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId)).toEqual(['e1']);
+  });
+
+  it('self-heals a master row mirrored by the old buggy provider when the master reappears in a delta', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
+    await runCalendarSync(rt);
+
+    // A bad row the pre-fix provider mirrored: the MASTER at its 1932 start.
+    await db.insert(calendarMirrorEvents).values({
+      source: 'm365', feedKey, externalId: 'bday-master', memberId: adult.user.id,
+      title: 'Birthday Alice', allDay: true,
+      startAt: new Date('1932-05-01T00:00:00.000Z'), endAt: new Date('1932-05-02T00:00:00.000Z'),
+    });
+
+    // An incremental delta re-delivers the master alongside a fresh occurrence.
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [] }] },
+      { pages: [{ upserts: [
+        ev('bday-master', 'Birthday Alice', '1932-05-01T00:00:00.000Z', '1932-05-02T00:00:00.000Z', { allDay: true, type: 'seriesMaster' }),
+        ev('bday-2026', '', '2026-08-01T00:00:00.000Z', '2026-08-02T00:00:00.000Z', { type: 'occurrence', seriesMasterId: 'bday-master' }),
+      ] }] },
+    ]);
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    const rows = await mirrorRows(feedKey);
+    // The 1932 master row is gone; the enriched occurrence (same pull) survives.
+    expect(rows.map((r) => r.externalId).sort()).toEqual(['bday-2026', 'e1']);
+    const occ = rows.find((r) => r.externalId === 'bday-2026')!;
+    expect(occ.title).toBe('Birthday Alice');
+    expect(occ.startAt.toISOString()).toBe('2026-08-01T00:00:00.000Z');
+  });
+
+  it('keeps occurrences that a delta does NOT re-deliver when their still-alive master reappears', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    // Initial pull: master + 3 sparse occurrences → 3 mirrored rows.
+    fake.setCalendar('me', [{ pages: [{ upserts: [
+      ev('train-master', 'Weekly training', '2025-01-06T17:00:00.000Z', '2025-01-06T18:00:00.000Z', { type: 'seriesMaster' }),
+      ev('train-o1', '', '2026-08-03T17:00:00.000Z', '2026-08-03T18:00:00.000Z', { type: 'occurrence', seriesMasterId: 'train-master' }),
+      ev('train-o2', '', '2026-08-10T17:00:00.000Z', '2026-08-10T18:00:00.000Z', { type: 'occurrence', seriesMasterId: 'train-master' }),
+      ev('train-o3', '', '2026-08-17T17:00:00.000Z', '2026-08-17T18:00:00.000Z', { type: 'occurrence', seriesMasterId: 'train-master' }),
+    ] }] }]);
+    await runCalendarSync(rt);
+    expect((await mirrorRows(feedKey)).map((r) => r.externalId).sort())
+      .toEqual(['train-o1', 'train-o2', 'train-o3']);
+
+    // One occurrence is edited: the incremental delta re-delivers the ALIVE
+    // master plus only the changed exception — o1/o3 are NOT re-delivered and
+    // must survive (the master purge must not cascade over the whole series).
+    fake.setCalendar('me', [
+      { pages: [{ upserts: [] }] },
+      { pages: [{ upserts: [
+        ev('train-master', 'Weekly training', '2025-01-06T17:00:00.000Z', '2025-01-06T18:00:00.000Z', { type: 'seriesMaster' }),
+        ev('train-o2', 'Training (moved)', '2026-08-11T17:00:00.000Z', '2026-08-11T18:00:00.000Z', { type: 'exception', seriesMasterId: 'train-master' }),
+      ] }] },
+    ]);
+    const results = await runCalendarSync(rt);
+    expect(results.find((r) => r.feedKey === feedKey)!.status).toBe('ok');
+
+    const rows = await mirrorRows(feedKey);
+    // o1 and o3 still exist; the master is still not mirrored.
+    expect(rows.map((r) => r.externalId).sort()).toEqual(['train-o1', 'train-o2', 'train-o3']);
+    const o2 = rows.find((r) => r.externalId === 'train-o2')!;
+    expect(o2.title).toBe('Training (moved)');
+    expect(o2.startAt.toISOString()).toBe('2026-08-11T17:00:00.000Z');
+  });
+
+  it('is order-independent within a pull: occurrences on page 1, master on page 2, no /events fetch', async () => {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    const { adult } = await seedConnectedMember(rt);
+    const feedKey = feedKeys.calendarMember(adult.user.id);
+
+    fake.setCalendar('me', [{ pages: [
+      { upserts: [
+        ev('bday-2026', '', '2026-08-01T00:00:00.000Z', '2026-08-02T00:00:00.000Z', { type: 'occurrence', seriesMasterId: 'bday-master' }),
+        ev('bday-2027', '', '2026-12-01T00:00:00.000Z', '2026-12-02T00:00:00.000Z', { type: 'occurrence', seriesMasterId: 'bday-master' }),
+      ] },
+      { upserts: [
+        ev('bday-master', 'Birthday Alice', '1932-05-01T00:00:00.000Z', '1932-05-02T00:00:00.000Z', { allDay: true, type: 'seriesMaster' }),
+      ] },
+    ] }]);
+    await runCalendarSync(rt);
+
+    const rows = await mirrorRows(feedKey);
+    expect(rows.map((r) => r.externalId).sort()).toEqual(['bday-2026', 'bday-2027']);
+    for (const row of rows) expect(row.title).toBe('Birthday Alice');
+    expect(masterFetches(fake)).toHaveLength(0);
   });
 });
 

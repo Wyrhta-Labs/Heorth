@@ -19,6 +19,8 @@ export interface FakeGraphCall {
    * whether a delta request carried a fresh window (`startDateTime=...`) vs. a
    * replayed token (`$deltatoken=...`/`$skiptoken=...`). */
   query?: string;
+  /** Parsed JSON request body, when the fake captured one (To Do PATCH/POST). */
+  body?: unknown;
 }
 
 /** A scripted calendar event (mapped to a Graph event resource by the fake). */
@@ -31,6 +33,14 @@ export interface FakeCalEvent {
   location?: string;
   organizer?: string;
   timeZone?: string; // originalStartTimeZone
+  /**
+   * Graph event type. `occurrence` items are serialized SPARSE, exactly as
+   * production `calendarView/delta` delivers them: only id, type,
+   * seriesMasterId, start, end (no subject/isAllDay/location/organizer).
+   * `exception` items carry whichever of their own fields the test sets.
+   */
+  type?: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  seriesMasterId?: string;
 }
 
 /** One delta page: upserted events and/or removed external ids. */
@@ -96,6 +106,10 @@ export interface FakeGraph {
   failDelta: Set<string>;
   /** Script a feed's delta batches (key: 'me' for delegated, mailbox for app-only). */
   setCalendar(key: string, batches: FakeCalBatch[]): void;
+  /** Events served by GET /events/{id}, keyed by 'me' or a mailbox UPN. */
+  eventsById: Map<string, Map<string, FakeCalEvent>>;
+  /** Register an event fetchable via GET /events/{id} (e.g. a series master). */
+  setEventById(key: string, event: FakeCalEvent): void;
 
   // --- To Do ---------------------------------------------------------------
   /** Lists returned by GET /me/todo/lists. */
@@ -133,6 +147,12 @@ export function createFakeGraph(): FakeGraph {
     calendars: new Map(),
     failDelta: new Set(),
     setCalendar(key, batches) { state.calendars.set(key, batches); },
+    eventsById: new Map(),
+    setEventById(key, event) {
+      const byId = state.eventsById.get(key) ?? new Map<string, FakeCalEvent>();
+      byId.set(event.id, event);
+      state.eventsById.set(key, byId);
+    },
     todoLists: [],
     todoTasks: new Map(),
     failTodoDelta: new Set(),
@@ -142,16 +162,46 @@ export function createFakeGraph(): FakeGraph {
   };
 
   // --- calendarView/delta (used by the Graph calendar provider) -------------
-  const toGraphEvent = (e: FakeCalEvent) => ({
-    id: e.id,
-    subject: e.subject,
-    isAllDay: e.allDay ?? false,
-    start: { dateTime: e.startUtc, timeZone: 'UTC' },
-    end: { dateTime: e.endUtc, timeZone: 'UTC' },
-    location: e.location ? { displayName: e.location } : undefined,
-    organizer: e.organizer ? { emailAddress: { name: e.organizer } } : undefined,
-    originalStartTimeZone: e.timeZone,
-  });
+  const toGraphEvent = (e: FakeCalEvent) => {
+    if (e.type === 'occurrence') {
+      // Sparse, exactly like production delta occurrences: no subject, no
+      // isAllDay, no location/organizer — the provider must enrich from master.
+      return {
+        id: e.id,
+        type: 'occurrence',
+        seriesMasterId: e.seriesMasterId,
+        start: { dateTime: e.startUtc, timeZone: 'UTC' },
+        end: { dateTime: e.endUtc, timeZone: 'UTC' },
+      };
+    }
+    if (e.type === 'exception') {
+      // Exceptions carry their own overridden fields; emit only what was set.
+      return {
+        id: e.id,
+        type: 'exception',
+        seriesMasterId: e.seriesMasterId,
+        subject: e.subject,
+        ...(e.allDay !== undefined ? { isAllDay: e.allDay } : {}),
+        start: { dateTime: e.startUtc, timeZone: 'UTC' },
+        end: { dateTime: e.endUtc, timeZone: 'UTC' },
+        ...(e.location ? { location: { displayName: e.location } } : {}),
+        ...(e.organizer ? { organizer: { emailAddress: { name: e.organizer } } } : {}),
+        ...(e.timeZone ? { originalStartTimeZone: e.timeZone } : {}),
+      };
+    }
+    return {
+      id: e.id,
+      ...(e.type ? { type: e.type } : {}),
+      ...(e.seriesMasterId ? { seriesMasterId: e.seriesMasterId } : {}),
+      subject: e.subject,
+      isAllDay: e.allDay ?? false,
+      start: { dateTime: e.startUtc, timeZone: 'UTC' },
+      end: { dateTime: e.endUtc, timeZone: 'UTC' },
+      location: e.location ? { displayName: e.location } : undefined,
+      organizer: e.organizer ? { emailAddress: { name: e.organizer } } : undefined,
+      originalStartTimeZone: e.timeZone,
+    };
+  };
 
   const deltaUrl = (pathname: string, tok: string, kind: 'delta' | 'skip') =>
     `https://graph.microsoft.com${pathname}?$${kind}token=${encodeURIComponent(tok)}`;
@@ -194,6 +244,19 @@ export function createFakeGraph(): FakeGraph {
 
   state.app.get('/v1.0/me/calendarView/delta', (c) => handleDelta(c, 'me'));
   state.app.get('/v1.0/users/:mailbox/calendarView/delta', (c) => handleDelta(c, c.req.param('mailbox')));
+
+  // GET /events/{id} — single-event fetch (series-master enrichment). Calls are
+  // logged so tests can assert how many master fetches a pull performed.
+  const handleGetEvent = (c: any, key: string, id: string) => {
+    state.calls.push({ method: 'GET', path: new URL(c.req.url).pathname });
+    const event = state.eventsById.get(key)?.get(id);
+    if (!event) {
+      return c.json({ error: { code: 'ErrorItemNotFound', message: 'The specified object was not found in the store.' } }, 404);
+    }
+    return c.json(toGraphEvent(event));
+  };
+  state.app.get('/v1.0/me/events/:id', (c) => handleGetEvent(c, 'me', c.req.param('id')));
+  state.app.get('/v1.0/users/:mailbox/events/:id', (c) => handleGetEvent(c, c.req.param('mailbox'), c.req.param('id')));
 
   // --- To Do (used by the Graph task provider) ------------------------------
   const toGraphTask = (t: FakeTodoTask) => ({
@@ -253,18 +316,18 @@ export function createFakeGraph(): FakeGraph {
   // PATCH /me/todo/lists/:listId/tasks/:taskId — completion write-back.
   state.app.patch('/v1.0/me/todo/lists/:listId/tasks/:taskId', async (c) => {
     const url = new URL(c.req.url);
-    state.calls.push({ method: 'PATCH', path: url.pathname });
     const body = await c.req.json().catch(() => ({})) as { status?: string };
+    state.calls.push({ method: 'PATCH', path: url.pathname, body });
     return c.json({ id: c.req.param('taskId'), title: 'task', status: body.status ?? 'notStarted' });
   });
 
   // POST /me/todo/lists/:listId/tasks — creation.
   state.app.post('/v1.0/me/todo/lists/:listId/tasks', async (c) => {
     const url = new URL(c.req.url);
-    state.calls.push({ method: 'POST', path: url.pathname });
     const body = await c.req.json().catch(() => ({})) as {
-      title?: string; body?: { content?: string }; dueDateTime?: { dateTime?: string };
+      title?: string; body?: { content?: string }; dueDateTime?: { dateTime?: string; timeZone?: string };
     };
+    state.calls.push({ method: 'POST', path: url.pathname, body });
     state.createdTaskCount += 1;
     return c.json({
       id: `todo-created-${state.createdTaskCount}`,

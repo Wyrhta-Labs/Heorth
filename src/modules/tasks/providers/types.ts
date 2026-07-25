@@ -17,9 +17,19 @@ export interface MirroredTask {
   externalId: string;
   title: string;
   notes: string | null;
-  /** Absolute UTC instant of the due date, or null. */
+  /**
+   * UTC instant of household-local midnight of the source's calendar date, or
+   * null. Source due dates are date-only (calendar dates, not instants);
+   * anchoring them to household-local midnight makes local-day bucketing land
+   * on the intended day.
+   */
   dueAt: string | null;
-  /** Absolute UTC instant the task was completed, or null when still open. */
+  /**
+   * Absolute UTC instant the task was completed, or null when still open.
+   * Provider-sourced values are date-resolution: the household-local midnight
+   * of the source's completion date (sources store completion as a calendar
+   * date, not a timestamp), so a next sync may coarsen a precise local stamp.
+   */
   completedAt: string | null;
   status: TaskStatus;
   /** Source list id this task belongs to (list attribution). */

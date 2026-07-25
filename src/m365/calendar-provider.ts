@@ -13,9 +13,26 @@ import type {
  * calendar, app-only auth for the shared family mailbox.
  *
  * Uses `calendarView/delta` over a rolling window so Graph expands recurring
- * events into individual occurrences for us; we mirror occurrences as-is and
+ * events into individual occurrences for us; we mirror expanded occurrences and
  * never reconstruct recurrence rules. Delta tokens are opaque `@odata.deltaLink`
  * URLs, persisted by the sync runner in `m365_sync_state`.
+ *
+ * Recurring series need special handling — `calendarView/delta` delivers them
+ * in pieces:
+ *  - the `seriesMaster` item carries the full properties (subject, isAllDay,
+ *    location, ...) but the series' ORIGINAL first-occurrence start/end, which
+ *    can be decades outside the window. Masters are therefore NEVER mirrored as
+ *    displayable events; their ids go into `masterPurges` (a by-externalId-only
+ *    purge that also self-heals master rows a pre-fix sync mirrored — never
+ *    into `deletions`, whose cascade would eat the series' live occurrences).
+ *  - `occurrence` items arrive SPARSE (only id, type, seriesMasterId, start,
+ *    end) and `exception` items carry only their own overrides — both are
+ *    enriched from their master before mirroring: own start/end always win,
+ *    subject/isAllDay/location/organizer/timezone are inherited when absent.
+ *    The master comes from the same pull when present (no ordering guarantee
+ *    across pages, so all pages are accumulated first); otherwise it is fetched
+ *    once per pull via `GET .../events/{seriesMasterId}` (a 404 there means the
+ *    series was just deleted — the orphan occurrence is skipped).
  */
 
 // --- rolling window --------------------------------------------------------
@@ -44,6 +61,8 @@ interface GraphEvent {
   location?: { displayName?: string | null } | null;
   organizer?: { emailAddress?: { name?: string | null; address?: string | null } | null } | null;
   originalStartTimeZone?: string | null;
+  type?: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  seriesMasterId?: string | null;
   '@removed'?: { reason?: string };
 }
 
@@ -57,6 +76,24 @@ interface DeltaResponse {
 function toUtcIso(dt: string): string {
   const hasZone = /(Z|[+-]\d\d:?\d\d)$/.test(dt);
   return new Date(hasZone ? dt : `${dt}Z`).toISOString();
+}
+
+/**
+ * Fill an occurrence/exception's missing fields from its series master. The
+ * item's own `start`/`end` always win (delta occurrences always carry them);
+ * the rest is inherited only when ABSENT on the wire — a sparse occurrence
+ * omits `isAllDay` entirely (undefined → inherit), while an exception may carry
+ * an explicit `false` that must stick.
+ */
+function enrichFromMaster(ev: GraphEvent, master: GraphEvent): GraphEvent {
+  return {
+    ...ev,
+    subject: ev.subject !== undefined ? ev.subject : master.subject,
+    isAllDay: ev.isAllDay !== undefined ? ev.isAllDay : master.isAllDay,
+    location: ev.location !== undefined ? ev.location : master.location,
+    organizer: ev.organizer !== undefined ? ev.organizer : master.organizer,
+    originalStartTimeZone: ev.originalStartTimeZone ?? master.originalStartTimeZone,
+  };
 }
 
 function windowParams(now = new Date()): string {
@@ -109,7 +146,7 @@ export class GraphCalendarProvider implements CalendarProvider {
       fullResync = true;
     }
 
-    const upserts: MirroredEvent[] = [];
+    const items: GraphEvent[] = [];
     const deletions: string[] = [];
     let nextToken: string | null = null;
 
@@ -132,7 +169,7 @@ export class GraphCalendarProvider implements CalendarProvider {
         if (ev['@removed']) {
           deletions.push(ev.id);
         } else {
-          upserts.push(this.toMirrored(ev, feed.memberId));
+          items.push(ev);
         }
       }
 
@@ -146,7 +183,75 @@ export class GraphCalendarProvider implements CalendarProvider {
       break;
     }
 
-    return { upserts, deletions, nextToken, fullResync };
+    // Post-process AFTER all pages: a series master and its occurrences carry
+    // no ordering guarantee across pages (or across pulls at all).
+    // Per-pull master cache: seeded from this pull's own seriesMaster items,
+    // extended by on-demand `GET .../events/{id}` fetches. `null` = the master
+    // 404'd (series just deleted) — cached too, so N orphaned occurrences of
+    // one series cost a single fetch.
+    const masters = new Map<string, GraphEvent | null>();
+    for (const ev of items) {
+      if (ev.type === 'seriesMaster') masters.set(ev.id, ev);
+    }
+    const eventsBase = isFamily
+      ? `/users/${encodeURIComponent(this.rt.config.familyMailbox)}`
+      : '/me';
+
+    const upserts: MirroredEvent[] = [];
+    const masterPurges: string[] = [];
+    for (const ev of items) {
+      if (ev.type === 'seriesMaster') {
+        // Masters are never displayable (their start/end is the series' original
+        // first occurrence, possibly decades old). The id goes into
+        // `masterPurges` — a by-externalId-only purge that self-heals master
+        // rows mirrored by a pre-fix sync (harmless when no such row exists).
+        // NOT into `deletions`: this master is ALIVE, and the deletions cascade
+        // (externalId OR seriesMasterId) would wipe the series' mirrored
+        // occurrences that this delta did not re-deliver.
+        masterPurges.push(ev.id);
+        continue;
+      }
+      if ((ev.type === 'occurrence' || ev.type === 'exception') && ev.seriesMasterId) {
+        const master = await this.resolveMaster(ev.seriesMasterId, masters, accessToken, eventsBase);
+        if (!master) continue; // series just deleted at the source — skip the orphan
+        upserts.push(this.toMirrored(enrichFromMaster(ev, master), feed.memberId));
+        continue;
+      }
+      // singleInstance — and, defensively, items carrying no `type` at all.
+      upserts.push(this.toMirrored(ev, feed.memberId));
+    }
+
+    return { upserts, deletions, masterPurges, nextToken, fullResync };
+  }
+
+  /**
+   * Resolve a series master: this pull's cache first, then a one-off
+   * `GET .../events/{id}`. Returns null (and caches it) when the master is gone
+   * (Graph 404); any other error propagates for the sync runner to classify.
+   */
+  private async resolveMaster(
+    masterId: string,
+    cache: Map<string, GraphEvent | null>,
+    accessToken: string,
+    eventsBase: string,
+  ): Promise<GraphEvent | null> {
+    if (cache.has(masterId)) return cache.get(masterId) ?? null;
+    let master: GraphEvent | null;
+    try {
+      master = await this.rt.graphFetch<GraphEvent>(
+        accessToken,
+        `${eventsBase}/events/${encodeURIComponent(masterId)}`,
+        { headers: { Prefer: PREFER_UTC } },
+      );
+    } catch (e) {
+      if (e instanceof GraphError && e.status === 404) {
+        master = null;
+      } else {
+        throw e;
+      }
+    }
+    cache.set(masterId, master);
+    return master;
   }
 
   private toMirrored(ev: GraphEvent, memberId: string | null): MirroredEvent {
@@ -164,6 +269,7 @@ export class GraphCalendarProvider implements CalendarProvider {
       location: ev.location?.displayName?.trim() || null,
       organizer,
       memberId,
+      seriesMasterId: ev.seriesMasterId ?? null,
     };
   }
 

@@ -41,9 +41,15 @@ export const calendarMirrorEvents = pgTable('calendar_mirror_events', {
   organizer: text('organizer'),
   // The source event's own timezone (IANA/Windows id), display metadata only.
   sourceTimeZone: text('source_time_zone'),
+  // The series master's external id for occurrences/exceptions of a recurring
+  // series (null for standalone events). A series deletion tombstones only the
+  // master id at the source; this column lets the deletion cascade to the
+  // mirrored occurrences.
+  seriesMasterId: text('series_master_id'),
 }, (t) => [
   // One row per (feed, external event). A full re-sync replaces by feed_key.
   unique('calendar_mirror_feed_ext_unique').on(t.feedKey, t.externalId),
+  index('calendar_mirror_series_master_idx').on(t.feedKey, t.seriesMasterId),
   index('calendar_mirror_feed_idx').on(t.feedKey),
   index('calendar_mirror_member_idx').on(t.memberId),
   index('calendar_mirror_start_idx').on(t.startAt),

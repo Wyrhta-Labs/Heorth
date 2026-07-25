@@ -22,6 +22,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the first option, and a rejected save now surfaces an error toast instead of
   reporting success.
 
+### Fixed
+
+- **Calendar mirror — recurring series** (first live-tenant run, 2026-07-25):
+  `calendarView/delta` delivers recurring series as a `seriesMaster` item (at
+  its original, possibly decades-old start — birthdays surfaced as 1932 events)
+  plus **sparse occurrences** carrying only `id`/`type`/`seriesMasterId`/
+  `start`/`end` (no subject, no `isAllDay`) — undocumented but
+  Microsoft-confirmed behavior that contradicts the v1.0 reference. The Graph
+  provider now never mirrors masters as events (their ids purge any previously
+  mirrored master rows — self-healing, by externalId only), enriches
+  occurrences/exceptions from the master (same-pull map first, else one cached
+  `GET /events/{seriesMasterId}`; 404 ⇒ the orphan occurrence is skipped), and
+  records `series_master_id` on mirrored rows so a genuine `@removed` master
+  tombstone cascades to its occurrences. A one-time migration forces the next
+  calendar sync of every feed to a full re-window so pre-fix rows heal at
+  deploy rather than at the weekly resync.
+- **To Do — date-only Graph values** (first live-tenant run, 2026-07-25):
+  `dueDateTime`/`completedDateTime` are calendar **dates**, not instants (the
+  service truncates to midnight in the authoring zone and returns the UTC
+  equivalent; completing via bare `status` PATCH stamps midnight of the **UTC**
+  date — a Microsoft-acknowledged known issue). They were stored as raw UTC
+  instants, so a completion at 00:45 CEST landed on the previous local day and
+  due dates would shift a day early in negative-offset zones. The provider now
+  resolves the intended calendar date in the **household timezone** (new
+  dependency-free `Intl` helpers + `getHouseholdTimeZone()` with UTC fallback)
+  and stores household-local-midnight instants; completion write-back sends an
+  explicit `completedDateTime` (local date + IANA zone) alongside `status`, and
+  outward task creation sends the due date the same way instead of a UTC
+  instant.
+- **M365 smoke script**: the app-only probe read `GET /users/{mailbox}` which
+  needs `User.Read.All` — a permission the app deliberately lacks — so it
+  failed even when correctly configured. It now probes the family mailbox's
+  `calendarView`, the `Calendars.Read` application permission production
+  actually uses.
+
 ## [0.3.0] - 2026-07-24
 
 ### Added

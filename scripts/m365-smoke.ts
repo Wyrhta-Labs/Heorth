@@ -3,13 +3,17 @@
  * in CI. It exercises the app-only path only (no member consent needed):
  *
  *   1. Acquire a client-credentials (app-only) token for the tenant.
- *   2. Probe GET /users/{M365_FAMILY_MAILBOX} to confirm the app registration +
- *      ApplicationAccessPolicy grant the shared mailbox.
+ *   2. Probe GET /users/{M365_FAMILY_MAILBOX}/calendarView (next 7 days) to
+ *      confirm the app registration's application Calendars.Read permission +
+ *      ApplicationAccessPolicy grant access to the shared mailbox calendar.
+ *      (The app deliberately does NOT have User.Read.All, so probing the user
+ *      object itself would 403 even when everything is configured correctly.)
  *
  * Run:  npx tsx scripts/m365-smoke.ts
  *
- * It prints ONLY non-secret signal (token length, mailbox display name). No token
- * or secret material is ever logged.
+ * It prints ONLY non-secret signal (token length, event count, at most one event
+ * subject/start — household data shown to the household admin running this). No
+ * token or secret material is ever logged.
  */
 import { config } from '../src/config/env.js';
 import { createM365Runtime } from '../src/m365/index.js';
@@ -26,13 +30,28 @@ async function main() {
   console.log(`   OK — received an access token (${token.length} chars).`);
 
   const mailbox = config.m365.familyMailbox;
-  console.log(`2. Probing GET /users/${mailbox} ...`);
-  const user = await rt.graphFetch<{ userPrincipalName: string; displayName?: string }>(
-    token, `/users/${encodeURIComponent(mailbox)}`,
-  );
-  console.log(`   OK — ${user.displayName ?? '(no display name)'} <${user.userPrincipalName}>`);
+  const start = new Date();
+  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+  console.log(`2. Probing GET /users/${mailbox}/calendarView (next 7 days) ...`);
+  const query = new URLSearchParams({
+    startDateTime: start.toISOString(),
+    endDateTime: end.toISOString(),
+    $top: '3',
+    $select: 'subject,start',
+  });
+  const view = await rt.graphFetch<{
+    value: Array<{ subject?: string; start?: { dateTime?: string; timeZone?: string } }>;
+  }>(token, `/users/${encodeURIComponent(mailbox)}/calendarView?${query.toString()}`);
+  console.log(`   OK — ${view.value.length} event(s) in the next 7 days (showing at most 3).`);
+  const first = view.value[0];
+  if (first) {
+    const when = first.start?.dateTime
+      ? `${first.start.dateTime} (${first.start.timeZone ?? 'unknown tz'})`
+      : '(no start)';
+    console.log(`   First: "${first.subject ?? '(no subject)'}" at ${when}`);
+  }
 
-  console.log('\nSmoke test passed. App-only access to the family mailbox works.');
+  console.log('\nSmoke test passed. App-only access to the family mailbox calendar works.');
 }
 
 main().catch((e) => {

@@ -14,6 +14,7 @@ import { GraphTaskProvider } from '../src/m365/task-provider.js';
 import { feedKeys } from '../src/m365/feed-keys.js';
 import { setM365Runtime, type M365Runtime } from '../src/m365/runtime.js';
 import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph } from './fake-graph.js';
+import { localDateOf } from '../src/lib/local-date.js';
 import { seedTestHousehold, authHeaders, invokeTool } from './helpers.js';
 
 afterEach(() => {
@@ -246,6 +247,110 @@ describe('m365 tasks — write-back', () => {
     const { adult } = await seedTestHousehold();
     await expect(tasks.createTask({ title: 'x' }, adult.user.id))
       .rejects.toMatchObject({ reason: 'provider_unavailable' });
+  });
+});
+
+describe('m365 tasks — To Do date semantics (dueDateTime/completedDateTime are calendar dates)', () => {
+  const berlin = () => Promise.resolve('Europe/Berlin');
+  const newYork = () => Promise.resolve('America/New_York');
+
+  /** Wire the fake + runtime and build a provider with an injected zone resolver. */
+  function wireZoned(resolve: () => Promise<string>) {
+    const fake = createFakeGraph();
+    const rt = runtimeForFakeGraph(fake);
+    setM365Runtime(rt);
+    return { fake, rt, provider: new GraphTaskProvider(rt, resolve) };
+  }
+
+  it('inbound due date authored in Berlin lands on the intended Berlin day', async () => {
+    const { fake, rt, provider } = wireZoned(berlin);
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+    // Graph stores due "Jul 25" authored in UTC+2 as the UTC instant Jul 24 22:00.
+    fake.setTodoTasks('L1', [{ pages: [{ upserts: [
+      task('t1', 'Milk', { dueUtc: '2026-07-24T22:00:00.0000000' }),
+    ] }] }]);
+
+    const pull = await provider.pullChanges(feedKeys.todoMember(adult.user.id, 'L1'), null);
+    const due = pull.upserts[0]!.dueAt!;
+    expect(new Date(due).toISOString()).toBe('2026-07-24T22:00:00.000Z'); // Berlin midnight of Jul 25
+    expect(localDateOf(due, 'Europe/Berlin')).toBe('2026-07-25');
+  });
+
+  it('inbound midnight-UTC stamp is a date-only value: its raw date part wins', async () => {
+    const { fake, rt, provider } = wireZoned(berlin);
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+    // The Graph completion known-issue stamp: midnight UTC of the current UTC date.
+    fake.setTodoTasks('L1', [{ pages: [{ upserts: [
+      task('t1', 'Done', { status: 'completed', completedUtc: '2026-07-24T00:00:00.0000000' }),
+    ] }] }]);
+
+    const pull = await provider.pullChanges(feedKeys.todoMember(adult.user.id, 'L1'), null);
+    const completedAt = pull.upserts[0]!.completedAt!;
+    expect(localDateOf(completedAt, 'Europe/Berlin')).toBe('2026-07-24');
+    expect(new Date(completedAt).toISOString()).toBe('2026-07-23T22:00:00.000Z'); // Berlin midnight of Jul 24
+  });
+
+  it('negative offset (America/New_York): NY-authored due date and a midnight-UTC stamp both land on Jul 25', async () => {
+    const { fake, rt, provider } = wireZoned(newYork);
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+    fake.setTodoTasks('L1', [{ pages: [{ upserts: [
+      // Due "Jul 25" authored in NY (UTC-4) → stored as Jul 25 04:00 UTC.
+      task('t1', 'NY-authored', { dueUtc: '2026-07-25T04:00:00.0000000' }),
+      // A midnight-UTC date-only stamp for Jul 25: must NOT shift back to Jul 24.
+      task('t2', 'UTC-stamped', { dueUtc: '2026-07-25T00:00:00.0000000' }),
+    ] }] }]);
+
+    const pull = await provider.pullChanges(feedKeys.todoMember(adult.user.id, 'L1'), null);
+    const byId = new Map(pull.upserts.map((u) => [u.externalId, u]));
+    expect(localDateOf(byId.get('t1')!.dueAt!, 'America/New_York')).toBe('2026-07-25');
+    expect(localDateOf(byId.get('t2')!.dueAt!, 'America/New_York')).toBe('2026-07-25');
+  });
+
+  it('setCompleted(true) PATCHes an explicit completedDateTime at household-local today', async () => {
+    const { fake, rt, provider } = wireZoned(berlin);
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+
+    await provider.setCompleted(feedKeys.todoMember(adult.user.id, 'L1'), 't1', true);
+
+    const patch = fake.calls.find((c) => c.method === 'PATCH' && c.path.includes('/todo/lists/L1/tasks/t1'));
+    expect(patch).toBeTruthy();
+    const today = localDateOf(new Date(), 'Europe/Berlin');
+    expect(patch!.body).toMatchObject({
+      status: 'completed',
+      completedDateTime: { dateTime: `${today}T00:00:00`, timeZone: 'Europe/Berlin' },
+    });
+  });
+
+  it('setCompleted(false) clears completedDateTime', async () => {
+    const { fake, rt, provider } = wireZoned(berlin);
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+
+    await provider.setCompleted(feedKeys.todoMember(adult.user.id, 'L1'), 't1', false);
+
+    const patch = fake.calls.find((c) => c.method === 'PATCH' && c.path.includes('/todo/lists/L1/tasks/t1'));
+    expect(patch!.body).toMatchObject({ status: 'notStarted', completedDateTime: null });
+  });
+
+  it('createTask sends the due date as household-local midnight + zone, not a UTC instant', async () => {
+    const { fake, rt, provider } = wireZoned(berlin);
+    const { adult } = await seedTestHousehold();
+    await connect(rt, adult.user.id);
+
+    // 2026-08-01T22:00Z IS Aug 2 in Berlin.
+    await provider.createTask(feedKeys.todoMember(adult.user.id, 'L1'), {
+      title: 'Buy stamps', dueAt: '2026-08-01T22:00:00.000Z',
+    });
+
+    const post = fake.calls.find((c) => c.method === 'POST' && c.path.includes('/todo/lists/L1/tasks'));
+    expect(post).toBeTruthy();
+    expect(post!.body).toMatchObject({
+      dueDateTime: { dateTime: '2026-08-02T00:00:00', timeZone: 'Europe/Berlin' },
+    });
   });
 });
 

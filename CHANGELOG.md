@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Household settings — timezone and locale are pick-from-list** (#2): both were
+  free text, and since `household.timezone` drives To Do/calendar date semantics
+  a typo silently landed completions and due dates on the wrong local day. The
+  settings page now renders a `<select>` of IANA zones (grouped by region, `UTC`
+  first) and one of the supported locales, both populated from a new
+  `GET /api/v1/household/options`; `PATCH /api/v1/household` rejects anything off
+  those lists (`Unsupported timezone` / `Unsupported locale`). The allowed sets
+  live in one place (`src/household/options.ts`) and are served to the client so
+  they cannot drift. A stored value absent from the list (a row predating
+  validation) stays visible and selected rather than being silently replaced by
+  the first option, and a rejected save now surfaces an error toast instead of
+  reporting success.
+
 ## [0.3.0] - 2026-07-24
 
 ### Added

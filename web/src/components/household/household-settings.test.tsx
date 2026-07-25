@@ -7,10 +7,21 @@ const household = (over: Partial<Household>): Household => ({
   id: 'h1', name: 'The Smiths', timezone: 'Europe/London', locale: 'en-GB', createdAt: '', ...over,
 });
 
+const OPTIONS = {
+  timezones: ['UTC', 'America/New_York', 'Europe/Berlin', 'Europe/London'],
+  locales: [
+    { value: 'de-DE', label: 'Deutsch (Deutschland)' },
+    { value: 'en-GB', label: 'English (United Kingdom)' },
+    { value: 'en-US', label: 'English (United States)' },
+  ],
+};
+
 const useHouseholdMock = vi.fn();
+const useHouseholdOptionsMock = vi.fn(() => ({ data: { data: OPTIONS } }));
 
 vi.mock('@/hooks/use-household', () => ({
   useHousehold: () => useHouseholdMock(),
+  useHouseholdOptions: () => useHouseholdOptionsMock(),
   useUpdateHousehold: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
@@ -35,6 +46,42 @@ describe('HouseholdSettings', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('The Joneses');
     expect(screen.getByLabelText('Timezone')).toHaveValue('America/New_York');
     expect(screen.getByLabelText('Locale')).toHaveValue('en-US');
+  });
+
+  it('renders timezone and locale as selects populated from the API option lists', () => {
+    useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
+    render(<HouseholdSettings canManage />);
+
+    const tz = screen.getByLabelText('Timezone');
+    const locale = screen.getByLabelText('Locale');
+    expect(tz.tagName).toBe('SELECT');
+    expect(locale.tagName).toBe('SELECT');
+
+    expect([...(tz as HTMLSelectElement).options].map((o) => o.value)).toEqual(OPTIONS.timezones);
+    expect([...(locale as HTMLSelectElement).options].map((o) => o.value))
+      .toEqual(OPTIONS.locales.map((l) => l.value));
+    // Zones are grouped by region, with the region-less UTC left ungrouped.
+    expect(screen.getByRole('group', { name: 'Europe' })).toBeInTheDocument();
+  });
+
+  it('keeps a stored value that is not in the option list selectable', () => {
+    // A row seeded while these fields were free text, or an option list that
+    // has not loaded yet — the select must still show the household's value
+    // rather than silently substituting the first option.
+    useHouseholdMock.mockReturnValue({ data: { data: household({ timezone: 'Mars/Olympus', locale: 'xx-XX' }) } });
+    render(<HouseholdSettings canManage />);
+
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Mars/Olympus');
+    expect(screen.getByLabelText('Locale')).toHaveValue('xx-XX');
+  });
+
+  it('disables both selects for members who cannot manage the household', () => {
+    useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
+    render(<HouseholdSettings canManage={false} />);
+
+    expect(screen.getByLabelText('Timezone')).toBeDisabled();
+    expect(screen.getByLabelText('Locale')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
   });
 
   afterEach(() => {

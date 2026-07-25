@@ -3,6 +3,7 @@ import { ok, err, rateLimit } from '@wyrhta/core/http';
 import { logEvent } from '@wyrhta/core/lib';
 import { requireAuth, requireJwt, requireRole, identity } from '../wiring.js';
 import * as service from './service.js';
+import { householdOptions } from './options.js';
 import {
   createMemberSchema, updateMemberSchema, setRoleSchema,
   updateHouseholdSchema, loginSchema, createKeySchema,
@@ -16,9 +17,18 @@ householdRouter.get('/', async (c) => {
   if (!h) return err(c, 'NOT_FOUND', 'Household not seeded', 404);
   return ok(c, h);
 });
+// The allowed timezone/locale values the settings UI offers — and the exact set
+// `PATCH /` accepts. Readable by any authenticated member (it is static config,
+// not household data); only admins can act on it.
+householdRouter.get('/options', (c) => ok(c, householdOptions()));
+
 householdRouter.patch('/', requireRole('admin'), async (c) => {
   const body = updateHouseholdSchema.safeParse(await c.req.json());
-  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  if (!body.success) {
+    // Surface the field-level reason (e.g. 'Unsupported timezone') so an API
+    // client that bypassed the select knows what to fix.
+    return err(c, 'VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid request body', 400);
+  }
   const h = await service.updateHousehold(body.data);
   return ok(c, h);
 });

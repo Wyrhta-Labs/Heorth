@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isSupportedLocale, isSupportedTimezone } from './options.js';
 
 export const AVATAR_COLORS = ['ember', 'taupe', 'sage', 'sky'] as const;
 
@@ -22,10 +23,13 @@ export const setRoleSchema = z.object({
   role: z.enum(['admin', 'adult', 'child']),
 });
 
+// timezone/locale are pick-from-list, not free text: the settings UI renders
+// them as <select>s fed by `GET /api/v1/household/options`, and anything off
+// that list is rejected here (see `options.ts` for why that matters).
 export const updateHouseholdSchema = z.object({
   name: z.string().min(1).optional(),
-  timezone: z.string().min(1).optional(),
-  locale: z.string().min(1).optional(),
+  timezone: z.string().refine(isSupportedTimezone, 'Unsupported timezone').optional(),
+  locale: z.string().refine(isSupportedLocale, 'Unsupported locale').optional(),
 });
 
 export const loginSchema = z.object({

@@ -9,8 +9,17 @@ export interface UpdateMemberInput {
   displayName?: string; avatarColor?: AvatarColor; email?: string; password?: string;
 }
 
+/** The allowed timezone/locale values, served by the API so the two never drift. */
+export interface HouseholdOptions {
+  timezones: string[];
+  locales: { value: string; label: string }[];
+}
+
 export function getHousehold(): Promise<SingleResponse<Household>> {
   return apiGet('/household');
+}
+export function getHouseholdOptions(): Promise<SingleResponse<HouseholdOptions>> {
+  return apiGet('/household/options');
 }
 export function updateHousehold(input: Partial<Pick<Household, 'name' | 'timezone' | 'locale'>>): Promise<SingleResponse<Household>> {
   return apiPatch('/household', input);

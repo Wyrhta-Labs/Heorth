@@ -2,6 +2,8 @@ import type { M365Runtime } from './runtime.js';
 import { GraphError } from './graph.js';
 import { feedKeys } from './feed-keys.js';
 import { classify } from './sync-runner.js';
+import { localDateOf, zonedMidnightUtc } from '../lib/local-date.js';
+import { getHouseholdTimeZone } from '../household/timezone.js';
 import {
   TaskProviderError,
   type TaskProvider, type MirroredTask, type TaskPullResult,
@@ -53,14 +55,32 @@ interface DeltaResponse {
   '@odata.deltaLink'?: string;
 }
 
-/** Treat a Graph dateTime (UTC via timeZone) as an absolute instant. */
-function toUtcIso(dt: GraphDateTimeTimeZone | null | undefined): string | null {
+/**
+ * To Do's `dueDateTime`/`completedDateTime` are CALENDAR DATES, not instants:
+ * Graph truncates writes to midnight in the author's zone and returns the
+ * equivalent UTC instant (zoneless string + timeZone 'UTC'). Interpreting them
+ * as instants shifts tasks a day in any household away from UTC — so we
+ * recover the intended calendar date and store it as the UTC instant of
+ * household-local midnight (which the web's local-day bucketing lands right).
+ *
+ * Date recovery: convert the UTC instant into the household zone and take the
+ * date part — EXCEPT when the raw value is exactly midnight UTC with a
+ * different zone-converted date. A midnight-UTC value is a date-only stamp
+ * whose date part IS the intended date (e.g. Graph's own completion stamp,
+ * a Microsoft-acknowledged known issue that stamps midnight of the current
+ * UTC date), so its raw date part wins.
+ */
+function toLocalMidnightIso(dt: GraphDateTimeTimeZone | null | undefined, zone: string): string | null {
   if (!dt?.dateTime) return null;
   const raw = dt.dateTime;
   const hasZone = /(Z|[+-]\d\d:?\d\d)$/.test(raw);
-  // To Do returns a naive local-to-the-stated-zone string; when we asked for and
-  // stored UTC we treat a zoneless value as UTC.
-  return new Date(hasZone ? raw : `${raw}Z`).toISOString();
+  // A zoneless value is local to the stated timeZone; To Do returns UTC.
+  const instant = new Date(hasZone ? raw : `${raw}Z`);
+  const zoneDate = localDateOf(instant, zone);
+  const rawDatePart = raw.slice(0, 10);
+  const isMidnight = /T00:00(:00(\.0+)?)?Z?$/.test(raw);
+  const date = isMidnight && rawDatePart !== zoneDate ? rawDatePart : zoneDate;
+  return zonedMidnightUtc(date, zone).toISOString();
 }
 
 interface ParsedFeed { memberId: string; listId: string; }
@@ -68,7 +88,15 @@ interface ParsedFeed { memberId: string; listId: string; }
 export class GraphTaskProvider implements TaskProvider {
   readonly source = 'm365';
 
-  constructor(private readonly rt: M365Runtime) {}
+  /**
+   * `resolveTimeZone` supplies the household IANA zone used for the calendar-
+   * date conversions (see {@link toLocalMidnightIso}); defaults to the live
+   * household row, tests inject a fixed zone. Resolved once per public call.
+   */
+  constructor(
+    private readonly rt: M365Runtime,
+    private readonly resolveTimeZone: () => Promise<string> = getHouseholdTimeZone,
+  ) {}
 
   async listAvailableLists(memberId: string): Promise<AvailableList[]> {
     try {
@@ -84,6 +112,7 @@ export class GraphTaskProvider implements TaskProvider {
     feedKey: string, syncToken: string | null, forceFullResync = false,
   ): Promise<TaskPullResult> {
     const { memberId, listId } = this.parseFeed(feedKey);
+    const zone = await this.resolveTimeZone();
     const token = await this.rt.delegated.getAccessToken(memberId);
     const basePath = `/me/todo/lists/${encodeURIComponent(listId)}/tasks/delta`;
 
@@ -118,7 +147,7 @@ export class GraphTaskProvider implements TaskProvider {
         if (t['@removed']) {
           deletions.push(t.id);
         } else {
-          upserts.push(this.toMirrored(t, memberId, listId));
+          upserts.push(this.toMirrored(t, memberId, listId, zone));
         }
       }
 
@@ -138,14 +167,26 @@ export class GraphTaskProvider implements TaskProvider {
   async setCompleted(feedKey: string, externalId: string, completed: boolean): Promise<void> {
     const { memberId, listId } = this.parseFeed(feedKey);
     try {
+      const zone = await this.resolveTimeZone();
       const token = await this.rt.delegated.getAccessToken(memberId);
+      // Completing WITHOUT an explicit completedDateTime makes the service
+      // stamp midnight of the current UTC date (Microsoft-acknowledged known
+      // issue) — wrong local day for any household east of UTC after local
+      // midnight. So always send today's household-local date explicitly
+      // (completedDateTime is a calendar date; Graph truncates to midnight).
+      const body = completed
+        ? {
+            status: 'completed',
+            completedDateTime: { dateTime: `${localDateOf(new Date(), zone)}T00:00:00`, timeZone: zone },
+          }
+        : { status: 'notStarted', completedDateTime: null };
       await this.rt.graphFetch<GraphTodoTask>(
         token,
         `/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(externalId)}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: completed ? 'completed' : 'notStarted' }),
+          body: JSON.stringify(body),
         },
       );
     } catch (e) {
@@ -156,11 +197,15 @@ export class GraphTaskProvider implements TaskProvider {
   async createTask(feedKey: string, input: CreateTaskInput): Promise<MirroredTask> {
     const { memberId, listId } = this.parseFeed(feedKey);
     try {
+      const zone = await this.resolveTimeZone();
       const token = await this.rt.delegated.getAccessToken(memberId);
       const body: Record<string, unknown> = { title: input.title };
       if (input.notes) body['body'] = { content: input.notes, contentType: 'text' };
       if (input.dueAt) {
-        body['dueDateTime'] = { dateTime: new Date(input.dueAt).toISOString(), timeZone: 'UTC' };
+        // dueDateTime is a calendar date: send the household-local date of the
+        // intended instant at midnight IN the household zone, so Graph's
+        // truncate-to-midnight normalization keeps the intended day.
+        body['dueDateTime'] = { dateTime: `${localDateOf(input.dueAt, zone)}T00:00:00`, timeZone: zone };
       }
       const created = await this.rt.graphFetch<GraphTodoTask>(
         token,
@@ -171,20 +216,20 @@ export class GraphTaskProvider implements TaskProvider {
           body: JSON.stringify(body),
         },
       );
-      return this.toMirrored(created, memberId, listId);
+      return this.toMirrored(created, memberId, listId, zone);
     } catch (e) {
       throw new TaskProviderError(classify(e));
     }
   }
 
-  private toMirrored(t: GraphTodoTask, memberId: string, listId: string): MirroredTask {
+  private toMirrored(t: GraphTodoTask, memberId: string, listId: string, zone: string): MirroredTask {
     const completed = t.status === 'completed';
     return {
       externalId: t.id,
       title: t.title?.trim() || '(untitled)',
       notes: t.body?.content?.trim() || null,
-      dueAt: toUtcIso(t.dueDateTime),
-      completedAt: completed ? (toUtcIso(t.completedDateTime) ?? new Date().toISOString()) : null,
+      dueAt: toLocalMidnightIso(t.dueDateTime, zone),
+      completedAt: completed ? (toLocalMidnightIso(t.completedDateTime, zone) ?? new Date().toISOString()) : null,
       status: completed ? 'completed' : 'open',
       listId,
       listName: null, // resolved from the allowlist store; the delta payload omits it

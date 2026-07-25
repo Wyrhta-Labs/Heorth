@@ -1,0 +1,2 @@
+ALTER TABLE "calendar_mirror_events" ADD COLUMN "series_master_id" text;--> statement-breakpoint
+CREATE INDEX "calendar_mirror_series_master_idx" ON "calendar_mirror_events" USING btree ("feed_key","series_master_id");

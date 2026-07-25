@@ -43,6 +43,13 @@ export interface MirroredEvent {
    * shared/family feed that belongs to no single member.
    */
   memberId: string | null;
+  /**
+   * Set on occurrences/exceptions of a recurring series: the series master's
+   * externalId within the same feed. Used to cascade a series deletion — when
+   * the source tombstones only the master id, every mirrored row carrying it
+   * here is removed too. Null for standalone events.
+   */
+  seriesMasterId: string | null;
 }
 
 /** A discrete incremental-sync stream the provider can pull. */
@@ -58,8 +65,22 @@ export interface CalendarFeed {
 export interface PullResult {
   /** Events to create-or-update in the mirror (keyed by feed + externalId). */
   upserts: MirroredEvent[];
-  /** externalIds removed at the source since the previous token. */
+  /**
+   * externalIds removed at the source since the previous token (genuine
+   * `@removed` tombstones). Deleting these CASCADES: a deleted series is
+   * tombstoned by its master id only, so rows matching by `externalId` OR
+   * `seriesMasterId` are removed.
+   */
   deletions: string[];
+  /**
+   * External ids that must never exist as mirrored rows (series masters — their
+   * start/end is the series' original first occurrence). Deleted by
+   * `externalId` ONLY, no cascade: an ALIVE master re-delivered by a delta
+   * (e.g. because one occurrence changed) must not take the series' other,
+   * not-re-delivered occurrences with it. This purge only self-heals master
+   * rows a pre-fix sync mirrored.
+   */
+  masterPurges: string[];
   /** Opaque token to persist and pass back next time, or null if none. */
   nextToken: string | null;
   /**

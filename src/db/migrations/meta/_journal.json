@@ -78,6 +78,20 @@
       "when": 1784898246769,
       "tag": "0010_tasks_mirror",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784934372853,
+      "tag": "0011_calendar_mirror_series_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784935763691,
+      "tag": "0012_m365_calendar_force_full_resync",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, inArray } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { calendarMirrorEvents, type CalendarMirrorEventRow } from './mirror-schema.js';
 import type { EventOccurrence } from './schema.js';
@@ -24,13 +24,15 @@ function toRow(source: string, feedKey: string, e: MirroredEvent) {
     location: e.location,
     organizer: e.organizer,
     sourceTimeZone: e.start.timeZone,
+    seriesMasterId: e.seriesMasterId,
   };
 }
 
 /**
  * Apply one feed's pull to the mirror.
  *  - `fullResync`: replace ALL of the feed's rows with `upserts` (410 recovery).
- *  - otherwise: upsert `upserts` (by feed + externalId) and delete `deletions`.
+ *  - otherwise: upsert `upserts` (by feed + externalId), delete `deletions`
+ *    (cascading over `seriesMasterId`) and `masterPurges` (externalId only).
  * Returns the row count now stored for the feed's changed set (for logging).
  */
 export async function applyMirrorPull(
@@ -41,6 +43,43 @@ export async function applyMirrorPull(
   return db.transaction(async (tx) => {
     if (result.fullResync) {
       await tx.delete(calendarMirrorEvents).where(eq(calendarMirrorEvents.feedKey, feedKey));
+    }
+
+    // Deletions and purges FIRST, so they can never eat same-pull upserts.
+    // Two channels with different blast radii:
+    //  - `deletions` (genuine @removed tombstones): a deleted series is
+    //    tombstoned by its MASTER id only, so the delete matches externalId OR
+    //    seriesMasterId (the cascade).
+    //  - `masterPurges` (still-ALIVE series masters, never displayable): delete
+    //    by externalId ONLY. The cascade must not apply — an incremental delta
+    //    re-delivers the master without re-delivering the series' unchanged
+    //    occurrences, and those mirrored rows must survive.
+    // Skipped on fullResync: the feed was already replaced wholesale above.
+    let deleted = 0;
+    if (!result.fullResync) {
+      if (result.deletions.length > 0) {
+        const rows = await tx
+          .delete(calendarMirrorEvents)
+          .where(and(
+            eq(calendarMirrorEvents.feedKey, feedKey),
+            or(
+              inArray(calendarMirrorEvents.externalId, result.deletions),
+              inArray(calendarMirrorEvents.seriesMasterId, result.deletions),
+            ),
+          ))
+          .returning({ id: calendarMirrorEvents.id });
+        deleted = rows.length;
+      }
+      if (result.masterPurges.length > 0) {
+        const rows = await tx
+          .delete(calendarMirrorEvents)
+          .where(and(
+            eq(calendarMirrorEvents.feedKey, feedKey),
+            inArray(calendarMirrorEvents.externalId, result.masterPurges),
+          ))
+          .returning({ id: calendarMirrorEvents.id });
+        deleted += rows.length;
+      }
     }
 
     let upserted = 0;
@@ -56,23 +95,12 @@ export async function applyMirrorPull(
           location: e.location,
           organizer: e.organizer,
           sourceTimeZone: e.start.timeZone,
+          seriesMasterId: e.seriesMasterId,
           syncedAt: new Date(),
           updatedAt: new Date(),
         },
       });
       upserted += 1;
-    }
-
-    let deleted = 0;
-    if (!result.fullResync && result.deletions.length > 0) {
-      const rows = await tx
-        .delete(calendarMirrorEvents)
-        .where(and(
-          eq(calendarMirrorEvents.feedKey, feedKey),
-          inArray(calendarMirrorEvents.externalId, result.deletions),
-        ))
-        .returning({ id: calendarMirrorEvents.id });
-      deleted = rows.length;
     }
 
     return { upserted, deleted };

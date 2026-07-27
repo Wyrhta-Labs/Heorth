@@ -4,6 +4,7 @@
 // these functions.
 
 import { format } from 'date-fns';
+import type { TFunction } from 'i18next';
 import { MEMBER_COLORS } from './constants';
 import { isMirroredEvent, type EventOccurrence, type MealPlanEntry, type Member, type Task } from './types';
 
@@ -316,14 +317,14 @@ export function deriveStaleness(
 }
 
 /** Compact "5m" / "2h" / "3d" age from a past ISO instant (for "last synced …"). */
-export function formatAge(fromIso: string | null, nowMs: number): string {
-  if (!fromIso) return 'never';
+export function formatAge(fromIso: string | null, nowMs: number, t: TFunction): string {
+  if (!fromIso) return t('sync.age.never');
   const ms = nowMs - new Date(fromIso).getTime();
-  if (ms < 0) return 'just now';
+  if (ms < 0) return t('sync.age.justNow');
   const min = Math.floor(ms / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m`;
+  if (min < 1) return t('sync.age.justNow');
+  if (min < 60) return t('sync.age.minutes', { count: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h`;
-  return `${Math.floor(hr / 24)}d`;
+  if (hr < 24) return t('sync.age.hours', { count: hr });
+  return t('sync.age.days', { count: Math.floor(hr / 24) });
 }

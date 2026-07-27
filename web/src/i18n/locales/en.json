@@ -6,5 +6,62 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "close": "Close"
+  },
+  "hearth": {
+    "view": { "week": "Week", "month": "Month" },
+    "nav": { "previous": "Previous", "next": "Next", "backToToday": "Back to today" },
+    "header": { "datePattern": "d MMMM", "rangePattern": "MMM d", "monthPattern": "MMMM yyyy" },
+    "footer": { "asOf": "as of {{time}}", "reconnecting": "Reconnecting… " },
+    "stale": {
+      "family": "Family",
+      "someone": "A member",
+      "reconnect": "{{who}} — reconnect from your phone",
+      "lastSynced": "{{who}} — last synced {{age}} ago"
+    },
+    "errors": {
+      "moveMeal": "Could not move the meal — try again.",
+      "graphDown": "Couldn't reach Microsoft — try again in a moment.",
+      "needsReconnect": "This list needs reconnecting from your phone.",
+      "updateTask": "Could not update the task — try again."
+    },
+    "nowNext": {
+      "happeningNow": "Happening now",
+      "upNext": "Up next",
+      "tonight": "Tonight",
+      "dueToday": "Due today",
+      "nothingMoreToday": "Nothing more today",
+      "nothingPlanned": "Nothing planned",
+      "allClear": "All clear",
+      "tasks_one": "{{count}} task",
+      "tasks_other": "{{count}} tasks"
+    },
+    "event": { "allDay": "All day", "family": "Family", "familyCalendar": "Family calendar" },
+    "day": {
+      "supper": "Supper",
+      "moveMeal": "Move meal",
+      "nothingPlanned": "Nothing planned",
+      "done_one": "+{{count}} done",
+      "done_other": "+{{count}} done",
+      "more_one": "+{{count}} more",
+      "more_other": "+{{count}} more"
+    },
+    "week": { "mealFallback": "Meal" },
+    "recipe": {
+      "serves": "Serves {{count}}",
+      "ingredients": "Ingredients",
+      "method": "Method",
+      "noIngredients": "No ingredients listed.",
+      "noMethod": "No method recorded.",
+      "close": "Close recipe"
+    }
+  },
+  "sync": {
+    "age": {
+      "never": "never",
+      "justNow": "just now",
+      "minutes": "{{count}}m",
+      "hours": "{{count}}h",
+      "days": "{{count}}d"
+    }
   }
 }

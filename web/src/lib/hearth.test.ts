@@ -5,6 +5,7 @@
 process.env.TZ = 'Europe/Berlin';
 
 import { describe, it, expect } from 'vitest';
+import i18n from '@/i18n';
 import {
   composeDay, computeMealSwap, deriveStaleness, eventsForDay, formatAge,
   ownerOfFeed, pickNowNext, resolveAttribution, tasksForDay,
@@ -256,9 +257,9 @@ describe('staleness from /status feeds[]', () => {
 describe('formatAge', () => {
   const now = Date.parse('2026-07-24T12:00:00Z');
   it('formats compact ages', () => {
-    expect(formatAge('2026-07-24T11:57:00Z', now)).toBe('3m');
-    expect(formatAge('2026-07-24T10:00:00Z', now)).toBe('2h');
-    expect(formatAge('2026-07-21T12:00:00Z', now)).toBe('3d');
-    expect(formatAge(null, now)).toBe('never');
+    expect(formatAge('2026-07-24T11:57:00Z', now, i18n.t)).toBe('3m');
+    expect(formatAge('2026-07-24T10:00:00Z', now, i18n.t)).toBe('2h');
+    expect(formatAge('2026-07-21T12:00:00Z', now, i18n.t)).toBe('3d');
+    expect(formatAge(null, now, i18n.t)).toBe('never');
   });
 });

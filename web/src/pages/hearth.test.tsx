@@ -31,10 +31,10 @@ describe('HearthPage view + paging', () => {
 
   it('switches to the month view when the toggle is tapped', () => {
     const { container } = render(<HearthPage />);
-    fireEvent.click(screen.getByRole('button', { name: 'month' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Month' }));
     // Month grid has no draggable day columns; it shows weekday headers instead.
     expect(container.querySelectorAll('[data-hearth-day]')).toHaveLength(0);
-    expect(screen.getByText('Mon')).toBeInTheDocument();
+    expect(screen.getByText('Sun')).toBeInTheDocument();
   });
 
   it('reveals a "back to today" control once paged off the current week', () => {

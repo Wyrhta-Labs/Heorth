@@ -1,5 +1,7 @@
 import { GripVertical, UtensilsCrossed } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import EventChip from './event-chip';
+import { useFormatters } from '@/hooks/use-formatters';
 import { resolveAttribution, type DayComposition, type StalenessInfo } from '@/lib/hearth';
 import type { Member, Recipe, Task } from '@/lib/types';
 
@@ -26,7 +28,9 @@ export default function DayColumn({
   comp, isToday, membersById, recipesById, staleByOwner, completingIds,
   onCompleteTask, onOpenRecipe, onSupperPickup, isDragSource, isDropTarget, dragActive,
 }: Props) {
-  const dow = new Date(comp.iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short' });
+  const { t } = useTranslation();
+  const { dayLabel } = useFormatters();
+  const dow = dayLabel(new Date(comp.iso + 'T00:00:00')).dow;
   const dom = Number(comp.iso.slice(8, 10));
   const supper = comp.supper;
   const supperRecipe = supper?.recipeId ? recipesById[supper.recipeId] : undefined;
@@ -77,12 +81,12 @@ export default function DayColumn({
           ].join(' ')}
         >
           <div className="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wide text-ash">
-            <UtensilsCrossed className="h-3.5 w-3.5" /> Supper
+            <UtensilsCrossed className="h-3.5 w-3.5" /> {t('hearth.day.supper')}
           </div>
           {supperLabel ? (
             <div className="flex items-center gap-1">
               <button
-                aria-label="Move meal"
+                aria-label={t('hearth.day.moveMeal')}
                 onPointerDown={(e) => onSupperPickup(comp.iso, e)}
                 className="shrink-0 cursor-grab touch-none rounded-md p-1 text-ash hover:bg-ember/10 active:cursor-grabbing"
               >
@@ -100,7 +104,7 @@ export default function DayColumn({
               )}
             </div>
           ) : (
-            <p className="px-1 text-base text-ash/70">Nothing planned</p>
+            <p className="px-1 text-base text-ash/70">{t('hearth.day.nothingPlanned')}</p>
           )}
         </div>
 
@@ -127,7 +131,7 @@ export default function DayColumn({
               </div>
             ))}
             {comp.tasks.hiddenCompleted > 0 && (
-              <p className="px-2.5 text-sm text-ash/70">+{comp.tasks.hiddenCompleted} done</p>
+              <p className="px-2.5 text-sm text-ash/70">{t('hearth.day.done', { count: comp.tasks.hiddenCompleted })}</p>
             )}
           </div>
         )}

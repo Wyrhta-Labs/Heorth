@@ -6,5 +6,62 @@
     "cancel": "Abbrechen",
     "delete": "Löschen",
     "close": "Schließen"
+  },
+  "hearth": {
+    "view": { "week": "Woche", "month": "Monat" },
+    "nav": { "previous": "Zurück", "next": "Weiter", "backToToday": "Zurück zu heute" },
+    "header": { "datePattern": "do MMMM", "rangePattern": "d. MMM", "monthPattern": "MMMM yyyy" },
+    "footer": { "asOf": "Stand {{time}}", "reconnecting": "Verbinde neu… " },
+    "stale": {
+      "family": "Familie",
+      "someone": "Ein Mitglied",
+      "reconnect": "{{who}} — bitte vom Handy neu verbinden",
+      "lastSynced": "{{who}} — zuletzt synchronisiert vor {{age}}"
+    },
+    "errors": {
+      "moveMeal": "Das Essen konnte nicht verschoben werden — versuch es nochmal.",
+      "graphDown": "Microsoft ist gerade nicht erreichbar — versuch es gleich nochmal.",
+      "needsReconnect": "Diese Liste muss vom Handy neu verbunden werden.",
+      "updateTask": "Die Aufgabe konnte nicht aktualisiert werden — versuch es nochmal."
+    },
+    "nowNext": {
+      "happeningNow": "Jetzt gerade",
+      "upNext": "Als Nächstes",
+      "tonight": "Heute Abend",
+      "dueToday": "Heute fällig",
+      "nothingMoreToday": "Heute nichts mehr",
+      "nothingPlanned": "Nichts geplant",
+      "allClear": "Alles erledigt",
+      "tasks_one": "{{count}} Aufgabe",
+      "tasks_other": "{{count}} Aufgaben"
+    },
+    "event": { "allDay": "Ganztägig", "family": "Familie", "familyCalendar": "Familienkalender" },
+    "day": {
+      "supper": "Abendessen",
+      "moveMeal": "Essen verschieben",
+      "nothingPlanned": "Nichts geplant",
+      "done_one": "+{{count}} erledigt",
+      "done_other": "+{{count}} erledigt",
+      "more_one": "+{{count}} weitere",
+      "more_other": "+{{count}} weitere"
+    },
+    "week": { "mealFallback": "Essen" },
+    "recipe": {
+      "serves": "Für {{count}} Personen",
+      "ingredients": "Zutaten",
+      "method": "Zubereitung",
+      "noIngredients": "Keine Zutaten hinterlegt.",
+      "noMethod": "Keine Zubereitung hinterlegt.",
+      "close": "Rezept schließen"
+    }
+  },
+  "sync": {
+    "age": {
+      "never": "nie",
+      "justNow": "gerade eben",
+      "minutes": "{{count}} min",
+      "hours": "{{count}} Std.",
+      "days": "{{count}} Tg."
+    }
   }
 }

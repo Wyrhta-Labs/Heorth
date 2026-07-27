@@ -27,21 +27,27 @@ async function request<T>(path: string, options: RequestInit = {}, parse: 'json'
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
+  // Message text is a last-resort fallback only — the API layer stays
+  // render-agnostic (no i18n import here). Consumers classify on `status`/
+  // `code` and translate at the display site (`t('errors.…')`), falling back
+  // to `.message` only when it holds real server-provided text. An empty
+  // string here (rather than a hardcoded English phrase) lets that fallback
+  // chain reach the translated default instead of showing untranslated text.
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
     if (window.location.pathname !== '/login') window.location.href = '/login';
-    throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
+    throw new ApiError(401, 'UNAUTHORIZED', '');
   }
 
   if (parse === 'text') {
     const text = await res.text();
-    if (!res.ok) throw new ApiError(res.status, 'UNKNOWN', text || 'Request failed');
+    if (!res.ok) throw new ApiError(res.status, 'UNKNOWN', text);
     return text as unknown as T;
   }
 
   const json = await res.json();
   if (!res.ok) {
-    throw new ApiError(res.status, json.error?.code ?? 'UNKNOWN', json.error?.message ?? 'Request failed');
+    throw new ApiError(res.status, json.error?.code ?? 'UNKNOWN', json.error?.message ?? '');
   }
   return json as T;
 }

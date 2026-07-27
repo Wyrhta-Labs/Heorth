@@ -67,7 +67,7 @@ export default function HouseholdSettings({ canManage }: { canManage: boolean })
     } catch (e) {
       // A rejected timezone/locale (an unvalidated legacy value left in place,
       // say) must not look like a successful save.
-      toast(e instanceof Error ? e.message : t('settings.household.updateFailed'), 'error');
+      toast((e instanceof Error && e.message) || t('settings.household.updateFailed'), 'error');
     }
   };
 

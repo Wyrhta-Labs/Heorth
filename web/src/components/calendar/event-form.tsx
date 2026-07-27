@@ -13,15 +13,6 @@ import { useMembers } from '@/hooks/use-household';
 import type { Event } from '@/lib/types';
 import type { TFunction } from 'i18next';
 
-const RECURRENCE_LABEL_KEYS: Record<string, 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'> = {
-  '': 'none',
-  P1D: 'daily',
-  P1W: 'weekly',
-  P2W: 'biweekly',
-  P1M: 'monthly',
-  P1Y: 'yearly',
-};
-
 function buildSchema(t: TFunction) {
   return z.object({
     title: z.string().min(1, t('calendar.form.titleRequired')),
@@ -124,7 +115,7 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading }: Prop
           <Label htmlFor="recurrence">{t('calendar.form.repeats')}</Label>
           <select id="recurrence" {...register('recurrence')} className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm">
             {RECURRENCE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{t(`calendar.form.recurrence.${RECURRENCE_LABEL_KEYS[o.value]}`)}</option>
+              <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
             ))}
           </select>
         </div>

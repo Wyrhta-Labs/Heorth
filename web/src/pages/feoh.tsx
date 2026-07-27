@@ -41,7 +41,7 @@ export default function FeohPage() {
       toast(t('feoh.transactionRecorded'), 'success');
     } catch (e) {
       const msg = e instanceof ApiError && e.code === 'UNBALANCED' ? t('feoh.unbalanced') : (e as Error).message;
-      toast(msg ?? t('feoh.recordFailed'), 'error');
+      toast(msg || t('feoh.recordFailed'), 'error');
     }
   };
 

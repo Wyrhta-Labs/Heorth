@@ -13,15 +13,6 @@ import type { MealSlot } from '@/lib/types';
 
 type Mode = 'task' | 'meal' | null;
 
-/** Meal-slot labels are translated here rather than in the shared MEAL_SLOTS
- * constant — that constant is also consumed by the (not yet swept) week
- * planner, so its `label` field stays a display fallback / non-i18n value. */
-const SLOT_LABEL_KEY = {
-  breakfast: 'capture.slotBreakfast',
-  lunch: 'capture.slotLunch',
-  supper: 'capture.slotSupper',
-} as const satisfies Record<MealSlot, string>;
-
 /**
  * Quick capture: two big tap targets, minimal taps to done. "Add task" goes
  * straight to the shared household To Do list (tasks module write-through);
@@ -118,7 +109,7 @@ export default function CapturePage() {
                     slot === s.value ? 'border-ember bg-ember/10 text-ember' : 'border-tan text-ash'
                   }`}
                 >
-                  {t(SLOT_LABEL_KEY[s.value])}
+                  {t(s.labelKey)}
                 </button>
               ))}
             </div>

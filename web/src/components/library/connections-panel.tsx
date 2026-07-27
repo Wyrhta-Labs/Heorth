@@ -23,7 +23,7 @@ export default function ConnectionsPanel({ connections }: { connections: Library
 
   const onSync = async (id: string) => {
     try { await sync.mutateAsync(id); toast(t('library.connections.synced'), 'success'); }
-    catch (e) { toast((e as Error).message, 'error'); }
+    catch (e) { toast((e as Error).message || t('library.connections.syncFailed'), 'error'); }
   };
 
   const onFile = async (id: string, file: File) => {

@@ -3,12 +3,6 @@ import { useFormatters } from '@/hooks/use-formatters';
 import { MEAL_SLOTS } from '@/lib/constants';
 import type { MealPlanEntry, Recipe, MealSlot } from '@/lib/types';
 
-const SLOT_LABEL_KEYS: Record<MealSlot, 'slotBreakfast' | 'slotLunch' | 'slotSupper'> = {
-  breakfast: 'slotBreakfast',
-  lunch: 'slotLunch',
-  supper: 'slotSupper',
-};
-
 interface Props {
   entries: MealPlanEntry[];
   recipes: Recipe[];
@@ -37,7 +31,7 @@ export default function WeekPlanner({ entries, recipes, onAssign }: Props) {
         <tbody>
           {MEAL_SLOTS.map((s) => (
             <tr key={s.value}>
-              <td className="text-xs uppercase text-ash pr-2 whitespace-nowrap">{t(`capture.${SLOT_LABEL_KEYS[s.value]}`)}</td>
+              <td className="text-xs uppercase text-ash pr-2 whitespace-nowrap">{t(s.labelKey)}</td>
               {days.map((d) => {
                 const iso = dayLabel(d).iso;
                 const entry = cell(iso, s.value);

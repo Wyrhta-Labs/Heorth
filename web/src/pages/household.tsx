@@ -48,13 +48,13 @@ export default function HouseholdPage() {
       toast(t('settings.members.saved'), 'success');
     } catch (e) {
       const msg = e instanceof ApiError && e.code === 'CONFLICT' ? t('settings.members.emailTaken') : (e as Error).message;
-      toast(msg ?? t('settings.members.saveFailed'), 'error');
+      toast(msg || t('settings.members.saveFailed'), 'error');
     }
   };
 
   const changeRole = async (id: string, role: Role) => {
     try { await setRole.mutateAsync({ id, role }); toast(t('settings.members.roleUpdated'), 'success'); }
-    catch (e) { toast((e as Error).message ?? t('settings.members.roleUpdateFailed'), 'error'); }
+    catch (e) { toast((e as Error).message || t('settings.members.roleUpdateFailed'), 'error'); }
   };
 
   const remove = async (m: Member) => {
@@ -62,7 +62,7 @@ export default function HouseholdPage() {
     try { await deleteM.mutateAsync(m.id); toast(t('settings.members.removed'), 'success'); }
     catch (e) {
       const msg = e instanceof ApiError && e.code === 'CONFLICT' ? t('settings.members.removeLastAdminError') : (e as Error).message;
-      toast(msg ?? t('settings.members.removeFailed'), 'error');
+      toast(msg || t('settings.members.removeFailed'), 'error');
     }
   };
 

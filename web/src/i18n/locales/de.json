@@ -9,6 +9,19 @@
     "loadFailed": "Das konnte gerade nicht geladen werden.",
     "checkConnection": "Prüf deine Verbindung und versuch es nochmal."
   },
+  "options": {
+    "avatarColor": { "ember": "Ember", "taupe": "Taupe", "sage": "Sage", "sky": "Sky" },
+    "mealSlot": { "breakfast": "Frühstück", "lunch": "Mittagessen", "supper": "Abendessen" },
+    "role": { "admin": "Admin", "adult": "Erwachsener", "child": "Kind" },
+    "recurrence": {
+      "none": "Wiederholt sich nicht",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "biweekly": "Alle 2 Wochen",
+      "monthly": "Monatlich",
+      "yearly": "Jährlich"
+    }
+  },
   "hearth": {
     "view": { "week": "Woche", "month": "Monat" },
     "nav": { "previous": "Zurück", "next": "Weiter", "backToToday": "Zurück zu heute" },
@@ -100,10 +113,7 @@
     "saveNote": "Notiz speichern",
     "mealPlaceholder": "z. B. Reste, auswärts essen…",
     "mealNoteSaved": "Essensnotiz gespeichert",
-    "couldNotSaveNote": "Die Notiz konnte nicht gespeichert werden",
-    "slotBreakfast": "Frühstück",
-    "slotLunch": "Mittagessen",
-    "slotSupper": "Abendessen"
+    "couldNotSaveNote": "Die Notiz konnte nicht gespeichert werden"
   },
   "tasks": {
     "noOpenTasks": "Keine offenen Aufgaben.",
@@ -175,15 +185,7 @@
       "cancel": "Abbrechen",
       "saving": "Speichern…",
       "update": "Aktualisieren",
-      "create": "Erstellen",
-      "recurrence": {
-        "none": "Wiederholt sich nicht",
-        "daily": "Täglich",
-        "weekly": "Wöchentlich",
-        "biweekly": "Alle 2 Wochen",
-        "monthly": "Monatlich",
-        "yearly": "Jährlich"
-      }
+      "create": "Erstellen"
     }
   },
   "meals": {
@@ -298,7 +300,6 @@
     },
     "members": {
       "header": { "member": "Mitglied", "email": "E-Mail", "role": "Rolle" },
-      "roles": { "admin": "Admin", "adult": "Erwachsener", "child": "Kind" },
       "addMember": "Mitglied hinzufügen",
       "editMember": "Mitglied bearbeiten",
       "saved": "Mitglied gespeichert",
@@ -380,6 +381,7 @@
       "neverSynced": "nie synchronisiert",
       "syncNow": "Jetzt synchronisieren",
       "synced": "Synchronisiert",
+      "syncFailed": "Diese Verbindung konnte nicht synchronisiert werden",
       "uploadExport": "Export hochladen",
       "invalidJson": "Kein gültiger JSON-Export",
       "imported": "Importiert",

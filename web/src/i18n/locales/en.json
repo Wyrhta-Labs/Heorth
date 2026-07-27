@@ -9,6 +9,19 @@
     "loadFailed": "We couldn’t load this right now.",
     "checkConnection": "Check your connection and try again."
   },
+  "options": {
+    "avatarColor": { "ember": "Ember", "taupe": "Taupe", "sage": "Sage", "sky": "Sky" },
+    "mealSlot": { "breakfast": "Breakfast", "lunch": "Lunch", "supper": "Supper" },
+    "role": { "admin": "Admin", "adult": "Adult", "child": "Child" },
+    "recurrence": {
+      "none": "Does not repeat",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "biweekly": "Every 2 weeks",
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    }
+  },
   "hearth": {
     "view": { "week": "Week", "month": "Month" },
     "nav": { "previous": "Previous", "next": "Next", "backToToday": "Back to today" },
@@ -100,10 +113,7 @@
     "saveNote": "Save note",
     "mealPlaceholder": "e.g. Leftovers, eating out…",
     "mealNoteSaved": "Meal note saved",
-    "couldNotSaveNote": "Could not save the note",
-    "slotBreakfast": "Breakfast",
-    "slotLunch": "Lunch",
-    "slotSupper": "Supper"
+    "couldNotSaveNote": "Could not save the note"
   },
   "tasks": {
     "noOpenTasks": "No open tasks.",
@@ -175,15 +185,7 @@
       "cancel": "Cancel",
       "saving": "Saving…",
       "update": "Update",
-      "create": "Create",
-      "recurrence": {
-        "none": "Does not repeat",
-        "daily": "Daily",
-        "weekly": "Weekly",
-        "biweekly": "Every 2 weeks",
-        "monthly": "Monthly",
-        "yearly": "Yearly"
-      }
+      "create": "Create"
     }
   },
   "meals": {
@@ -298,7 +300,6 @@
     },
     "members": {
       "header": { "member": "Member", "email": "Email", "role": "Role" },
-      "roles": { "admin": "Admin", "adult": "Adult", "child": "Child" },
       "addMember": "Add member",
       "editMember": "Edit member",
       "saved": "Member saved",
@@ -380,6 +381,7 @@
       "neverSynced": "never synced",
       "syncNow": "Sync now",
       "synced": "Synced",
+      "syncFailed": "Could not sync this connection",
       "uploadExport": "Upload export",
       "invalidJson": "Not a valid JSON export",
       "imported": "Imported",

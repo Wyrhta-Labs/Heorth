@@ -42,7 +42,7 @@ export default function CalendarPage() {
       setOpen(false);
       toast(editing ? t('calendar.eventUpdated') : t('calendar.eventCreated'), 'success');
     } catch (e) {
-      toast((e as Error).message ?? t('calendar.saveFailed'), 'error');
+      toast((e as Error).message || t('calendar.saveFailed'), 'error');
     }
   };
 

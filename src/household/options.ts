@@ -28,9 +28,10 @@ export interface LocaleOption {
 }
 
 /**
- * Supported display locales. Heorth has no message catalogues yet — `locale`
- * only drives `Intl` date/number formatting — so this is a curated set rather
- * than every BCP-47 tag, and grows as households need it.
+ * Supported display locales. The web app ships en + de message catalogues
+ * (web/src/i18n) and maps every value here to a catalogue language plus a
+ * date-fns locale (web/src/i18n/locale-map.ts) — a curated set rather than
+ * every BCP-47 tag. Adding a value here requires a matching entry in that map.
  */
 export const SUPPORTED_LOCALES: readonly LocaleOption[] = Object.freeze([
   { value: 'da-DK', label: 'Dansk (Danmark)' },

@@ -201,7 +201,8 @@
     "listGenerated": "Liste erstellt",
     "loadError": "Deine Mahlzeiten konnten nicht geladen werden.",
     "noRecipesYet": "Noch keine Rezepte.",
-    "recipeMeta": "Für {{servings}} Personen · {{count}} Zutaten",
+    "recipeMeta_one": "Für {{servings}} Personen · {{count}} Zutat",
+    "recipeMeta_other": "Für {{servings}} Personen · {{count}} Zutaten",
     "form": {
       "title": "Titel *",
       "servings": "Portionen",
@@ -288,7 +289,8 @@
     },
     "connections": {
       "noneYet": "Noch keine Konten verbunden.",
-      "summary": "{{count}} Einträge · {{lastSync}}",
+      "summary_one": "{{count}} Eintrag · {{lastSync}}",
+      "summary_other": "{{count}} Einträge · {{lastSync}}",
       "neverSynced": "nie synchronisiert",
       "syncNow": "Jetzt synchronisieren",
       "synced": "Synchronisiert",

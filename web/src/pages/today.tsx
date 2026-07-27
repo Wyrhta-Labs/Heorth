@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import DayStrip from '@/components/dashboard/day-strip';
@@ -14,16 +15,17 @@ import type { Task } from '@/lib/types';
  * (that's Task 2.5's /hearth) — narrower, single column, thumb-scrollable.
  */
 export default function TodayPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const tasksQuery = useTasks({ status: 'open' });
   const complete = useCompleteTask();
   const tasks = tasksQuery.data?.data ?? [];
 
-  const onToggle = async (t: Task) => {
+  const onToggle = async (task: Task) => {
     try {
-      await complete.mutateAsync({ id: t.id, completed: true });
+      await complete.mutateAsync({ id: task.id, completed: true });
     } catch (e) {
-      toast((e as Error).message || 'Could not update the task', 'error');
+      toast((e as Error).message || t('today.couldNotUpdateTask'), 'error');
     }
   };
 
@@ -32,12 +34,12 @@ export default function TodayPage() {
       <DayStrip />
       <SupperCard />
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Today</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">{t('today.title')}</CardTitle></CardHeader>
         <CardContent><Agenda /></CardContent>
       </Card>
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Due soon</CardTitle></CardHeader>
-        <CardContent><CompactTaskList tasks={tasks} onToggle={(t) => void onToggle(t)} /></CardContent>
+        <CardHeader className="pb-3"><CardTitle className="text-base">{t('today.dueSoon')}</CardTitle></CardHeader>
+        <CardContent><CompactTaskList tasks={tasks} onToggle={(task) => void onToggle(task)} /></CardContent>
       </Card>
     </div>
   );

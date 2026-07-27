@@ -1,7 +1,8 @@
 import { cn } from '@/lib/utils';
-import { weekDays, dayLabel } from '@/lib/format';
+import { useFormatters } from '@/hooks/use-formatters';
 
 export default function DayStrip({ selected }: { selected?: string }) {
+  const { weekDays, dayLabel } = useFormatters();
   const days = weekDays();
   const todayIso = dayLabel(new Date()).iso;
   return (

@@ -4,8 +4,6 @@
     "loading": "Lädt…",
     "save": "Speichern",
     "cancel": "Abbrechen",
-    "delete": "Löschen",
-    "close": "Schließen",
     "loadFailed": "Das konnte gerade nicht geladen werden.",
     "checkConnection": "Prüf deine Verbindung und versuch es nochmal."
   },

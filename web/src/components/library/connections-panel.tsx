@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useSyncConnection, useDeleteConnection, useImportFile } from '@/hooks/use-library';
+import { useFormatters } from '@/hooks/use-formatters';
 import type { LibraryConnection } from '@/lib/types';
 
 const STATUS_KEYS: Record<LibraryConnection['status'], 'active' | 'needsReauth' | 'error'> = {
@@ -15,6 +16,7 @@ const STATUS_KEYS: Record<LibraryConnection['status'], 'active' | 'needsReauth' 
 
 export default function ConnectionsPanel({ connections }: { connections: LibraryConnection[] }) {
   const { t } = useTranslation();
+  const { formatDate, formatTime } = useFormatters();
   const { toast } = useToast();
   const sync = useSyncConnection();
   const remove = useDeleteConnection();
@@ -52,7 +54,7 @@ export default function ConnectionsPanel({ connections }: { connections: Library
             <p className="text-sm text-muted-foreground">
               {t('library.connections.summary', {
                 count: c.itemCount,
-                lastSync: c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : t('library.connections.neverSynced'),
+                lastSync: c.lastSyncedAt ? `${formatDate(c.lastSyncedAt)} ${formatTime(c.lastSyncedAt)}` : t('library.connections.neverSynced'),
               })}
             </p>
             {c.lastSyncError && <p className="text-sm text-red-600">{c.lastSyncError}</p>}

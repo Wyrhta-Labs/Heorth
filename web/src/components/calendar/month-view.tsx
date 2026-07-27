@@ -1,11 +1,13 @@
 import { monthGrid, groupByDay } from '@/lib/calendar-grid';
 import { isMirroredEvent, type EventOccurrence } from '@/lib/types';
+import { useFormatters } from '@/hooks/use-formatters';
 
 interface Props { year: number; month0: number; occurrences: EventOccurrence[]; onSelect: (o: EventOccurrence) => void; }
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function MonthView({ year, month0, occurrences, onSelect }: Props) {
-  const grid = monthGrid(year, month0);
+  const { locale } = useFormatters();
+  const grid = monthGrid(year, month0, locale);
   const byDay = groupByDay(occurrences);
   return (
     <div>

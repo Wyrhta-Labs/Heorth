@@ -1,7 +1,8 @@
 // web/src/lib/format.test.ts
 import { describe, it, expect } from 'vitest';
-import { formatMoney, progressPercent, weekDays, dayLabel, dayRangeIso } from './format';
+import { formatMoney, progressPercent, formatDate, formatTime, weekDays, dayLabel, dayRangeIso } from './format';
 import { startOfDay, endOfDay, parseISO } from 'date-fns';
+import { de, enGB, enUS } from 'date-fns/locale';
 
 describe('formatMoney', () => {
   it('formats a numeric string as USD', () => {
@@ -25,11 +26,29 @@ describe('progressPercent', () => {
 });
 
 describe('weekDays / dayLabel', () => {
-  it('returns 7 Monday-first days for a reference date', () => {
-    const days = weekDays(new Date('2026-07-15T12:00:00Z')); // a Wednesday
+  const ref = new Date('2026-07-15T12:00:00Z'); // a Wednesday
+  it('follows the locale week start (enUS: Sunday)', () => {
+    const days = weekDays(ref, enUS);
     expect(days.length).toBe(7);
-    expect(dayLabel(days[0]!).dow).toBe('Mon');
-    expect(dayLabel(days[6]!).dow).toBe('Sun');
+    expect(dayLabel(days[0]!, enUS).dow).toBe('Sun');
+    expect(dayLabel(days[6]!, enUS).dow).toBe('Sat');
+  });
+  it('is Monday-first for de and enGB', () => {
+    expect(dayLabel(weekDays(ref, de)[0]!, de).dow).toBe('Mo.');
+    expect(dayLabel(weekDays(ref, enGB)[0]!, enGB).dow).toBe('Mon');
+  });
+  it('defaults to enUS and keeps iso locale-free', () => {
+    expect(dayLabel(weekDays(ref)[0]!).dow).toBe('Sun');
+    expect(dayLabel(new Date('2026-07-13T12:00:00'), de).iso).toBe('2026-07-13');
+  });
+});
+
+describe('formatDate / formatTime localize', () => {
+  it('renders per-locale date and time', () => {
+    expect(formatDate('2026-07-13T18:30:00Z', enUS)).toMatch(/Jul 13, 2026/);
+    expect(formatDate('2026-07-13T18:30:00Z', de)).toMatch(/13\.\s?Juli 2026/);
+    expect(formatTime('2026-07-13T09:05:00', enUS)).toBe('9:05 AM');
+    expect(formatTime('2026-07-13T09:05:00', de)).toBe('09:05');
   });
 });
 

@@ -201,7 +201,8 @@
     "listGenerated": "List generated",
     "loadError": "We couldn’t load your meals.",
     "noRecipesYet": "No recipes yet.",
-    "recipeMeta": "Serves {{servings}} · {{count}} ingredients",
+    "recipeMeta_one": "Serves {{servings}} · {{count}} ingredient",
+    "recipeMeta_other": "Serves {{servings}} · {{count}} ingredients",
     "form": {
       "title": "Title *",
       "servings": "Servings",
@@ -288,7 +289,8 @@
     },
     "connections": {
       "noneYet": "No accounts connected yet.",
-      "summary": "{{count}} items · {{lastSync}}",
+      "summary_one": "{{count}} item · {{lastSync}}",
+      "summary_other": "{{count}} items · {{lastSync}}",
       "neverSynced": "never synced",
       "syncNow": "Sync now",
       "synced": "Synced",

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import DayColumn from './day-column';
 import type { DayComposition, StalenessInfo } from '@/lib/hearth';
 import type { Member, Recipe, Task } from '@/lib/types';
@@ -27,6 +28,7 @@ interface Ghost { label: string; x: number; y: number }
  */
 export default function HearthWeek(props: Props) {
   const { days, todayIso, membersById, recipesById, staleByOwner, completingIds, onCompleteTask, onOpenRecipe, onSwapMeal } = props;
+  const { t } = useTranslation();
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [ghost, setGhost] = useState<Ghost | null>(null);
@@ -46,7 +48,7 @@ export default function HearthWeek(props: Props) {
     const supper = comp?.supper;
     if (!supper) return; // nothing to pick up
     e.preventDefault();
-    const label = supper.recipeId ? (recipesById[supper.recipeId]?.title ?? supper.freeText ?? 'Meal') : (supper.freeText ?? 'Meal');
+    const label = supper.recipeId ? (recipesById[supper.recipeId]?.title ?? supper.freeText ?? t('hearth.week.mealFallback')) : (supper.freeText ?? t('hearth.week.mealFallback'));
     dragFromRef.current = iso;
     dropRef.current = null;
     setDragFrom(iso);
@@ -82,7 +84,7 @@ export default function HearthWeek(props: Props) {
     window.addEventListener('pointermove', move, { passive: true });
     window.addEventListener('pointerup', up, { passive: true });
     window.addEventListener('pointercancel', cancel, { passive: true });
-  }, [days, recipesById, onSwapMeal]);
+  }, [days, recipesById, onSwapMeal, t]);
 
   // Unmount mid-drag (e.g. navigating away from the wall): tear down the
   // window listeners so nothing leaks past this component's lifetime.

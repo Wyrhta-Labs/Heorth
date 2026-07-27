@@ -4,6 +4,8 @@ import {
   addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ToastProvider, useToast } from '@/components/ui/toast';
 import { ApiError } from '@/api/client';
 import HearthWeek from '@/components/hearth/hearth-week';
@@ -16,7 +18,7 @@ import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
 import { useWeekPlan, useRecipes, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
 import { useMembers } from '@/hooks/use-household';
 import { useM365Status } from '@/hooks/use-m365';
-import { weekDays, dayLabel } from '@/lib/format';
+import { useFormatters } from '@/hooks/use-formatters';
 import {
   composeDay, computeMealSwap, deriveStaleness, tasksForDay, formatAge,
   type DayComposition, type MealOp,
@@ -32,6 +34,8 @@ const GC = 10 * 60_000; // cap retained (paged-away) week/month query pages
 
 function HearthInner() {
   const { toast } = useToast();
+  const { t } = useTranslation();
+  const { weekDays, dayLabel, locale } = useFormatters();
   const [view, setView] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -103,13 +107,13 @@ function HearthInner() {
   const todayComposition = composeDay(todayIso, occurrences, entries, tasks, todayIso, completingIds);
   const dueTodayCount = tasksForDay(tasks, todayIso, todayIso, completingIds).open.length;
 
-  const onCompleteTask = async (t: Task) => {
-    setCompletingIds((prev) => new Set(prev).add(t.id));
+  const onCompleteTask = async (task: Task) => {
+    setCompletingIds((prev) => new Set(prev).add(task.id));
     try {
-      await complete.mutateAsync({ id: t.id, completed: true });
+      await complete.mutateAsync({ id: task.id, completed: true });
     } catch (e) {
-      setCompletingIds((prev) => { const n = new Set(prev); n.delete(t.id); return n; });
-      toast(transientMessage(e), 'error');
+      setCompletingIds((prev) => { const n = new Set(prev); n.delete(task.id); return n; });
+      toast(transientMessage(e, t), 'error');
     }
   };
 
@@ -122,7 +126,7 @@ function HearthInner() {
         else await deleteMeal.mutateAsync(op.id);
       }
     } catch {
-      toast('Could not move the meal — try again.', 'error');
+      toast(t('hearth.errors.moveMeal'), 'error');
     }
   };
 
@@ -141,16 +145,16 @@ function HearthInner() {
   const staleNotes = Object.entries(staleByOwner)
     .filter(([, s]) => s.stale)
     .map(([owner, s]) => {
-      const who = owner === 'family' ? 'Family' : (membersById[owner]?.displayName ?? 'A member');
-      const age = formatAge(s.lastSuccessAt, nowMs);
+      const who = owner === 'family' ? t('hearth.stale.family') : (membersById[owner]?.displayName ?? t('hearth.stale.someone'));
+      const age = formatAge(s.lastSuccessAt, nowMs, t);
       return s.needsReauth
-        ? `${who} — reconnect from your phone`
-        : `${who} — last synced ${age} ago`;
+        ? t('hearth.stale.reconnect', { who })
+        : t('hearth.stale.lastSynced', { who, age });
     });
 
   const label = view === 'week'
-    ? `${format(rangeFrom, 'MMM d')} – ${format(rangeTo, 'MMM d')}`
-    : format(base, 'MMMM yyyy');
+    ? `${format(rangeFrom, t('hearth.header.rangePattern'), { locale })} – ${format(rangeTo, t('hearth.header.rangePattern'), { locale })}`
+    : format(base, t('hearth.header.monthPattern'), { locale });
   const offset = view === 'week' ? weekOffset : monthOffset;
   const page = (delta: number) => (view === 'week' ? setWeekOffset((o) => o + delta) : setMonthOffset((o) => o + delta));
   const resetPage = () => (view === 'week' ? setWeekOffset(0) : setMonthOffset(0));
@@ -160,8 +164,8 @@ function HearthInner() {
       {/* Header */}
       <header className="mb-5 flex items-end justify-between gap-6">
         <div>
-          <h1 className="font-serif text-5xl leading-none text-ink">{format(now, 'EEEE')}</h1>
-          <p className="mt-1 text-xl text-ash">{format(now, 'd MMMM')} · {format(now, 'HH:mm')}</p>
+          <h1 className="font-serif text-5xl leading-none text-ink">{format(now, 'EEEE', { locale })}</h1>
+          <p className="mt-1 text-xl text-ash">{format(now, t('hearth.header.datePattern'), { locale })} · {format(now, 'HH:mm')}</p>
         </div>
         <div className="flex flex-col items-end gap-3">
           <div className="flex items-center gap-2">
@@ -170,23 +174,23 @@ function HearthInner() {
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`rounded-lg px-5 py-2 text-lg capitalize ${view === v ? 'bg-ember text-white' : 'text-ash'}`}
+                  className={`rounded-lg px-5 py-2 text-lg ${view === v ? 'bg-ember text-white' : 'text-ash'}`}
                 >
-                  {v}
+                  {t(v === 'week' ? 'hearth.view.week' : 'hearth.view.month')}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => page(-1)} aria-label="Previous" className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ink">
+            <button onClick={() => page(-1)} aria-label={t('hearth.nav.previous')} className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ink">
               <ChevronLeft className="h-6 w-6" />
             </button>
             <span className="min-w-56 text-center font-serif text-2xl text-ink">{label}</span>
-            <button onClick={() => page(1)} aria-label="Next" className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ink">
+            <button onClick={() => page(1)} aria-label={t('hearth.nav.next')} className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ink">
               <ChevronRight className="h-6 w-6" />
             </button>
             {offset !== 0 && (
-              <button onClick={resetPage} aria-label="Back to today" className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ash">
+              <button onClick={resetPage} aria-label={t('hearth.nav.backToToday')} className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ash">
                 <RotateCcw className="h-5 w-5" />
               </button>
             )}
@@ -238,7 +242,7 @@ function HearthInner() {
       {/* Freshness / staleness footer */}
       <footer className="mt-4 flex items-center justify-between gap-6 text-sm text-ash/80">
         <span className="shrink-0">
-          {reconnecting ? 'Reconnecting… ' : ''}as of {format(new Date(updatedAt), 'HH:mm')}
+          {reconnecting ? t('hearth.footer.reconnecting') : ''}{t('hearth.footer.asOf', { time: format(new Date(updatedAt), 'HH:mm') })}
         </span>
         {staleNotes.length > 0 && (
           <span className="truncate text-right">{staleNotes.join('   ·   ')}</span>
@@ -257,12 +261,12 @@ function HearthInner() {
 }
 
 /** Gentle, human wording for a completion failure — never a stack trace. */
-function transientMessage(e: unknown): string {
+function transientMessage(e: unknown, t: TFunction): string {
   if (e instanceof ApiError) {
-    if (e.status === 502 || e.status === 503) return "Couldn't reach Microsoft — try again in a moment.";
-    if (e.code === 'NEEDS_REAUTH' || e.code === 'NO_CONNECTION') return 'This list needs reconnecting from your phone.';
+    if (e.status === 502 || e.status === 503) return t('hearth.errors.graphDown');
+    if (e.code === 'NEEDS_REAUTH' || e.code === 'NO_CONNECTION') return t('hearth.errors.needsReconnect');
   }
-  return 'Could not update the task — try again.';
+  return t('hearth.errors.updateTask');
 }
 
 export default function HearthPage() {

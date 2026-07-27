@@ -1,3 +1,6 @@
+import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/hooks/use-formatters';
 import { monthGrid } from '@/lib/calendar-grid';
 import { composeDay, resolveAttribution, type StalenessInfo } from '@/lib/hearth';
 import type { EventOccurrence, MealPlanEntry, Member, Recipe, Task } from '@/lib/types';
@@ -14,15 +17,16 @@ interface Props {
   staleByOwner: Record<string, StalenessInfo>;
 }
 
-const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 /** A calm, glanceable month: coloured event lines + a supper marker per day. Read-only. */
 export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, membersById, recipesById, staleByOwner }: Props) {
-  const grid = monthGrid(year, month0);
+  const { t } = useTranslation();
+  const { locale } = useFormatters();
+  const grid = monthGrid(year, month0, locale);
+  const dowLabels = grid[0]!.map((iso) => format(new Date(iso + 'T00:00:00'), 'EEE', { locale }));
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-2 grid grid-cols-7 gap-3">
-        {DOW.map((d) => <div key={d} className="text-center text-sm uppercase tracking-wide text-ash">{d}</div>)}
+        {dowLabels.map((d, i) => <div key={`${d}-${i}`} className="text-center text-sm uppercase tracking-wide text-ash">{d}</div>)}
       </div>
       <div className="grid min-h-0 flex-1 grid-rows-6 gap-3">
         {grid.map((week, wi) => (
@@ -55,7 +59,7 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
                         </div>
                       );
                     })}
-                    {comp.events.length > 3 && <div className="text-xs text-ash/70">+{comp.events.length - 3} more</div>}
+                    {comp.events.length > 3 && <div className="text-xs text-ash/70">{t('hearth.day.more', { count: comp.events.length - 3 })}</div>}
                   </div>
                   {supper && (
                     <div className="mt-1 truncate text-sm text-ember" title={supper}>🍽 {supper}</div>

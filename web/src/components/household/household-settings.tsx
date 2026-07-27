@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +21,7 @@ function groupZones(zones: string[]): { region: string; zones: string[] }[] {
 }
 
 export default function HouseholdSettings({ canManage }: { canManage: boolean }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { data } = useHousehold();
   const { data: optionsData } = useHouseholdOptions();
@@ -61,19 +63,19 @@ export default function HouseholdSettings({ canManage }: { canManage: boolean })
   const save = async () => {
     try {
       await update.mutateAsync({ name, timezone, locale });
-      toast('Household updated', 'success');
+      toast(t('settings.household.updated'), 'success');
     } catch (e) {
       // A rejected timezone/locale (an unvalidated legacy value left in place,
       // say) must not look like a successful save.
-      toast(e instanceof Error ? e.message : 'Could not update household', 'error');
+      toast(e instanceof Error ? e.message : t('settings.household.updateFailed'), 'error');
     }
   };
 
   return (
     <div className="space-y-4 max-w-md">
-      <div className="space-y-1"><Label htmlFor="hhname">Name</Label>
+      <div className="space-y-1"><Label htmlFor="hhname">{t('settings.household.name')}</Label>
         <Input id="hhname" value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
-      <div className="space-y-1"><Label htmlFor="tz">Timezone</Label>
+      <div className="space-y-1"><Label htmlFor="tz">{t('settings.household.timezone')}</Label>
         <select id="tz" className={SELECT_CLASS} value={timezone}
           onChange={(e) => setTimezone(e.target.value)} disabled={!canManage}>
           {zoneGroups.map((g) => (g.region
@@ -81,12 +83,12 @@ export default function HouseholdSettings({ canManage }: { canManage: boolean })
             : g.zones.map((z) => <option key={z} value={z}>{z}</option>)
           ))}
         </select></div>
-      <div className="space-y-1"><Label htmlFor="locale">Locale</Label>
+      <div className="space-y-1"><Label htmlFor="locale">{t('settings.household.locale')}</Label>
         <select id="locale" className={SELECT_CLASS} value={locale}
           onChange={(e) => setLocale(e.target.value)} disabled={!canManage}>
           {localeOptions.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
         </select></div>
-      {canManage && <Button onClick={save} disabled={update.isPending}>Save</Button>}
+      {canManage && <Button onClick={save} disabled={update.isPending}>{t('common.save')}</Button>}
     </div>
   );
 }

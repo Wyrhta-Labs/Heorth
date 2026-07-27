@@ -1,10 +1,12 @@
 import { LogOut } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { MemberAvatar } from '@/components/ui/member-avatar';
 import { useAuth } from '@/hooks/use-auth';
 import { useWhoami } from '@/hooks/use-household';
 
 export default function TopBar({ title }: { title: string }) {
+  const { t } = useTranslation();
   const { logout } = useAuth();
   const { data } = useWhoami();
   const me = data?.data;
@@ -14,7 +16,7 @@ export default function TopBar({ title }: { title: string }) {
       <div className="flex items-center gap-3">
         {me && <MemberAvatar name={me.displayName} color={me.avatarColor} size="sm" />}
         <span className="text-sm text-ash hidden sm:block">{me?.displayName}</span>
-        <Button variant="ghost" size="icon" onClick={logout} title="Sign out">
+        <Button variant="ghost" size="icon" onClick={logout} title={t('nav.signOut')}>
           <LogOut className="h-4 w-4" />
         </Button>
       </div>

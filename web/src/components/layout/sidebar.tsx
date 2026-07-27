@@ -1,25 +1,49 @@
 import { Link, useRouter } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library,
   Sun, ShoppingCart, PlusCircle, Tv,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export const navItems = [
-  { to: '/', label: 'This week', icon: LayoutDashboard, exact: true },
-  { to: '/today', label: 'Today', icon: Sun },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/tasks', label: 'Tasks', icon: ListChecks },
-  { to: '/shopping', label: 'Shopping list', icon: ShoppingCart },
-  { to: '/capture', label: 'Quick capture', icon: PlusCircle },
-  { to: '/meals', label: 'Meals', icon: UtensilsCrossed },
-  { to: '/feoh', label: 'Feoh', icon: Wallet },
-  { to: '/library', label: 'Library', icon: Library },
-  { to: '/household', label: 'Household', icon: Home },
-  { to: '/hearth', label: 'Hearth (wall)', icon: Tv },
+/** Literal catalog-key union so `t(item.labelKey)` type-checks against the
+ * real translation resources instead of accepting an arbitrary string. */
+export type NavLabelKey =
+  | 'nav.thisWeek'
+  | 'nav.today'
+  | 'nav.calendar'
+  | 'nav.tasks'
+  | 'nav.shoppingList'
+  | 'nav.quickCapture'
+  | 'nav.meals'
+  | 'nav.feoh'
+  | 'nav.library'
+  | 'nav.household'
+  | 'nav.hearth';
+
+interface NavItem {
+  to: string;
+  labelKey: NavLabelKey;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+}
+
+export const navItems: NavItem[] = [
+  { to: '/', labelKey: 'nav.thisWeek', icon: LayoutDashboard, exact: true },
+  { to: '/today', labelKey: 'nav.today', icon: Sun },
+  { to: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays },
+  { to: '/tasks', labelKey: 'nav.tasks', icon: ListChecks },
+  { to: '/shopping', labelKey: 'nav.shoppingList', icon: ShoppingCart },
+  { to: '/capture', labelKey: 'nav.quickCapture', icon: PlusCircle },
+  { to: '/meals', labelKey: 'nav.meals', icon: UtensilsCrossed },
+  { to: '/feoh', labelKey: 'nav.feoh', icon: Wallet },
+  { to: '/library', labelKey: 'nav.library', icon: Library },
+  { to: '/household', labelKey: 'nav.household', icon: Home },
+  { to: '/hearth', labelKey: 'nav.hearth', icon: Tv },
 ];
 
 export default function Sidebar() {
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = router.state.location.pathname;
   return (
@@ -29,7 +53,7 @@ export default function Sidebar() {
         <span className="font-serif text-xl">Heorth</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map(({ to, label, icon: Icon, exact }) => {
+        {navItems.map(({ to, labelKey, icon: Icon, exact }) => {
           const active = exact ? pathname === to : pathname.startsWith(to);
           return (
             <Link
@@ -41,7 +65,7 @@ export default function Sidebar() {
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              {t(labelKey)}
             </Link>
           );
         })}

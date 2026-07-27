@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 import { Sun, ShoppingCart, PlusCircle, Menu, LogOut } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
@@ -7,9 +8,9 @@ import { navItems } from './sidebar';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { to: '/today', label: 'Today', icon: Sun },
-  { to: '/shopping', label: 'Shopping', icon: ShoppingCart },
-  { to: '/capture', label: 'Capture', icon: PlusCircle },
+  { to: '/today', labelKey: 'nav.today', icon: Sun },
+  { to: '/shopping', labelKey: 'nav.shoppingTab', icon: ShoppingCart },
+  { to: '/capture', labelKey: 'nav.captureTab', icon: PlusCircle },
 ] as const;
 
 /**
@@ -18,6 +19,7 @@ const TABS = [
  * directly; "More" opens the full nav list for everything else.
  */
 export default function MobileNav() {
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = router.state.location.pathname;
   const { logout } = useAuth();
@@ -26,7 +28,7 @@ export default function MobileNav() {
   return (
     <>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-tan bg-card">
-        {TABS.map(({ to, label, icon: Icon }) => {
+        {TABS.map(({ to, labelKey, icon: Icon }) => {
           const active = pathname.startsWith(to);
           return (
             <Link
@@ -38,7 +40,7 @@ export default function MobileNav() {
               )}
             >
               <Icon className="h-5 w-5" />
-              {label}
+              {t(labelKey)}
             </Link>
           );
         })}
@@ -47,7 +49,7 @@ export default function MobileNav() {
           className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-ash"
         >
           <Menu className="h-5 w-5" />
-          More
+          {t('nav.more')}
         </button>
       </nav>
 
@@ -58,7 +60,7 @@ export default function MobileNav() {
             <DialogClose onClose={() => setMoreOpen(false)} />
           </DialogHeader>
           <div className="space-y-1">
-            {navItems.map(({ to, label, icon: Icon }) => (
+            {navItems.map(({ to, labelKey, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}
@@ -66,7 +68,7 @@ export default function MobileNav() {
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink hover:bg-linen"
               >
                 <Icon className="h-4 w-4 shrink-0 text-ash" />
-                {label}
+                {t(labelKey)}
               </Link>
             ))}
             <button
@@ -74,7 +76,7 @@ export default function MobileNav() {
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink hover:bg-linen"
             >
               <LogOut className="h-4 w-4 shrink-0 text-ash" />
-              Sign out
+              {t('nav.signOut')}
             </button>
           </div>
         </DialogContent>

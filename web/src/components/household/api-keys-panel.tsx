@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, Key, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +8,12 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '@/hooks/use-api-keys';
 import { useToast } from '@/components/ui/toast';
-import { formatDate } from '@/lib/format';
+import { useFormatters } from '@/hooks/use-formatters';
 
 export default function ApiKeysPanel() {
+  const { t } = useTranslation();
   const { toast } = useToast();
+  const { formatDate } = useFormatters();
   const { data } = useApiKeys();
   const create = useCreateApiKey();
   const revoke = useRevokeApiKey();
@@ -29,7 +32,7 @@ export default function ApiKeysPanel() {
     setCreatedKey(res.data.raw); // raw key returned once
     setName('');
     setShowCreate(false);
-    toast('API key created', 'success');
+    toast(t('settings.apiKeys.created'), 'success');
   };
 
   const handleCopy = async () => {
@@ -40,28 +43,28 @@ export default function ApiKeysPanel() {
   };
 
   const handleRevoke = async (id: string, keyName: string) => {
-    if (!confirm(`Revoke API key "${keyName}"?`)) return;
+    if (!confirm(t('settings.apiKeys.revokeConfirm', { name: keyName }))) return;
     await revoke.mutateAsync(id);
-    toast('API key revoked', 'success');
+    toast(t('settings.apiKeys.revoked'), 'success');
   };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-ash">Mint <code className="text-xs">he_</code> keys for agents (MCP).</p>
-        <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> New key</Button>
+        <p className="text-sm text-ash">{t('settings.apiKeys.mintPrefix')} <code className="text-xs">he_</code> {t('settings.apiKeys.mintSuffix')}</p>
+        <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> {t('settings.apiKeys.newKey')}</Button>
       </div>
       {keys.length === 0 ? (
-        <div className="text-sm text-ash py-4 text-center">No API keys yet.</div>
+        <div className="text-sm text-ash py-4 text-center">{t('settings.apiKeys.none')}</div>
       ) : (
         <Table>
-          <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Prefix</TableHead><TableHead>Last used</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>{t('settings.apiKeys.headerName')}</TableHead><TableHead>{t('settings.apiKeys.headerPrefix')}</TableHead><TableHead>{t('settings.apiKeys.headerLastUsed')}</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
           <TableBody>
             {keys.map((k) => (
               <TableRow key={k.id}>
                 <TableCell className="font-medium">{k.name}</TableCell>
                 <TableCell><code className="text-xs bg-linen px-1.5 py-0.5 rounded">{k.keyPrefix}…</code></TableCell>
-                <TableCell className="text-sm text-ash">{k.lastUsedAt ? formatDate(k.lastUsedAt) : 'Never'}</TableCell>
+                <TableCell className="text-sm text-ash">{k.lastUsedAt ? formatDate(k.lastUsedAt) : t('settings.apiKeys.never')}</TableCell>
                 <TableCell>
                   <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleRevoke(k.id, k.name)} disabled={revoke.isPending}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -75,14 +78,14 @@ export default function ApiKeysPanel() {
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Create API key</DialogTitle><DialogClose onClose={() => setShowCreate(false)} /></DialogHeader>
+          <DialogHeader><DialogTitle>{t('settings.apiKeys.createTitle')}</DialogTitle><DialogClose onClose={() => setShowCreate(false)} /></DialogHeader>
           <div className="space-y-1">
-            <Label htmlFor="keyName">Name *</Label>
-            <Input id="keyName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Home assistant" autoFocus />
+            <Label htmlFor="keyName">{t('settings.apiKeys.nameLabel')}</Label>
+            <Input id="keyName" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('settings.apiKeys.namePlaceholder')} autoFocus />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>Create</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>{t('settings.apiKeys.cancel')}</Button>
+            <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>{t('settings.apiKeys.create')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -90,17 +93,17 @@ export default function ApiKeysPanel() {
       <Dialog open={!!createdKey} onOpenChange={(open) => !open && setCreatedKey(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Key className="h-5 w-5 text-ember" /> API key created</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Key className="h-5 w-5 text-ember" /> {t('settings.apiKeys.created')}</DialogTitle>
             <DialogClose onClose={() => setCreatedKey(null)} />
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-amber/10 border border-amber/40 rounded-lg p-3 text-sm text-ink">Copy this key now — you won&rsquo;t see it again.</div>
+            <div className="bg-amber/10 border border-amber/40 rounded-lg p-3 text-sm text-ink">{t('settings.apiKeys.copyWarning')}</div>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-linen px-3 py-2 rounded-lg text-sm font-mono break-all">{createdKey}</code>
               <Button variant="outline" size="icon" onClick={handleCopy}>{copied ? <Check className="h-4 w-4 text-sage" /> : <Copy className="h-4 w-4" />}</Button>
             </div>
           </div>
-          <DialogFooter><Button onClick={() => setCreatedKey(null)}>Done</Button></DialogFooter>
+          <DialogFooter><Button onClick={() => setCreatedKey(null)}>{t('settings.apiKeys.done')}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

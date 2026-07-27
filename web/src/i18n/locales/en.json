@@ -4,8 +4,6 @@
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
-    "delete": "Delete",
-    "close": "Close",
     "loadFailed": "We couldn’t load this right now.",
     "checkConnection": "Check your connection and try again."
   },

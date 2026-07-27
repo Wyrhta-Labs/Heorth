@@ -3,7 +3,9 @@ import {
   createRouter, createRoute, createRootRoute, RouterProvider, Outlet, redirect,
 } from '@tanstack/react-router';
 import { AuthProvider } from '@/hooks/use-auth';
+import { I18nProvider } from '@/hooks/use-i18n';
 import { TOKEN_KEY } from '@/api/client';
+import '@/i18n';
 import AppShell from '@/components/layout/app-shell';
 import UpdateBanner from '@/components/pwa/update-banner';
 import LoginPage from '@/pages/login';
@@ -95,7 +97,9 @@ export default function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
       </QueryClientProvider>
     </AuthProvider>
   );

@@ -59,7 +59,10 @@ function HearthInner() {
   const toDay = format(rangeTo, 'yyyy-MM-dd');
 
   const eventsQuery = useEvents({ from: fromIso, to: toIso }, { refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData });
-  const tasksQuery = useTasks({ due_from: fromDay, due_to: toDay }, { refetchInterval: POLL_TASKS, gcTime: GC, placeholderData: keepPreviousData });
+  // Full instants, not fromDay/toDay: the tasks validator requires ISO
+  // datetimes (date-only 400s, #3), and the local week boundaries match the
+  // local-day bucketing used on the display side (lib/hearth.ts isoOf).
+  const tasksQuery = useTasks({ due_from: fromIso, due_to: toIso }, { refetchInterval: POLL_TASKS, gcTime: GC, placeholderData: keepPreviousData });
   const planQuery = useWeekPlan(fromDay, toDay, { refetchInterval: POLL_MEALS, gcTime: GC, placeholderData: keepPreviousData });
   const recipesQuery = useRecipes();
   const membersQuery = useMembers();

@@ -4,8 +4,9 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 // Stub all data hooks so the page renders deterministically without a network.
 const emptyQuery = { data: { data: [] }, isError: false, dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z') };
 vi.mock('@/hooks/use-calendar', () => ({ useEvents: () => emptyQuery }));
+const useTasksSpy = vi.fn((_params: { due_from: string; due_to: string }, _opts?: unknown) => emptyQuery);
 vi.mock('@/hooks/use-tasks', () => ({
-  useTasks: () => emptyQuery,
+  useTasks: (...args: Parameters<typeof useTasksSpy>) => useTasksSpy(...args),
   useCompleteTask: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@/hooks/use-meals', () => ({
@@ -41,6 +42,20 @@ describe('HearthPage view + paging', () => {
     expect(screen.queryByLabelText('Back to today')).toBeNull();
     fireEvent.click(screen.getByLabelText('Next'));
     expect(screen.getByLabelText('Back to today')).toBeInTheDocument();
+  });
+
+  it('queries tasks with full ISO instants, not date-only values (#3)', () => {
+    // The server validator (src/modules/tasks/validators.ts) requires
+    // z.string().datetime() — a date-only yyyy-MM-dd 400s on every poll.
+    render(<HearthPage />);
+    const [params] = useTasksSpy.mock.calls[0];
+    const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+    expect(params.due_from).toMatch(instant);
+    expect(params.due_to).toMatch(instant);
+    // Local week boundaries (Mon 00:00 → Sun 23:59:59.999 local), same
+    // local-day bucketing convention as the display side (lib/hearth.ts isoOf).
+    expect(new Date(params.due_from).getTime()).toBe(new Date('2026-07-20T00:00:00').getTime());
+    expect(new Date(params.due_to).getTime()).toBe(new Date('2026-07-26T23:59:59.999').getTime());
   });
 
   it('shows the freshness "as of" stamp', () => {

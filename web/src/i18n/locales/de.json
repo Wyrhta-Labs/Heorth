@@ -1,0 +1,10 @@
+{
+  "common": {
+    "tryAgain": "Nochmal versuchen",
+    "loading": "Lädt…",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "close": "Schließen"
+  }
+}

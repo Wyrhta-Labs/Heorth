@@ -24,3 +24,11 @@ if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localSto
     Object.defineProperty(window, 'localStorage', { value: memoryStorage, configurable: true, writable: true });
   }
 }
+
+import { afterEach } from 'vitest';
+import i18n from '../src/i18n';
+
+// Tests run in English; a test that switches to de must not leak into the next.
+afterEach(async () => {
+  if (i18n.language !== 'en') await i18n.changeLanguage('en');
+});

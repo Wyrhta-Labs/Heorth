@@ -1,0 +1,10 @@
+{
+  "common": {
+    "tryAgain": "Try again",
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "close": "Close"
+  }
+}

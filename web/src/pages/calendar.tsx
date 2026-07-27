@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hoo
 import type { Event, EventOccurrence } from '@/lib/types';
 
 export default function CalendarPage() {
+  const { t } = useTranslation();
   const [view, setView] = useState<'week' | 'month'>('week');
   const [ref] = useState(new Date());
   const [editing, setEditing] = useState<Event | null>(null);
@@ -38,9 +40,9 @@ export default function CalendarPage() {
       if (editing) await updateMut.mutateAsync({ id: editing.id, input: v });
       else await createMut.mutateAsync(v);
       setOpen(false);
-      toast(editing ? 'Event updated' : 'Event created', 'success');
+      toast(editing ? t('calendar.eventUpdated') : t('calendar.eventCreated'), 'success');
     } catch (e) {
-      toast((e as Error).message ?? 'Failed to save event', 'error');
+      toast((e as Error).message ?? t('calendar.saveFailed'), 'error');
     }
   };
 
@@ -48,7 +50,7 @@ export default function CalendarPage() {
     if (!editing) return;
     await deleteMut.mutateAsync(editing.id);
     setOpen(false);
-    toast('Event deleted', 'success');
+    toast(t('calendar.eventDeleted'), 'success');
   };
 
   return (
@@ -57,14 +59,16 @@ export default function CalendarPage() {
         <div className="inline-flex rounded-lg border border-tan bg-card p-0.5">
           {(['week', 'month'] as const).map((v) => (
             <button key={v} onClick={() => setView(v)}
-              className={`rounded-md px-3 py-1 text-sm capitalize ${view === v ? 'bg-ember text-white' : 'text-ash'}`}>{v}</button>
+              className={`rounded-md px-3 py-1 text-sm capitalize ${view === v ? 'bg-ember text-white' : 'text-ash'}`}>
+              {v === 'week' ? t('calendar.view.week') : t('calendar.view.month')}
+            </button>
           ))}
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4" /> New event</Button>
+        <Button onClick={openNew}><Plus className="h-4 w-4" /> {t('calendar.newEvent')}</Button>
       </div>
 
       {retry ? (
-        <ErrorState message="We couldn’t load your calendar." onRetry={retry} />
+        <ErrorState message={t('calendar.loadError')} onRetry={retry} />
       ) : (
         <Card>
           <CardContent className="p-4">
@@ -78,7 +82,7 @@ export default function CalendarPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit event' : 'New event'}</DialogTitle>
+            <DialogTitle>{editing ? t('calendar.editEvent') : t('calendar.newEvent')}</DialogTitle>
             <DialogClose onClose={() => setOpen(false)} />
           </DialogHeader>
           <EventForm
@@ -89,7 +93,7 @@ export default function CalendarPage() {
           />
           {editing && (
             <div className="pt-2">
-              <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleteMut.isPending}>Delete event</Button>
+              <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleteMut.isPending}>{t('calendar.deleteEvent')}</Button>
             </div>
           )}
         </DialogContent>

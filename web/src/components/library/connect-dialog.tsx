@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import {
 import type { TraktDevice } from '@/api/library';
 
 export default function ConnectDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const createLT = useCreateLibraryThing();
   const startDevice = useStartTraktDevice();
@@ -33,10 +35,10 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
   const connectLT = async () => {
     try {
       await createLT.mutateAsync({ userid, key });
-      toast('LibraryThing connected', 'success');
+      toast(t('library.connectDialog.ltConnected'), 'success');
       onClose();
     } catch (e) {
-      toast((e as Error).message || 'Could not connect LibraryThing', 'error');
+      toast((e as Error).message || t('library.connectDialog.ltFailed'), 'error');
     }
   };
 
@@ -45,7 +47,7 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
     try {
       res = await startDevice.mutateAsync();
     } catch (e) {
-      toast((e as Error).message || 'Could not start Trakt authorization', 'error');
+      toast((e as Error).message || t('library.connectDialog.traktStartFailed'), 'error');
       return;
     }
     setDevice(res.data);
@@ -53,18 +55,18 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
     const started = Date.now();
     const tick = async () => {
       if (!activeRef.current) return;
-      if (Date.now() - started > res.data.expires_in * 1000) { toast('Trakt code expired', 'error'); setDevice(null); return; }
+      if (Date.now() - started > res.data.expires_in * 1000) { toast(t('library.connectDialog.traktExpired'), 'error'); setDevice(null); return; }
       try {
         const poll = await pollDevice.mutateAsync(res.data.device_code);
         if (!activeRef.current) return;
         if ('status' in poll.data && poll.data.status === 'pending') {
           timeoutRef.current = setTimeout(tick, res.data.interval * 1000);
         } else {
-          toast('Trakt connected', 'success'); setDevice(null); onClose();
+          toast(t('library.connectDialog.traktConnected'), 'success'); setDevice(null); onClose();
         }
       } catch (e) {
         if (!activeRef.current) return;
-        toast((e as Error).message || 'Trakt authorization failed', 'error');
+        toast((e as Error).message || t('library.connectDialog.traktFailed'), 'error');
         setDevice(null);
       }
     };
@@ -75,7 +77,7 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Connect an account</DialogTitle>
+          <DialogTitle>{t('library.connectDialog.title')}</DialogTitle>
           <DialogClose onClose={onClose} />
         </DialogHeader>
         <Tabs defaultValue="trakt">
@@ -86,20 +88,20 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
           <TabsContent value="trakt">
             {device ? (
               <div className="space-y-2">
-                <p>Go to <a className="underline" href={device.verification_url} target="_blank" rel="noreferrer">{device.verification_url}</a> and enter:</p>
+                <p>{t('library.connectDialog.goTo')} <a className="underline" href={device.verification_url} target="_blank" rel="noreferrer">{device.verification_url}</a> {t('library.connectDialog.andEnter')}</p>
                 <p className="text-2xl font-mono tracking-widest">{device.user_code}</p>
-                <p className="text-sm text-muted-foreground">Waiting for authorization…</p>
+                <p className="text-sm text-muted-foreground">{t('library.connectDialog.waitingAuth')}</p>
               </div>
             ) : (
-              <Button onClick={beginTrakt} disabled={startDevice.isPending}>Connect Trakt</Button>
+              <Button onClick={beginTrakt} disabled={startDevice.isPending}>{t('library.connectDialog.connectTrakt')}</Button>
             )}
           </TabsContent>
           <TabsContent value="librarything">
             <div className="space-y-2">
-              <Input placeholder="LibraryThing user id" value={userid} onChange={(e) => setUserid(e.target.value)} />
-              <Input placeholder="API key" value={key} onChange={(e) => setKey(e.target.value)} />
-              <Button onClick={connectLT} disabled={!userid || !key || createLT.isPending}>Connect LibraryThing</Button>
-              <p className="text-sm text-muted-foreground">If the LibraryThing API is unavailable, connect anyway then upload your Export Books file from the connection card.</p>
+              <Input placeholder={t('library.connectDialog.userIdPlaceholder')} value={userid} onChange={(e) => setUserid(e.target.value)} />
+              <Input placeholder={t('library.connectDialog.apiKeyPlaceholder')} value={key} onChange={(e) => setKey(e.target.value)} />
+              <Button onClick={connectLT} disabled={!userid || !key || createLT.isPending}>{t('library.connectDialog.connectLibraryThing')}</Button>
+              <p className="text-sm text-muted-foreground">{t('library.connectDialog.unavailableHint')}</p>
             </div>
           </TabsContent>
         </Tabs>

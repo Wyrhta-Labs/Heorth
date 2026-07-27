@@ -109,6 +109,222 @@
     "noOpenTasks": "No open tasks.",
     "completeAria": "Complete {{title}}",
     "more_one": "+{{count}} more",
-    "more_other": "+{{count}} more"
+    "more_other": "+{{count}} more",
+    "pageTitle": "Tasks",
+    "loadError": "We couldn’t load your tasks.",
+    "lists": "Lists",
+    "addPlaceholder": "Add a task to the shared list…",
+    "add": "Add",
+    "noOpenTasksHint": "No open tasks. Connect a To Do list under “Lists”.",
+    "bucket": {
+      "overdue": "Overdue",
+      "soon": "Upcoming",
+      "someday": "Someday"
+    },
+    "syncedListsTitle": "Synced To Do lists",
+    "listsLoadError": "Couldn’t load your lists. Make sure your Microsoft account is connected on the Household page.",
+    "noListsFound": "No lists found.",
+    "syncHint": "Nothing syncs until you choose a list. New tasks you add go to the shared household list.",
+    "syncedListsUpdated": "Synced lists updated",
+    "couldNotUpdateLists": "Could not update lists"
+  },
+  "login": {
+    "signInToHome": "Sign in to your home",
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "you@home.example",
+    "passwordPlaceholder": "Your password",
+    "signingIn": "Signing in…",
+    "signIn": "Sign In",
+    "invalidCredentials": "Invalid email or password. Please try again."
+  },
+  "dashboard": {
+    "home": "Home",
+    "membersLoadError": "Couldn’t load members.",
+    "chores": {
+      "title": "Chores",
+      "comingSoon": "Coming in a later release"
+    }
+  },
+  "calendar": {
+    "view": { "week": "week", "month": "month" },
+    "newEvent": "New event",
+    "editEvent": "Edit event",
+    "deleteEvent": "Delete event",
+    "loadError": "We couldn’t load your calendar.",
+    "eventUpdated": "Event updated",
+    "eventCreated": "Event created",
+    "eventDeleted": "Event deleted",
+    "saveFailed": "Failed to save event",
+    "mirroredTitle": "From Microsoft 365 (read-only)",
+    "mirroredTitleWithOrganizer": "From Microsoft 365 · {{organizer}} (read-only)",
+    "form": {
+      "titleRequired": "Title is required",
+      "startRequired": "Start is required",
+      "endRequired": "End is required",
+      "title": "Title *",
+      "titlePlaceholder": "Dentist",
+      "start": "Start *",
+      "end": "End *",
+      "allDay": "All day",
+      "location": "Location",
+      "locationPlaceholder": "Clinic",
+      "repeats": "Repeats",
+      "notes": "Notes",
+      "attendees": "Attendees",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "update": "Update",
+      "create": "Create",
+      "recurrence": {
+        "none": "Does not repeat",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "biweekly": "Every 2 weeks",
+        "monthly": "Monthly",
+        "yearly": "Yearly"
+      }
+    }
+  },
+  "meals": {
+    "tabs": {
+      "planner": "Planner",
+      "recipes": "Recipes"
+    },
+    "newRecipe": "New recipe",
+    "editRecipe": "Edit recipe",
+    "recipeSaved": "Recipe saved",
+    "planMeal": "Plan a meal",
+    "mealPlanned": "Meal planned",
+    "leftoversFreeText": "Leftovers (free text)",
+    "leftovers": "Leftovers",
+    "listGenerated": "List generated",
+    "loadError": "We couldn’t load your meals.",
+    "noRecipesYet": "No recipes yet.",
+    "recipeMeta": "Serves {{servings}} · {{count}} ingredients",
+    "form": {
+      "title": "Title *",
+      "servings": "Servings",
+      "tagsLabel": "Tags (comma-separated)",
+      "tagsPlaceholder": "quick, veg",
+      "ingredients": "Ingredients",
+      "namePlaceholder": "Name",
+      "qtyPlaceholder": "Qty",
+      "unitPlaceholder": "Unit",
+      "addIngredient": "Add ingredient",
+      "steps": "Steps",
+      "addStep": "Add step",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "update": "Update",
+      "create": "Create"
+    }
+  },
+  "feoh": {
+    "newTransaction": "New transaction",
+    "loadError": "We couldn’t load your budget.",
+    "recurringBills": "Recurring bills",
+    "importExport": "Import / export",
+    "transactionRecorded": "Transaction recorded",
+    "unbalanced": "Postings do not balance",
+    "recordFailed": "Failed to record transaction",
+    "left": "{{amount}} left",
+    "over": "{{amount}} over",
+    "thisMonth": "This month",
+    "ofBudget": "of {{amount}}",
+    "noRecurringBills": "No recurring bills.",
+    "nextDue": "Next due {{date}} · {{cadence}}",
+    "form": {
+      "date": "Date",
+      "amount": "Amount",
+      "amountPlaceholder": "0.00",
+      "payee": "Payee",
+      "payeePlaceholder": "Market",
+      "envelope": "Envelope",
+      "paidFrom": "Paid from",
+      "memo": "Memo",
+      "memoPlaceholder": "Weekly shop",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "record": "Record",
+      "amountError": "Enter an amount greater than 0",
+      "pickError": "Pick an envelope and an account"
+    },
+    "csv": {
+      "exportCsv": "Export CSV",
+      "exportLedger": "Export ledger",
+      "importPlaceholder": "date,payee,memo,amount,envelope,account\n2026-07-05,Market,Weekly shop,50,Groceries,Checking",
+      "importCsv": "Import CSV",
+      "imported_one": "Imported {{count}} transaction",
+      "imported_other": "Imported {{count}} transactions"
+    }
+  },
+  "library": {
+    "pageTitle": "Library",
+    "connect": "Connect",
+    "loadError": "We couldn’t load your library.",
+    "searchPlaceholder": "Search title or author",
+    "filters": {
+      "allTypes": "All types",
+      "allStatuses": "All statuses",
+      "allLists": "All lists"
+    },
+    "mediaType": {
+      "book": "book",
+      "ebook": "ebook",
+      "movie": "movie",
+      "series": "series"
+    },
+    "status": {
+      "unread": "unread",
+      "reading": "reading",
+      "read": "read",
+      "watching": "watching",
+      "watched": "watched"
+    },
+    "list": {
+      "later": "later",
+      "favorites": "favorites"
+    },
+    "connections": {
+      "noneYet": "No accounts connected yet.",
+      "summary": "{{count}} items · {{lastSync}}",
+      "neverSynced": "never synced",
+      "syncNow": "Sync now",
+      "synced": "Synced",
+      "uploadExport": "Upload export",
+      "invalidJson": "Not a valid JSON export",
+      "imported": "Imported",
+      "importFailed": "Import failed"
+    },
+    "connectionStatus": {
+      "active": "active",
+      "needsReauth": "needs reconnect",
+      "error": "error"
+    },
+    "connectDialog": {
+      "title": "Connect an account",
+      "goTo": "Go to",
+      "andEnter": "and enter:",
+      "waitingAuth": "Waiting for authorization…",
+      "connectTrakt": "Connect Trakt",
+      "userIdPlaceholder": "LibraryThing user id",
+      "apiKeyPlaceholder": "API key",
+      "connectLibraryThing": "Connect LibraryThing",
+      "unavailableHint": "If the LibraryThing API is unavailable, connect anyway then upload your Export Books file from the connection card.",
+      "ltConnected": "LibraryThing connected",
+      "ltFailed": "Could not connect LibraryThing",
+      "traktStartFailed": "Could not start Trakt authorization",
+      "traktExpired": "Trakt code expired",
+      "traktConnected": "Trakt connected",
+      "traktFailed": "Trakt authorization failed"
+    },
+    "shelf": {
+      "empty": "Nothing here yet. Connect an account and sync."
+    },
+    "item": {
+      "rating": "Rating: {{rating}}",
+      "viewSource": "View on source"
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
@@ -16,6 +17,7 @@ import { useSummary, useEnvelopes, useAccounts, useBills, useRecordTransaction, 
 import { ApiError } from '@/api/client';
 
 export default function FeohPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const month = format(new Date(), 'yyyy-MM');
   const summaryQuery = useSummary(month);
@@ -36,10 +38,10 @@ export default function FeohPage() {
     try {
       await record.mutateAsync(input);
       setTxOpen(false);
-      toast('Transaction recorded', 'success');
+      toast(t('feoh.transactionRecorded'), 'success');
     } catch (e) {
-      const msg = e instanceof ApiError && e.code === 'UNBALANCED' ? 'Postings do not balance' : (e as Error).message;
-      toast(msg ?? 'Failed to record transaction', 'error');
+      const msg = e instanceof ApiError && e.code === 'UNBALANCED' ? t('feoh.unbalanced') : (e as Error).message;
+      toast(msg ?? t('feoh.recordFailed'), 'error');
     }
   };
 
@@ -47,11 +49,11 @@ export default function FeohPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="font-serif text-2xl text-ink">Feoh</h3>
-        <Button onClick={() => setTxOpen(true)}><Plus className="h-4 w-4" /> New transaction</Button>
+        <Button onClick={() => setTxOpen(true)}><Plus className="h-4 w-4" /> {t('feoh.newTransaction')}</Button>
       </div>
 
       {retry ? (
-        <ErrorState message="We couldn’t load your budget." onRetry={retry} />
+        <ErrorState message={t('feoh.loadError')} onRetry={retry} />
       ) : (
         <>
           {summary && <SummaryHeader summary={summary} />}
@@ -61,12 +63,12 @@ export default function FeohPage() {
           </div>
 
           <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Recurring bills</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.recurringBills')}</CardTitle></CardHeader>
             <CardContent><BillsList bills={bills} onRemove={(id) => deleteBill.mutate(id)} /></CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Import / export</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.importExport')}</CardTitle></CardHeader>
             <CardContent><CsvPanel /></CardContent>
           </Card>
         </>
@@ -75,7 +77,7 @@ export default function FeohPage() {
       <Dialog open={txOpen} onOpenChange={setTxOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New transaction</DialogTitle>
+            <DialogTitle>{t('feoh.newTransaction')}</DialogTitle>
             <DialogClose onClose={() => setTxOpen(false)} />
           </DialogHeader>
           <TransactionForm accounts={accounts} envelopes={envelopes} onSubmit={submitTx} onCancel={() => setTxOpen(false)} isLoading={record.isPending} />

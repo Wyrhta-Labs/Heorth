@@ -1,6 +1,13 @@
-import { weekDays, dayLabel } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/hooks/use-formatters';
 import { MEAL_SLOTS } from '@/lib/constants';
 import type { MealPlanEntry, Recipe, MealSlot } from '@/lib/types';
+
+const SLOT_LABEL_KEYS: Record<MealSlot, 'slotBreakfast' | 'slotLunch' | 'slotSupper'> = {
+  breakfast: 'slotBreakfast',
+  lunch: 'slotLunch',
+  supper: 'slotSupper',
+};
 
 interface Props {
   entries: MealPlanEntry[];
@@ -9,6 +16,8 @@ interface Props {
 }
 
 export default function WeekPlanner({ entries, recipes, onAssign }: Props) {
+  const { t } = useTranslation();
+  const { weekDays, dayLabel } = useFormatters();
   const days = weekDays();
   const recipeTitle = (id: string | null) => (id ? recipes.find((r) => r.id === id)?.title ?? '—' : null);
   const cell = (iso: string, slot: MealSlot) => entries.find((e) => e.date === iso && e.slot === slot);
@@ -28,7 +37,7 @@ export default function WeekPlanner({ entries, recipes, onAssign }: Props) {
         <tbody>
           {MEAL_SLOTS.map((s) => (
             <tr key={s.value}>
-              <td className="text-xs uppercase text-ash pr-2 whitespace-nowrap">{s.label}</td>
+              <td className="text-xs uppercase text-ash pr-2 whitespace-nowrap">{t(`capture.${SLOT_LABEL_KEYS[s.value]}`)}</td>
               {days.map((d) => {
                 const iso = dayLabel(d).iso;
                 const entry = cell(iso, s.value);

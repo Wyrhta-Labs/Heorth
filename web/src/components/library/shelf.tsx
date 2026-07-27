@@ -1,8 +1,10 @@
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import type { LibraryItem } from '@/lib/types';
 
 export default function Shelf({ items, onOpen }: { items: LibraryItem[]; onOpen: (item: LibraryItem) => void }) {
-  if (items.length === 0) return <p className="text-muted-foreground py-8 text-center">Nothing here yet. Connect an account and sync.</p>;
+  const { t } = useTranslation();
+  if (items.length === 0) return <p className="text-muted-foreground py-8 text-center">{t('library.shelf.empty')}</p>;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
       {items.map((item) => (

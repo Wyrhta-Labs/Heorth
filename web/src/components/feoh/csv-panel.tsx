@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Download, Upload } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
@@ -15,6 +16,7 @@ function download(filename: string, text: string, type: string) {
 }
 
 export default function CsvPanel() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [csv, setCsv] = useState('');
   const importMut = useImportCsv();
@@ -22,7 +24,7 @@ export default function CsvPanel() {
   const doImport = async () => {
     if (!csv.trim()) return;
     const res = await importMut.mutateAsync(csv);
-    toast(`Imported ${res.data.imported} transactions`, 'success');
+    toast(t('feoh.csv.imported', { count: res.data.imported }), 'success');
     setCsv('');
   };
 
@@ -30,17 +32,17 @@ export default function CsvPanel() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={async () => download('heorth-transactions.csv', await exportCsv(), 'text/csv')}>
-          <Download className="h-4 w-4" /> Export CSV
+          <Download className="h-4 w-4" /> {t('feoh.csv.exportCsv')}
         </Button>
         <Button variant="outline" size="sm" onClick={async () => download('heorth-ledger.txt', await exportLedger(), 'text/plain')}>
-          <Download className="h-4 w-4" /> Export ledger
+          <Download className="h-4 w-4" /> {t('feoh.csv.exportLedger')}
         </Button>
       </div>
       <div className="space-y-2">
         <Textarea rows={6} value={csv} onChange={(e) => setCsv(e.target.value)}
-          placeholder={'date,payee,memo,amount,envelope,account\n2026-07-05,Market,Weekly shop,50,Groceries,Checking'} />
+          placeholder={t('feoh.csv.importPlaceholder')} />
         <Button size="sm" onClick={doImport} disabled={!csv.trim() || importMut.isPending}>
-          <Upload className="h-4 w-4" /> Import CSV
+          <Upload className="h-4 w-4" /> {t('feoh.csv.importCsv')}
         </Button>
       </div>
     </div>

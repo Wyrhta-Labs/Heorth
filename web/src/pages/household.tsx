@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import type { Member, Role } from '@/lib/types';
 import { ApiError } from '@/api/client';
 
 export default function HouseholdPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const whoamiQuery = useWhoami();
   const canManage = whoamiQuery.data?.data.role === 'admin';
@@ -43,41 +45,41 @@ export default function HouseholdPage() {
         await createM.mutateAsync(input);
       }
       setOpen(false);
-      toast('Member saved', 'success');
+      toast(t('settings.members.saved'), 'success');
     } catch (e) {
-      const msg = e instanceof ApiError && e.code === 'CONFLICT' ? 'That email is already taken' : (e as Error).message;
-      toast(msg ?? 'Failed to save member', 'error');
+      const msg = e instanceof ApiError && e.code === 'CONFLICT' ? t('settings.members.emailTaken') : (e as Error).message;
+      toast(msg ?? t('settings.members.saveFailed'), 'error');
     }
   };
 
   const changeRole = async (id: string, role: Role) => {
-    try { await setRole.mutateAsync({ id, role }); toast('Role updated', 'success'); }
-    catch (e) { toast((e as Error).message ?? 'Failed to update role', 'error'); }
+    try { await setRole.mutateAsync({ id, role }); toast(t('settings.members.roleUpdated'), 'success'); }
+    catch (e) { toast((e as Error).message ?? t('settings.members.roleUpdateFailed'), 'error'); }
   };
 
   const remove = async (m: Member) => {
-    if (!confirm(`Remove ${m.displayName}?`)) return;
-    try { await deleteM.mutateAsync(m.id); toast('Member removed', 'success'); }
+    if (!confirm(t('settings.members.removeConfirm', { name: m.displayName }))) return;
+    try { await deleteM.mutateAsync(m.id); toast(t('settings.members.removed'), 'success'); }
     catch (e) {
-      const msg = e instanceof ApiError && e.code === 'CONFLICT' ? 'Cannot remove the last admin' : (e as Error).message;
-      toast(msg ?? 'Failed to remove member', 'error');
+      const msg = e instanceof ApiError && e.code === 'CONFLICT' ? t('settings.members.removeLastAdminError') : (e as Error).message;
+      toast(msg ?? t('settings.members.removeFailed'), 'error');
     }
   };
 
-  if (retry) return <ErrorState message="We couldn’t load your household." onRetry={retry} />;
+  if (retry) return <ErrorState message={t('settings.loadError')} onRetry={retry} />;
 
   return (
     <Tabs defaultValue="members" className="space-y-4">
       <TabsList>
-        <TabsTrigger value="members">Members</TabsTrigger>
-        <TabsTrigger value="keys">API keys</TabsTrigger>
-        <TabsTrigger value="settings">Settings</TabsTrigger>
+        <TabsTrigger value="members">{t('settings.tabs.members')}</TabsTrigger>
+        <TabsTrigger value="keys">{t('settings.tabs.apiKeys')}</TabsTrigger>
+        <TabsTrigger value="settings">{t('settings.tabs.settings')}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="members">
         {canManage && (
           <div className="flex justify-end mb-4">
-            <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" /> Add member</Button>
+            <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" /> {t('settings.members.addMember')}</Button>
           </div>
         )}
         <Card><CardContent className="p-2">
@@ -87,14 +89,14 @@ export default function HouseholdPage() {
 
       <TabsContent value="keys">
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">API keys</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-base">{t('settings.tabs.apiKeys')}</CardTitle></CardHeader>
           <CardContent><ApiKeysPanel /></CardContent>
         </Card>
       </TabsContent>
 
       <TabsContent value="settings">
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Household</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-base">{t('nav.household')}</CardTitle></CardHeader>
           <CardContent><HouseholdSettings canManage={canManage} /></CardContent>
         </Card>
       </TabsContent>
@@ -102,7 +104,7 @@ export default function HouseholdPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit member' : 'Add member'}</DialogTitle>
+            <DialogTitle>{editing ? t('settings.members.editMember') : t('settings.members.addMember')}</DialogTitle>
             <DialogClose onClose={() => setOpen(false)} />
           </DialogHeader>
           <MemberForm member={editing ?? undefined} onSubmit={submit} onCancel={() => setOpen(false)} isLoading={createM.isPending || updateM.isPending} />

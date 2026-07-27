@@ -260,6 +260,92 @@
       "imported_other": "{{count}} Buchungen importiert"
     }
   },
+  "nav": {
+    "thisWeek": "Diese Woche",
+    "homeTitle": "Diese Woche zuhause",
+    "today": "Heute",
+    "calendar": "Kalender",
+    "tasks": "Aufgaben",
+    "shoppingList": "Einkaufsliste",
+    "quickCapture": "Schnellerfassung",
+    "meals": "Mahlzeiten",
+    "feoh": "Feoh",
+    "library": "Bibliothek",
+    "household": "Haushalt",
+    "hearth": "Hearth (Wandansicht)",
+    "shoppingTab": "Einkaufen",
+    "captureTab": "Erfassen",
+    "more": "Mehr",
+    "signOut": "Abmelden"
+  },
+  "pwa": {
+    "updateReady": "Eine neue Version von Heorth ist bereit.",
+    "reload": "Neu laden"
+  },
+  "settings": {
+    "loadError": "Dein Haushalt konnte nicht geladen werden.",
+    "tabs": {
+      "members": "Mitglieder",
+      "apiKeys": "API-Schlüssel",
+      "settings": "Einstellungen"
+    },
+    "household": {
+      "name": "Name",
+      "timezone": "Zeitzone",
+      "locale": "Sprache",
+      "updated": "Haushalt aktualisiert",
+      "updateFailed": "Haushalt konnte nicht aktualisiert werden"
+    },
+    "members": {
+      "header": { "member": "Mitglied", "email": "E-Mail", "role": "Rolle" },
+      "roles": { "admin": "Admin", "adult": "Erwachsener", "child": "Kind" },
+      "addMember": "Mitglied hinzufügen",
+      "editMember": "Mitglied bearbeiten",
+      "saved": "Mitglied gespeichert",
+      "emailTaken": "Diese E-Mail wird bereits verwendet",
+      "saveFailed": "Mitglied konnte nicht gespeichert werden",
+      "roleUpdated": "Rolle aktualisiert",
+      "roleUpdateFailed": "Rolle konnte nicht aktualisiert werden",
+      "removed": "Mitglied entfernt",
+      "removeLastAdminError": "Der letzte Admin kann nicht entfernt werden",
+      "removeFailed": "Mitglied konnte nicht entfernt werden",
+      "removeConfirm": "{{name}} entfernen?"
+    },
+    "form": {
+      "displayName": "Anzeigename *",
+      "email": "E-Mail *",
+      "passwordNew": "Neues Passwort (optional)",
+      "password": "Passwort *",
+      "passwordPlaceholder": "Mindestens 8 Zeichen",
+      "passwordTooShort": "Das Passwort muss mindestens 8 Zeichen haben",
+      "avatarColor": "Avatarfarbe",
+      "role": "Rolle",
+      "cancel": "Abbrechen",
+      "saving": "Speichern…",
+      "update": "Aktualisieren",
+      "addMember": "Mitglied hinzufügen"
+    },
+    "apiKeys": {
+      "mintPrefix": "Erstelle",
+      "mintSuffix": "Schlüssel für Agenten (MCP).",
+      "newKey": "Neuer Schlüssel",
+      "none": "Noch keine API-Schlüssel.",
+      "headerName": "Name",
+      "headerPrefix": "Präfix",
+      "headerLastUsed": "Zuletzt verwendet",
+      "never": "Nie",
+      "created": "API-Schlüssel erstellt",
+      "revoked": "API-Schlüssel widerrufen",
+      "revokeConfirm": "API-Schlüssel „{{name}}“ widerrufen?",
+      "createTitle": "API-Schlüssel erstellen",
+      "nameLabel": "Name *",
+      "namePlaceholder": "Home Assistant",
+      "cancel": "Abbrechen",
+      "create": "Erstellen",
+      "copyWarning": "Kopiere diesen Schlüssel jetzt — du siehst ihn nicht noch einmal.",
+      "done": "Fertig"
+    }
+  },
   "library": {
     "pageTitle": "Bibliothek",
     "connect": "Verbinden",

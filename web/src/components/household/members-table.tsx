@@ -1,4 +1,5 @@
 import { Trash2, Pencil } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -14,14 +15,24 @@ interface Props {
   onDelete: (m: Member) => void;
 }
 
+/** ROLE_OPTIONS.label stays an English display fallback in the shared
+ * constant (see calendar/capture's RECURRENCE_LABEL_KEYS precedent); this is
+ * the only consumer today, so the translated label lives here. */
+const ROLE_LABEL_KEYS = {
+  admin: 'settings.members.roles.admin',
+  adult: 'settings.members.roles.adult',
+  child: 'settings.members.roles.child',
+} as const satisfies Record<Role, string>;
+
 export default function MembersTable({ members, canManage, onEdit, onRole, onDelete }: Props) {
+  const { t } = useTranslation();
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Member</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Role</TableHead>
+          <TableHead>{t('settings.members.header.member')}</TableHead>
+          <TableHead>{t('settings.members.header.email')}</TableHead>
+          <TableHead>{t('settings.members.header.role')}</TableHead>
           <TableHead className="w-24"></TableHead>
         </TableRow>
       </TableHeader>
@@ -39,7 +50,7 @@ export default function MembersTable({ members, canManage, onEdit, onRole, onDel
               {canManage ? (
                 <select value={m.role} onChange={(e) => onRole(m.id, e.target.value as Role)}
                   className="h-8 rounded-md border border-tan bg-card px-2 text-xs">
-                  {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{t(ROLE_LABEL_KEYS[r.value])}</option>)}
                 </select>
               ) : <Badge variant="outline">{m.role}</Badge>}
             </TableCell>

@@ -260,6 +260,92 @@
       "imported_other": "Imported {{count}} transactions"
     }
   },
+  "nav": {
+    "thisWeek": "This week",
+    "homeTitle": "This week at home",
+    "today": "Today",
+    "calendar": "Calendar",
+    "tasks": "Tasks",
+    "shoppingList": "Shopping list",
+    "quickCapture": "Quick capture",
+    "meals": "Meals",
+    "feoh": "Feoh",
+    "library": "Library",
+    "household": "Household",
+    "hearth": "Hearth (wall)",
+    "shoppingTab": "Shopping",
+    "captureTab": "Capture",
+    "more": "More",
+    "signOut": "Sign out"
+  },
+  "pwa": {
+    "updateReady": "A new version of Heorth is ready.",
+    "reload": "Reload"
+  },
+  "settings": {
+    "loadError": "We couldn’t load your household.",
+    "tabs": {
+      "members": "Members",
+      "apiKeys": "API keys",
+      "settings": "Settings"
+    },
+    "household": {
+      "name": "Name",
+      "timezone": "Timezone",
+      "locale": "Locale",
+      "updated": "Household updated",
+      "updateFailed": "Could not update household"
+    },
+    "members": {
+      "header": { "member": "Member", "email": "Email", "role": "Role" },
+      "roles": { "admin": "Admin", "adult": "Adult", "child": "Child" },
+      "addMember": "Add member",
+      "editMember": "Edit member",
+      "saved": "Member saved",
+      "emailTaken": "That email is already taken",
+      "saveFailed": "Failed to save member",
+      "roleUpdated": "Role updated",
+      "roleUpdateFailed": "Failed to update role",
+      "removed": "Member removed",
+      "removeLastAdminError": "Cannot remove the last admin",
+      "removeFailed": "Failed to remove member",
+      "removeConfirm": "Remove {{name}}?"
+    },
+    "form": {
+      "displayName": "Display name *",
+      "email": "Email *",
+      "passwordNew": "New password (optional)",
+      "password": "Password *",
+      "passwordPlaceholder": "At least 8 characters",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "avatarColor": "Avatar color",
+      "role": "Role",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "update": "Update",
+      "addMember": "Add member"
+    },
+    "apiKeys": {
+      "mintPrefix": "Mint",
+      "mintSuffix": "keys for agents (MCP).",
+      "newKey": "New key",
+      "none": "No API keys yet.",
+      "headerName": "Name",
+      "headerPrefix": "Prefix",
+      "headerLastUsed": "Last used",
+      "never": "Never",
+      "created": "API key created",
+      "revoked": "API key revoked",
+      "revokeConfirm": "Revoke API key \"{{name}}\"?",
+      "createTitle": "Create API key",
+      "nameLabel": "Name *",
+      "namePlaceholder": "Home assistant",
+      "cancel": "Cancel",
+      "create": "Create",
+      "copyWarning": "Copy this key now — you won’t see it again.",
+      "done": "Done"
+    }
+  },
   "library": {
     "pageTitle": "Library",
     "connect": "Connect",

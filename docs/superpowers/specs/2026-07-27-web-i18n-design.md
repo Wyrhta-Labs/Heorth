@@ -37,15 +37,24 @@ New `web/src/i18n/`:
   `useTranslation()` works without an `I18nextProvider` wrapper, which keeps
   the existing per-test provider wiring unchanged.
 - `i18next.d.ts` — module augmentation typing `t()` keys against `typeof en`;
-  missing/misspelled keys are compile errors.
+  literal keys are type-checked (dynamic key construction is avoided; catalog
+  parity and interpolation are covered by tests, not types).
 - `locale-map.ts` — maps each of the 17 supported locales to
-  `{ language: 'en' | 'de', dateFnsLocale: Locale }`:
-  - `de-DE`/`de-AT`/`de-CH` → `de` catalog + region-correct date-fns locale
-    (`de`, `deAT`, `deCH`).
-  - Everything else → `en` catalog, but its **own** date-fns locale (`fr-FR`
-    gets English UI text with French day/month names and 24h time — dates
-    honour the locale even where no catalog exists yet).
+  `{ language: 'en' | 'de', dateFnsLocale: Locale }`. date-fns does **not**
+  ship a region variant for every tag (verified against the installed 4.4.0:
+  no `de-CH`, `fr-FR`, `es-ES`, `pt-PT`, …), so regions map to the closest
+  existing locale:
+  - `de-DE` → `de`, `de-AT` → `deAT`, `de-CH` → `de` — all three use the `de`
+    catalog.
+  - Everything else → `en` catalog with its closest date-fns locale:
+    `en-AU`/`en-CA`/`en-GB`/`en-US` exist as-is; `fr-FR` → `fr`,
+    `es-ES` → `es`, `it-IT` → `it`, `pt-PT` → `pt`, `nl-NL` → `nl`,
+    `da-DK` → `da`, `fi-FI` → `fi`, `nb-NO` → `nb`, `pl-PL` → `pl`,
+    `sv-SE` → `sv` (English UI text, locale-correct day/month names and
+    time format).
   - Unknown/legacy values → `en` + `enUS`.
+  - A test resolves all 17 `SUPPORTED_LOCALES` values through the map and
+    asserts each yields a real date-fns `Locale` object.
 
 ### 2. Provider & wiring
 
@@ -55,25 +64,39 @@ New `web/src/i18n/`:
 `/hearth`, which renders outside the shell (same reasoning as the root-route
 `UpdateBanner`).
 
-The provider calls `useHousehold()`. While loading or unauthenticated it stays
-on the `en`/`enUS` defaults; when data arrives (or changes) it resolves the
-locale through `locale-map.ts`, calls `i18n.changeLanguage(...)`, and exposes
-the date-fns locale via context. Saving household settings already invalidates
-`['household']`, so a locale change propagates live without a reload.
+The provider consumes the household query **gated on auth**
+(`enabled: isAuthenticated` via `useAuth()`), so mounting it globally does not
+fire `/api/v1/household` requests on `/login` or while unauthenticated — the
+API client clears the stored token on 401, and an ungated query would trigger
+that side effect. While disabled/loading it stays on the `en`/`enUS` defaults,
+and it resets to those defaults on logout. When data arrives (or changes) it
+resolves the locale through `locale-map.ts`, calls `i18n.changeLanguage(...)`,
+and exposes the date-fns locale via context. Saving household settings already
+invalidates `['household']`, so a locale change propagates live without a
+reload.
 
 ### 3. Date/time formatting
 
 `web/src/lib/format.ts` stays a module of pure functions, each gaining a
 `locale` parameter; a new `useFormatters()` hook (subscribed to the i18n
-context) curries them for components. Consumers (16 files) switch from direct
-imports to the hook.
+context) curries them for components. The context has a **safe `enUS`
+default**, so components rendered outside `I18nProvider` (existing tests)
+format in English rather than throwing. Consumers (16 files) switch from
+direct imports to the hook.
 
 - Localized format tokens replace hardcoded patterns: `'MMM d, yyyy'` → `PP`,
   `'h:mm a'` → `p` (de renders `09:30`, en-US keeps `9:30 AM`), `'EEEE'` /
   `'EEE'` / `'d MMMM'` / `'MMMM yyyy'` pass the locale.
-- `weekStartsOn` comes from the date-fns locale instead of hardcoded Monday.
+- `weekStartsOn` comes from the date-fns locale instead of hardcoded Monday —
+  in `lib/format.ts` (`weekDays()`) **and** `lib/calendar-grid.ts`, which also
+  hardcodes Monday; both take the locale so month-grid cells and weekday
+  headers can't misalign.
 - Data-key formats (`yyyy-MM-dd`, `yyyy-MM`, `dayLabel().iso`) remain
   locale-free.
+- Calendar-day labels keep the existing **browser-local timezone semantics**
+  (explicit decision): the wall display and phones physically live in the
+  household's timezone; threading `household.timezone` through
+  `Intl.DateTimeFormat` is out of scope.
 - `components/hearth/hearth-month.tsx`'s hardcoded `DOW` array is generated
   from the locale.
 - `components/hearth/day-column.tsx`'s
@@ -98,8 +121,10 @@ All user-facing literals become catalog keys, in this order:
    `components/layout/*` (`navItems`, `PAGE_TITLES`), PWA banners.
 6. Cross-cutting: `lib/constants.ts` label pairs become key-based and resolve
    at render; user-facing `api/client.ts` error strings; `lib/hearth.ts`
-   `formatAge` (relative time + plurals via i18next's `Intl.PluralRules`
-   support, `{{count}}`-style).
+   `formatAge` **stays a pure function** — it takes a translate function (or
+   moves into `useFormatters()`) rather than calling the global `i18n.t`, and
+   uses `count`-based plural keys (`sync.age.minute_one` / `minute_other`, …)
+   so i18next's `Intl.PluralRules` handling applies.
 
 Non-translatable values (brand names like LibraryThing/Microsoft 365, member
 names, ISO keys) stay literal.
@@ -107,12 +132,17 @@ names, ISO keys) stay literal.
 ### 5. Tests
 
 - `web/tests/setup.ts` imports `src/i18n`, initializing the default instance
-  with the `en` catalog, so the 16 existing English-literal test files keep
-  passing without per-test provider changes; `lib/format.test.ts` passes
-  `enUS` explicitly.
-- New tests: locale-map resolution/fallback chain; provider switches language
-  when household data changes; Hearth renders German under `de-DE` (weekday
-  names, 24h time, key strings); catalog parity (en/de key sets identical).
+  with the `en` catalog, and adds `afterEach(() => i18n.changeLanguage('en'))`
+  so German-rendering tests can't leak language into later tests. Combined
+  with the `enUS` default formatter context, the 16 existing English-literal
+  test files keep passing without per-test provider changes;
+  `lib/format.test.ts` passes `enUS` explicitly.
+- New tests: locale-map resolution of **all 17** supported values to a real
+  date-fns `Locale`; provider switches language when household data changes
+  and stays quiet while unauthenticated; Hearth renders German under `de-DE`
+  (weekday names, 24h time, key strings); catalog parity (en/de key sets
+  identical **and** each key's interpolation placeholder set — `{{count}}`
+  etc. — matches across languages, so placeholder drift can't hide in de).
 - Backend: update the now-false doc comment at `src/household/options.ts:30-34`
   ("Heorth has no message catalogues yet").
 

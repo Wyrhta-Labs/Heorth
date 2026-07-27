@@ -1,18 +1,21 @@
+import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { monthGrid, groupByDay } from '@/lib/calendar-grid';
 import { isMirroredEvent, type EventOccurrence } from '@/lib/types';
 import { useFormatters } from '@/hooks/use-formatters';
 
 interface Props { year: number; month0: number; occurrences: EventOccurrence[]; onSelect: (o: EventOccurrence) => void; }
-const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function MonthView({ year, month0, occurrences, onSelect }: Props) {
+  const { t } = useTranslation();
   const { locale } = useFormatters();
   const grid = monthGrid(year, month0, locale);
+  const dowLabels = grid[0]!.map((iso) => format(new Date(iso + 'T00:00:00'), 'EEE', { locale }));
   const byDay = groupByDay(occurrences);
   return (
     <div>
       <div className="grid grid-cols-7 gap-2 mb-2">
-        {DOW.map((d) => <div key={d} className="text-center text-[11px] uppercase text-ash">{d}</div>)}
+        {dowLabels.map((d, i) => <div key={`${d}-${i}`} className="text-center text-[11px] uppercase text-ash">{d}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-2">
         {grid.flat().map((iso) => {
@@ -24,7 +27,7 @@ export default function MonthView({ year, month0, occurrences, onSelect }: Props
                 {(byDay[iso] ?? []).slice(0, 3).map((o) => (
                   isMirroredEvent(o) ? (
                     <div key={`${o.id}-${o.occurrenceStart}`}
-                      title={`From Microsoft 365${o.organizer ? ` · ${o.organizer}` : ''} (read-only)`}
+                      title={o.organizer ? t('calendar.mirroredTitleWithOrganizer', { organizer: o.organizer }) : t('calendar.mirroredTitle')}
                       className="flex items-center gap-1 w-full truncate rounded border border-dashed border-sky/50 bg-sky/5 px-1 text-left text-[11px] text-ash">
                       <span className="h-1 w-1 shrink-0 rounded-full bg-sky" aria-hidden />
                       <span className="truncate">{o.title}</span>

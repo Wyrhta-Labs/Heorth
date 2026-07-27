@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,18 +11,30 @@ import { MemberAvatar } from '@/components/ui/member-avatar';
 import { RECURRENCE_OPTIONS } from '@/lib/constants';
 import { useMembers } from '@/hooks/use-household';
 import type { Event } from '@/lib/types';
+import type { TFunction } from 'i18next';
 
-const schema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  startAt: z.string().min(1, 'Start is required'),
-  endAt: z.string().min(1, 'End is required'),
-  allDay: z.boolean().optional(),
-  location: z.string().optional(),
-  notes: z.string().optional(),
-  recurrence: z.string().optional(),
-  attendeeIds: z.array(z.string()),
-});
-type FormValues = z.infer<typeof schema>;
+const RECURRENCE_LABEL_KEYS: Record<string, 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'> = {
+  '': 'none',
+  P1D: 'daily',
+  P1W: 'weekly',
+  P2W: 'biweekly',
+  P1M: 'monthly',
+  P1Y: 'yearly',
+};
+
+function buildSchema(t: TFunction) {
+  return z.object({
+    title: z.string().min(1, t('calendar.form.titleRequired')),
+    startAt: z.string().min(1, t('calendar.form.startRequired')),
+    endAt: z.string().min(1, t('calendar.form.endRequired')),
+    allDay: z.boolean().optional(),
+    location: z.string().optional(),
+    notes: z.string().optional(),
+    recurrence: z.string().optional(),
+    attendeeIds: z.array(z.string()),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 /** The shape handed to `onSubmit`: ISO timestamps and an API-ready recurrence. */
 export interface EventFormValues extends Omit<FormValues, 'recurrence'> {
@@ -46,6 +60,8 @@ interface Props {
 }
 
 export default function EventForm({ event, onSubmit, onCancel, isLoading }: Props) {
+  const { t } = useTranslation();
+  const schema = useMemo(() => buildSchema(t), [t]);
   const { data: membersData } = useMembers();
   const members = membersData?.data ?? [];
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
@@ -80,43 +96,45 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading }: Prop
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="space-y-1">
-        <Label htmlFor="title">Title *</Label>
-        <Input id="title" {...register('title')} placeholder="Dentist" />
+        <Label htmlFor="title">{t('calendar.form.title')}</Label>
+        <Input id="title" {...register('title')} placeholder={t('calendar.form.titlePlaceholder')} />
         {errors.title && <p className="text-xs text-red-600">{errors.title.message}</p>}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
-          <Label htmlFor="startAt">Start *</Label>
+          <Label htmlFor="startAt">{t('calendar.form.start')}</Label>
           <Input id="startAt" type="datetime-local" {...register('startAt')} />
           {errors.startAt && <p className="text-xs text-red-600">{errors.startAt.message}</p>}
         </div>
         <div className="space-y-1">
-          <Label htmlFor="endAt">End *</Label>
+          <Label htmlFor="endAt">{t('calendar.form.end')}</Label>
           <Input id="endAt" type="datetime-local" {...register('endAt')} />
           {errors.endAt && <p className="text-xs text-red-600">{errors.endAt.message}</p>}
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" {...register('allDay')} /> All day
+        <input type="checkbox" {...register('allDay')} /> {t('calendar.form.allDay')}
       </label>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
-          <Label htmlFor="location">Location</Label>
-          <Input id="location" {...register('location')} placeholder="Clinic" />
+          <Label htmlFor="location">{t('calendar.form.location')}</Label>
+          <Input id="location" {...register('location')} placeholder={t('calendar.form.locationPlaceholder')} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="recurrence">Repeats</Label>
+          <Label htmlFor="recurrence">{t('calendar.form.repeats')}</Label>
           <select id="recurrence" {...register('recurrence')} className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm">
-            {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {RECURRENCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{t(`calendar.form.recurrence.${RECURRENCE_LABEL_KEYS[o.value]}`)}</option>
+            ))}
           </select>
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="notes">Notes</Label>
+        <Label htmlFor="notes">{t('calendar.form.notes')}</Label>
         <Textarea id="notes" {...register('notes')} rows={2} />
       </div>
       <div className="space-y-1">
-        <Label>Attendees</Label>
+        <Label>{t('calendar.form.attendees')}</Label>
         <div className="flex flex-wrap gap-2">
           {members.map((m) => {
             const on = selected.includes(m.id);
@@ -131,8 +149,8 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading }: Prop
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" disabled={isLoading}>{isLoading ? 'Saving…' : event ? 'Update' : 'Create'}</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>{t('calendar.form.cancel')}</Button>
+        <Button type="submit" disabled={isLoading}>{isLoading ? t('calendar.form.saving') : event ? t('calendar.form.update') : t('calendar.form.create')}</Button>
       </div>
     </form>
   );

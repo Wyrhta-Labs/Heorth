@@ -1,10 +1,13 @@
-import { weekDays, dayLabel, formatTime } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/hooks/use-formatters';
 import { groupByDay } from '@/lib/calendar-grid';
 import { isMirroredEvent, type EventOccurrence } from '@/lib/types';
 
 interface Props { occurrences: EventOccurrence[]; onSelect: (o: EventOccurrence) => void; }
 
 export default function WeekView({ occurrences, onSelect }: Props) {
+  const { t } = useTranslation();
+  const { weekDays, dayLabel, formatTime } = useFormatters();
   const days = weekDays();
   const byDay = groupByDay(occurrences);
   return (
@@ -25,7 +28,7 @@ export default function WeekView({ occurrences, onSelect }: Props) {
                 if (isMirroredEvent(o)) {
                   return (
                     <div key={`${o.id}-${o.occurrenceStart}`}
-                      title={`From Microsoft 365${o.organizer ? ` · ${o.organizer}` : ''} (read-only)`}
+                      title={o.organizer ? t('calendar.mirroredTitleWithOrganizer', { organizer: o.organizer }) : t('calendar.mirroredTitle')}
                       className="flex items-center gap-1 w-full truncate rounded-md border border-dashed border-sky/50 bg-sky/5 px-2 py-1 text-left text-xs text-ash">
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky" aria-hidden />
                       <span className="truncate">{time}{o.title}</span>

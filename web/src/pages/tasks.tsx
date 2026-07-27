@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Plus, Settings2, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState } from '@/components/ui/error-state';
 import { useToast } from '@/components/ui/toast';
 import { retryOf } from '@/lib/query-error';
-import { formatDate } from '@/lib/format';
+import { useFormatters } from '@/hooks/use-formatters';
 import {
   useTasks, useAvailableLists, useCompleteTask, useCreateTask, useSetAllowlist,
 } from '@/hooks/use-tasks';
@@ -21,13 +22,14 @@ function bucketOf(t: Task, now: number): Bucket {
   return 'soon';
 }
 
-const BUCKET_LABELS: Record<Bucket, string> = {
-  overdue: 'Overdue',
-  soon: 'Upcoming',
-  someday: 'Someday',
-};
-
 export default function TasksPage() {
+  const { t } = useTranslation();
+  const { formatDate } = useFormatters();
+  const BUCKET_LABELS: Record<Bucket, string> = {
+    overdue: t('tasks.bucket.overdue'),
+    soon: t('tasks.bucket.soon'),
+    someday: t('tasks.bucket.someday'),
+  };
   const [title, setTitle] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const { toast } = useToast();
@@ -37,12 +39,12 @@ export default function TasksPage() {
   const create = useCreateTask();
 
   const retry = retryOf(openQuery);
-  if (retry) return <ErrorState message="We couldn’t load your tasks." onRetry={retry} />;
+  if (retry) return <ErrorState message={t('tasks.loadError')} onRetry={retry} />;
 
   const tasks = openQuery.data?.data ?? [];
   const now = Date.now();
   const buckets: Record<Bucket, Task[]> = { overdue: [], soon: [], someday: [] };
-  for (const t of tasks) buckets[bucketOf(t, now)].push(t);
+  for (const task of tasks) buckets[bucketOf(task, now)].push(task);
 
   const onAdd = async () => {
     const value = title.trim();
@@ -50,26 +52,26 @@ export default function TasksPage() {
     try {
       await create.mutateAsync({ title: value });
       setTitle('');
-      toast('Task added to the shared list', 'success');
+      toast(t('capture.taskAdded'), 'success');
     } catch (e) {
-      toast((e as Error).message || 'Could not add the task', 'error');
+      toast((e as Error).message || t('capture.couldNotAddTask'), 'error');
     }
   };
 
-  const onToggle = async (t: Task) => {
+  const onToggle = async (task: Task) => {
     try {
-      await complete.mutateAsync({ id: t.id, completed: true });
+      await complete.mutateAsync({ id: task.id, completed: true });
     } catch (e) {
-      toast((e as Error).message || 'Could not update the task', 'error');
+      toast((e as Error).message || t('today.couldNotUpdateTask'), 'error');
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Tasks</h1>
+        <h1 className="text-2xl font-semibold">{t('tasks.pageTitle')}</h1>
         <Button variant="secondary" size="sm" onClick={() => setShowSettings((s) => !s)}>
-          <Settings2 className="h-4 w-4 mr-1" /> Lists
+          <Settings2 className="h-4 w-4 mr-1" /> {t('tasks.lists')}
         </Button>
       </div>
 
@@ -77,18 +79,18 @@ export default function TasksPage() {
 
       <div className="flex gap-2">
         <Input
-          placeholder="Add a task to the shared list…"
+          placeholder={t('tasks.addPlaceholder')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void onAdd(); }}
         />
         <Button onClick={() => void onAdd()} disabled={create.isPending || !title.trim()}>
-          <Plus className="h-4 w-4 mr-1" /> Add
+          <Plus className="h-4 w-4 mr-1" /> {t('tasks.add')}
         </Button>
       </div>
 
       {tasks.length === 0 && (
-        <p className="text-muted-foreground">No open tasks. Connect a To Do list under “Lists”.</p>
+        <p className="text-muted-foreground">{t('tasks.noOpenTasksHint')}</p>
       )}
 
       {(['overdue', 'soon', 'someday'] as Bucket[]).map((b) =>
@@ -98,23 +100,23 @@ export default function TasksPage() {
               {BUCKET_LABELS[b]}
             </h2>
             <ul className="space-y-1">
-              {buckets[b].map((t) => (
-                <li key={t.id} className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+              {buckets[b].map((task) => (
+                <li key={task.id} className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2">
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-gray-300 accent-ember"
                     checked={false}
-                    onChange={() => void onToggle(t)}
-                    aria-label={`Complete ${t.title}`}
+                    onChange={() => void onToggle(task)}
+                    aria-label={t('tasks.completeAria', { title: task.title })}
                   />
-                  <span className="flex-1 text-sm">{t.title}</span>
-                  {t.dueAt && (
+                  <span className="flex-1 text-sm">{task.title}</span>
+                  {task.dueAt && (
                     <span className={`text-xs ${b === 'overdue' ? 'text-red-600' : 'text-muted-foreground'}`}>
-                      {formatDate(t.dueAt)}
+                      {formatDate(task.dueAt)}
                     </span>
                   )}
-                  {t.listName && (
-                    <span className="text-xs rounded bg-gray-100 px-2 py-0.5 text-gray-600">{t.listName}</span>
+                  {task.listName && (
+                    <span className="text-xs rounded bg-gray-100 px-2 py-0.5 text-gray-600">{task.listName}</span>
                   )}
                 </li>
               ))}
@@ -127,6 +129,7 @@ export default function TasksPage() {
 }
 
 function ListSettings() {
+  const { t } = useTranslation();
   const listsQuery = useAvailableLists(true);
   const setAllowlist = useSetAllowlist();
   const { toast } = useToast();
@@ -138,16 +141,16 @@ function ListSettings() {
     if (enabled) next.add(listId); else next.delete(listId);
     try {
       await setAllowlist.mutateAsync([...next]);
-      toast('Synced lists updated', 'success');
+      toast(t('tasks.syncedListsUpdated'), 'success');
     } catch (e) {
-      toast((e as Error).message || 'Could not update lists', 'error');
+      toast((e as Error).message || t('tasks.couldNotUpdateLists'), 'error');
     }
   };
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="text-base">Synced To Do lists</CardTitle>
+        <CardTitle className="text-base">{t('tasks.syncedListsTitle')}</CardTitle>
         <Button size="sm" variant="ghost" onClick={() => listsQuery.refetch()} disabled={listsQuery.isFetching}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -155,11 +158,11 @@ function ListSettings() {
       <CardContent className="space-y-2">
         {listsQuery.isError && (
           <p className="text-sm text-red-600">
-            Couldn’t load your lists. Make sure your Microsoft account is connected on the Household page.
+            {t('tasks.listsLoadError')}
           </p>
         )}
         {!listsQuery.isError && lists.length === 0 && (
-          <p className="text-sm text-muted-foreground">No lists found.</p>
+          <p className="text-sm text-muted-foreground">{t('tasks.noListsFound')}</p>
         )}
         {lists.map((l) => (
           <label key={l.id} className="flex items-center gap-3 text-sm">
@@ -173,7 +176,7 @@ function ListSettings() {
           </label>
         ))}
         <p className="pt-1 text-xs text-muted-foreground">
-          Nothing syncs until you choose a list. New tasks you add go to the shared household list.
+          {t('tasks.syncHint')}
         </p>
       </CardContent>
     </Card>

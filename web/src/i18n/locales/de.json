@@ -109,6 +109,222 @@
     "noOpenTasks": "Keine offenen Aufgaben.",
     "completeAria": "{{title}} erledigen",
     "more_one": "+{{count}} weitere",
-    "more_other": "+{{count}} weitere"
+    "more_other": "+{{count}} weitere",
+    "pageTitle": "Aufgaben",
+    "loadError": "Deine Aufgaben konnten nicht geladen werden.",
+    "lists": "Listen",
+    "addPlaceholder": "Aufgabe zur gemeinsamen Liste hinzufügen…",
+    "add": "Hinzufügen",
+    "noOpenTasksHint": "Keine offenen Aufgaben. Verbinde eine To-Do-Liste unter „Listen“.",
+    "bucket": {
+      "overdue": "Überfällig",
+      "soon": "Demnächst",
+      "someday": "Irgendwann"
+    },
+    "syncedListsTitle": "Synchronisierte To-Do-Listen",
+    "listsLoadError": "Deine Listen konnten nicht geladen werden. Prüf, ob dein Microsoft-Konto auf der Haushaltsseite verbunden ist.",
+    "noListsFound": "Keine Listen gefunden.",
+    "syncHint": "Es wird erst synchronisiert, wenn du eine Liste auswählst. Neue Aufgaben landen auf der gemeinsamen Haushaltsliste.",
+    "syncedListsUpdated": "Synchronisierte Listen aktualisiert",
+    "couldNotUpdateLists": "Die Listen konnten nicht aktualisiert werden"
+  },
+  "login": {
+    "signInToHome": "Melde dich in deinem Zuhause an",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "emailPlaceholder": "du@zuhause.example",
+    "passwordPlaceholder": "Dein Passwort",
+    "signingIn": "Anmeldung läuft…",
+    "signIn": "Anmelden",
+    "invalidCredentials": "E-Mail oder Passwort ungültig. Bitte versuch es nochmal."
+  },
+  "dashboard": {
+    "home": "Zuhause",
+    "membersLoadError": "Mitglieder konnten nicht geladen werden.",
+    "chores": {
+      "title": "Aufgaben",
+      "comingSoon": "Kommt in einer späteren Version"
+    }
+  },
+  "calendar": {
+    "view": { "week": "Woche", "month": "Monat" },
+    "newEvent": "Neuer Termin",
+    "editEvent": "Termin bearbeiten",
+    "deleteEvent": "Termin löschen",
+    "loadError": "Dein Kalender konnte nicht geladen werden.",
+    "eventUpdated": "Termin aktualisiert",
+    "eventCreated": "Termin erstellt",
+    "eventDeleted": "Termin gelöscht",
+    "saveFailed": "Termin konnte nicht gespeichert werden",
+    "mirroredTitle": "Von Microsoft 365 (nur lesbar)",
+    "mirroredTitleWithOrganizer": "Von Microsoft 365 · {{organizer}} (nur lesbar)",
+    "form": {
+      "titleRequired": "Titel ist erforderlich",
+      "startRequired": "Start ist erforderlich",
+      "endRequired": "Ende ist erforderlich",
+      "title": "Titel *",
+      "titlePlaceholder": "Zahnarzt",
+      "start": "Start *",
+      "end": "Ende *",
+      "allDay": "Ganztägig",
+      "location": "Ort",
+      "locationPlaceholder": "Praxis",
+      "repeats": "Wiederholt sich",
+      "notes": "Notizen",
+      "attendees": "Teilnehmer",
+      "cancel": "Abbrechen",
+      "saving": "Speichern…",
+      "update": "Aktualisieren",
+      "create": "Erstellen",
+      "recurrence": {
+        "none": "Wiederholt sich nicht",
+        "daily": "Täglich",
+        "weekly": "Wöchentlich",
+        "biweekly": "Alle 2 Wochen",
+        "monthly": "Monatlich",
+        "yearly": "Jährlich"
+      }
+    }
+  },
+  "meals": {
+    "tabs": {
+      "planner": "Planer",
+      "recipes": "Rezepte"
+    },
+    "newRecipe": "Neues Rezept",
+    "editRecipe": "Rezept bearbeiten",
+    "recipeSaved": "Rezept gespeichert",
+    "planMeal": "Essen planen",
+    "mealPlanned": "Essen geplant",
+    "leftoversFreeText": "Reste (Freitext)",
+    "leftovers": "Reste",
+    "listGenerated": "Liste erstellt",
+    "loadError": "Deine Mahlzeiten konnten nicht geladen werden.",
+    "noRecipesYet": "Noch keine Rezepte.",
+    "recipeMeta": "Für {{servings}} Personen · {{count}} Zutaten",
+    "form": {
+      "title": "Titel *",
+      "servings": "Portionen",
+      "tagsLabel": "Tags (kommagetrennt)",
+      "tagsPlaceholder": "schnell, vegetarisch",
+      "ingredients": "Zutaten",
+      "namePlaceholder": "Name",
+      "qtyPlaceholder": "Menge",
+      "unitPlaceholder": "Einheit",
+      "addIngredient": "Zutat hinzufügen",
+      "steps": "Zubereitung",
+      "addStep": "Schritt hinzufügen",
+      "cancel": "Abbrechen",
+      "saving": "Speichern…",
+      "update": "Aktualisieren",
+      "create": "Erstellen"
+    }
+  },
+  "feoh": {
+    "newTransaction": "Neue Buchung",
+    "loadError": "Dein Budget konnte nicht geladen werden.",
+    "recurringBills": "Wiederkehrende Rechnungen",
+    "importExport": "Import / Export",
+    "transactionRecorded": "Buchung erfasst",
+    "unbalanced": "Buchungszeilen gleichen sich nicht aus",
+    "recordFailed": "Buchung konnte nicht erfasst werden",
+    "left": "{{amount}} übrig",
+    "over": "{{amount}} über Budget",
+    "thisMonth": "Diesen Monat",
+    "ofBudget": "von {{amount}}",
+    "noRecurringBills": "Keine wiederkehrenden Rechnungen.",
+    "nextDue": "Fällig am {{date}} · {{cadence}}",
+    "form": {
+      "date": "Datum",
+      "amount": "Betrag",
+      "amountPlaceholder": "0,00",
+      "payee": "Empfänger",
+      "payeePlaceholder": "Markt",
+      "envelope": "Umschlag",
+      "paidFrom": "Bezahlt von",
+      "memo": "Notiz",
+      "memoPlaceholder": "Wocheneinkauf",
+      "cancel": "Abbrechen",
+      "saving": "Speichern…",
+      "record": "Erfassen",
+      "amountError": "Gib einen Betrag größer als 0 ein",
+      "pickError": "Wähle einen Umschlag und ein Konto"
+    },
+    "csv": {
+      "exportCsv": "CSV exportieren",
+      "exportLedger": "Ledger exportieren",
+      "importPlaceholder": "date,payee,memo,amount,envelope,account\n2026-07-05,Market,Weekly shop,50,Groceries,Checking",
+      "importCsv": "CSV importieren",
+      "imported_one": "{{count}} Buchung importiert",
+      "imported_other": "{{count}} Buchungen importiert"
+    }
+  },
+  "library": {
+    "pageTitle": "Bibliothek",
+    "connect": "Verbinden",
+    "loadError": "Deine Bibliothek konnte nicht geladen werden.",
+    "searchPlaceholder": "Titel oder Autor suchen",
+    "filters": {
+      "allTypes": "Alle Typen",
+      "allStatuses": "Alle Status",
+      "allLists": "Alle Listen"
+    },
+    "mediaType": {
+      "book": "Buch",
+      "ebook": "E-Book",
+      "movie": "Film",
+      "series": "Serie"
+    },
+    "status": {
+      "unread": "ungelesen",
+      "reading": "wird gelesen",
+      "read": "gelesen",
+      "watching": "wird geschaut",
+      "watched": "geschaut"
+    },
+    "list": {
+      "later": "später",
+      "favorites": "Favoriten"
+    },
+    "connections": {
+      "noneYet": "Noch keine Konten verbunden.",
+      "summary": "{{count}} Einträge · {{lastSync}}",
+      "neverSynced": "nie synchronisiert",
+      "syncNow": "Jetzt synchronisieren",
+      "synced": "Synchronisiert",
+      "uploadExport": "Export hochladen",
+      "invalidJson": "Kein gültiger JSON-Export",
+      "imported": "Importiert",
+      "importFailed": "Import fehlgeschlagen"
+    },
+    "connectionStatus": {
+      "active": "aktiv",
+      "needsReauth": "erneute Verbindung nötig",
+      "error": "Fehler"
+    },
+    "connectDialog": {
+      "title": "Konto verbinden",
+      "goTo": "Gehe zu",
+      "andEnter": "und gib ein:",
+      "waitingAuth": "Warte auf Autorisierung…",
+      "connectTrakt": "Trakt verbinden",
+      "userIdPlaceholder": "LibraryThing-Benutzer-ID",
+      "apiKeyPlaceholder": "API-Schlüssel",
+      "connectLibraryThing": "Mit LibraryThing verbinden",
+      "unavailableHint": "Falls die LibraryThing-API nicht erreichbar ist, verbinde trotzdem und lade deine Export-Books-Datei über die Verbindungskarte hoch.",
+      "ltConnected": "LibraryThing verbunden",
+      "ltFailed": "LibraryThing konnte nicht verbunden werden",
+      "traktStartFailed": "Trakt-Autorisierung konnte nicht gestartet werden",
+      "traktExpired": "Trakt-Code abgelaufen",
+      "traktConnected": "Trakt verbunden",
+      "traktFailed": "Trakt-Autorisierung fehlgeschlagen"
+    },
+    "shelf": {
+      "empty": "Noch nichts hier. Verbinde ein Konto und synchronisiere."
+    },
+    "item": {
+      "rating": "Bewertung: {{rating}}",
+      "viewSource": "Zur Quelle"
+    }
   }
 }

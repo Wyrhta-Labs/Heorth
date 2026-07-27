@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,7 @@ import type { RecipeInput } from '@/api/meals';
 interface Props { recipe?: Recipe; onSubmit: (input: RecipeInput) => Promise<void>; onCancel: () => void; isLoading?: boolean; }
 
 export default function RecipeForm({ recipe, onSubmit, onCancel, isLoading }: Props) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(recipe?.title ?? '');
   const [servings, setServings] = useState(recipe?.servings ?? 4);
   const [tags, setTags] = useState((recipe?.tags ?? []).join(', '));
@@ -34,38 +36,38 @@ export default function RecipeForm({ recipe, onSubmit, onCancel, isLoading }: Pr
     <form onSubmit={submit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 space-y-1">
-          <Label htmlFor="title">Title *</Label>
+          <Label htmlFor="title">{t('meals.form.title')}</Label>
           <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="servings">Servings</Label>
+          <Label htmlFor="servings">{t('meals.form.servings')}</Label>
           <Input id="servings" type="number" min={1} value={servings} onChange={(e) => setServings(Number(e.target.value))} />
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="tags">Tags (comma-separated)</Label>
-        <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="quick, veg" />
+        <Label htmlFor="tags">{t('meals.form.tagsLabel')}</Label>
+        <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t('meals.form.tagsPlaceholder')} />
       </div>
 
       <div className="space-y-2">
-        <Label>Ingredients</Label>
+        <Label>{t('meals.form.ingredients')}</Label>
         {ingredients.map((ing, i) => (
           <div key={i} className="flex gap-2">
-            <Input className="flex-1" placeholder="Name" value={ing.name} onChange={(e) => setIng(i, { name: e.target.value })} />
-            <Input className="w-20" type="number" placeholder="Qty" value={ing.qty} onChange={(e) => setIng(i, { qty: Number(e.target.value) })} />
-            <Input className="w-24" placeholder="Unit" value={ing.unit} onChange={(e) => setIng(i, { unit: e.target.value })} />
+            <Input className="flex-1" placeholder={t('meals.form.namePlaceholder')} value={ing.name} onChange={(e) => setIng(i, { name: e.target.value })} />
+            <Input className="w-20" type="number" placeholder={t('meals.form.qtyPlaceholder')} value={ing.qty} onChange={(e) => setIng(i, { qty: Number(e.target.value) })} />
+            <Input className="w-24" placeholder={t('meals.form.unitPlaceholder')} value={ing.unit} onChange={(e) => setIng(i, { unit: e.target.value })} />
             <Button type="button" variant="ghost" size="icon" onClick={() => setIngredients((p) => p.filter((_, idx) => idx !== i))}>
               <Trash2 className="h-4 w-4 text-red-500" />
             </Button>
           </div>
         ))}
         <Button type="button" variant="outline" size="sm" onClick={() => setIngredients((p) => [...p, { name: '', qty: 1, unit: '' }])}>
-          <Plus className="h-4 w-4" /> Add ingredient
+          <Plus className="h-4 w-4" /> {t('meals.form.addIngredient')}
         </Button>
       </div>
 
       <div className="space-y-2">
-        <Label>Steps</Label>
+        <Label>{t('meals.form.steps')}</Label>
         {steps.map((s, i) => (
           <div key={i} className="flex gap-2">
             <Textarea className="flex-1" rows={1} value={s} onChange={(e) => setSteps((p) => p.map((x, idx) => (idx === i ? e.target.value : x)))} />
@@ -75,13 +77,13 @@ export default function RecipeForm({ recipe, onSubmit, onCancel, isLoading }: Pr
           </div>
         ))}
         <Button type="button" variant="outline" size="sm" onClick={() => setSteps((p) => [...p, ''])}>
-          <Plus className="h-4 w-4" /> Add step
+          <Plus className="h-4 w-4" /> {t('meals.form.addStep')}
         </Button>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" disabled={isLoading || !title.trim()}>{isLoading ? 'Saving…' : recipe ? 'Update' : 'Create'}</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>{t('meals.form.cancel')}</Button>
+        <Button type="submit" disabled={isLoading || !title.trim()}>{isLoading ? t('meals.form.saving') : recipe ? t('meals.form.update') : t('meals.form.create')}</Button>
       </div>
     </form>
   );

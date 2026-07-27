@@ -5,7 +5,9 @@
     "save": "Speichern",
     "cancel": "Abbrechen",
     "delete": "Löschen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "loadFailed": "Das konnte gerade nicht geladen werden.",
+    "checkConnection": "Prüf deine Verbindung und versuch es nochmal."
   },
   "hearth": {
     "view": { "week": "Woche", "month": "Monat" },
@@ -63,5 +65,50 @@
       "hours": "{{count}} Std.",
       "days": "{{count}} Tg."
     }
+  },
+  "today": {
+    "title": "Heute",
+    "dueSoon": "Bald fällig",
+    "agendaLoadError": "Der heutige Tag konnte nicht geladen werden.",
+    "noEventsToday": "Heute keine Termine.",
+    "supperLoadError": "Das heutige Abendessen konnte nicht geladen werden.",
+    "tonightsSupper": "Heute Abend",
+    "nothingPlannedYet": "Noch nichts geplant",
+    "couldNotUpdateTask": "Die Aufgabe konnte nicht aktualisiert werden"
+  },
+  "shopping": {
+    "title": "Einkaufsliste",
+    "toBuy_one": "{{count}} zu kaufen",
+    "toBuy_other": "{{count}} zu kaufen",
+    "generateFromWeek": "Aus dieser Woche erstellen",
+    "addItemPlaceholder": "Artikel hinzufügen",
+    "offline": "Offline",
+    "showingFrom": "zeigt deine Liste von",
+    "syncing_one": "Synchronisiere {{count}} Häkchen…",
+    "syncing_other": "Synchronisiere {{count}} Häkchen…",
+    "queued_one": "{{count}} in der Warteschlange",
+    "queued_other": "{{count}} in der Warteschlange"
+  },
+  "capture": {
+    "title": "Schnellerfassung",
+    "addTask": "Aufgabe hinzufügen",
+    "mealNote": "Essensnotiz",
+    "taskHint": "Kommt direkt auf die gemeinsame Haushaltsliste.",
+    "taskPlaceholder": "Was ist zu tun?",
+    "taskAdded": "Aufgabe zur gemeinsamen Liste hinzugefügt",
+    "couldNotAddTask": "Die Aufgabe konnte nicht hinzugefügt werden",
+    "saveNote": "Notiz speichern",
+    "mealPlaceholder": "z. B. Reste, auswärts essen…",
+    "mealNoteSaved": "Essensnotiz gespeichert",
+    "couldNotSaveNote": "Die Notiz konnte nicht gespeichert werden",
+    "slotBreakfast": "Frühstück",
+    "slotLunch": "Mittagessen",
+    "slotSupper": "Abendessen"
+  },
+  "tasks": {
+    "noOpenTasks": "Keine offenen Aufgaben.",
+    "completeAria": "{{title}} erledigen",
+    "more_one": "+{{count}} weitere",
+    "more_other": "+{{count}} weitere"
   }
 }

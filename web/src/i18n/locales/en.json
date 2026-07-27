@@ -5,7 +5,9 @@
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
-    "close": "Close"
+    "close": "Close",
+    "loadFailed": "We couldn’t load this right now.",
+    "checkConnection": "Check your connection and try again."
   },
   "hearth": {
     "view": { "week": "Week", "month": "Month" },
@@ -63,5 +65,50 @@
       "hours": "{{count}}h",
       "days": "{{count}}d"
     }
+  },
+  "today": {
+    "title": "Today",
+    "dueSoon": "Due soon",
+    "agendaLoadError": "Couldn’t load today’s agenda.",
+    "noEventsToday": "No events today.",
+    "supperLoadError": "Couldn’t load tonight’s supper.",
+    "tonightsSupper": "Tonight’s supper",
+    "nothingPlannedYet": "Nothing planned yet",
+    "couldNotUpdateTask": "Could not update the task"
+  },
+  "shopping": {
+    "title": "Shopping list",
+    "toBuy_one": "{{count}} to buy",
+    "toBuy_other": "{{count}} to buy",
+    "generateFromWeek": "Generate from this week",
+    "addItemPlaceholder": "Add an item",
+    "offline": "Offline",
+    "showingFrom": "showing your list from",
+    "syncing_one": "Syncing {{count}} check-off…",
+    "syncing_other": "Syncing {{count}} check-offs…",
+    "queued_one": "{{count}} queued",
+    "queued_other": "{{count}} queued"
+  },
+  "capture": {
+    "title": "Quick capture",
+    "addTask": "Add task",
+    "mealNote": "Meal note",
+    "taskHint": "Goes straight to the shared household list.",
+    "taskPlaceholder": "What needs doing?",
+    "taskAdded": "Task added to the shared list",
+    "couldNotAddTask": "Could not add the task",
+    "saveNote": "Save note",
+    "mealPlaceholder": "e.g. Leftovers, eating out…",
+    "mealNoteSaved": "Meal note saved",
+    "couldNotSaveNote": "Could not save the note",
+    "slotBreakfast": "Breakfast",
+    "slotLunch": "Lunch",
+    "slotSupper": "Supper"
+  },
+  "tasks": {
+    "noOpenTasks": "No open tasks.",
+    "completeAria": "Complete {{title}}",
+    "more_one": "+{{count}} more",
+    "more_other": "+{{count}} more"
   }
 }

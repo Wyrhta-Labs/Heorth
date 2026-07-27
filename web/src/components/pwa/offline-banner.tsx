@@ -1,5 +1,6 @@
 import { WifiOff, Clock } from 'lucide-react';
-import { formatTime } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/hooks/use-formatters';
 
 interface Props {
   isOffline: boolean;
@@ -11,6 +12,8 @@ interface Props {
  * surface still-queued check-offs once the connection comes back but the
  * replay hasn't invalidated the list yet. */
 export default function OfflineBanner({ isOffline, dataAsOf, pendingCount }: Props) {
+  const { t } = useTranslation();
+  const { formatTime } = useFormatters();
   if (!isOffline && pendingCount === 0) return null;
 
   return (
@@ -19,14 +22,14 @@ export default function OfflineBanner({ isOffline, dataAsOf, pendingCount }: Pro
         <>
           <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber" />
           <span>
-            Offline{dataAsOf ? <> · showing your list from <Clock className="inline h-3 w-3 -mt-0.5" /> {formatTime(dataAsOf)}</> : null}
+            {t('shopping.offline')}{dataAsOf ? <> · {t('shopping.showingFrom')} <Clock className="inline h-3 w-3 -mt-0.5" /> {formatTime(dataAsOf)}</> : null}
           </span>
         </>
       ) : (
-        <span className="text-amber">Syncing {pendingCount} check-off{pendingCount === 1 ? '' : 's'}…</span>
+        <span className="text-amber">{t('shopping.syncing', { count: pendingCount })}</span>
       )}
       {isOffline && pendingCount > 0 && (
-        <span className="ml-auto text-ash">{pendingCount} queued</span>
+        <span className="ml-auto text-ash">{t('shopping.queued', { count: pendingCount })}</span>
       )}
     </div>
   );

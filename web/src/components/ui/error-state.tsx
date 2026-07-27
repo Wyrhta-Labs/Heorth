@@ -1,4 +1,5 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +18,7 @@ interface ErrorStateProps {
  * empty-state pages used to fall back to, and offers a retry affordance.
  */
 export function ErrorState({ message, onRetry, compact, className }: ErrorStateProps) {
+  const { t } = useTranslation();
   return (
     <div
       role="alert"
@@ -28,15 +30,15 @@ export function ErrorState({ message, onRetry, compact, className }: ErrorStateP
     >
       <AlertTriangle className={cn('text-ember', compact ? 'h-5 w-5' : 'h-7 w-7')} aria-hidden />
       <div className={cn('font-medium text-ink', compact ? 'text-sm' : 'text-base')}>
-        {message ?? 'We couldn’t load this right now.'}
+        {message ?? t('common.loadFailed')}
       </div>
       {!compact && (
-        <p className="text-sm text-ash">Check your connection and try again.</p>
+        <p className="text-sm text-ash">{t('common.checkConnection')}</p>
       )}
       {onRetry && (
         <Button variant="outline" size={compact ? 'sm' : 'default'} onClick={onRetry} className="mt-1">
           <RefreshCw className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} aria-hidden />
-          Try again
+          {t('common.tryAgain')}
         </Button>
       )}
     </div>

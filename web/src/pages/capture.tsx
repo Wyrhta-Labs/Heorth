@@ -1,16 +1,26 @@
 import { useState } from 'react';
 import { ListChecks, UtensilsCrossed } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useCreateTask } from '@/hooks/use-tasks';
 import { useUpsertPlanEntry } from '@/hooks/use-meals';
+import { useFormatters } from '@/hooks/use-formatters';
 import { MEAL_SLOTS } from '@/lib/constants';
-import { dayLabel } from '@/lib/format';
 import type { MealSlot } from '@/lib/types';
 
 type Mode = 'task' | 'meal' | null;
+
+/** Meal-slot labels are translated here rather than in the shared MEAL_SLOTS
+ * constant — that constant is also consumed by the (not yet swept) week
+ * planner, so its `label` field stays a display fallback / non-i18n value. */
+const SLOT_LABEL_KEY = {
+  breakfast: 'capture.slotBreakfast',
+  lunch: 'capture.slotLunch',
+  supper: 'capture.slotSupper',
+} as const satisfies Record<MealSlot, string>;
 
 /**
  * Quick capture: two big tap targets, minimal taps to done. "Add task" goes
@@ -20,7 +30,9 @@ type Mode = 'task' | 'meal' | null;
  * the full meals planner.
  */
 export default function CapturePage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
+  const { dayLabel } = useFormatters();
   const [mode, setMode] = useState<Mode>(null);
   const [text, setText] = useState('');
   const [slot, setSlot] = useState<MealSlot>('supper');
@@ -34,10 +46,10 @@ export default function CapturePage() {
     if (!value) return;
     try {
       await createTask.mutateAsync({ title: value });
-      toast('Task added to the shared list', 'success');
+      toast(t('capture.taskAdded'), 'success');
       reset();
     } catch (e) {
-      toast((e as Error).message || 'Could not add the task', 'error');
+      toast((e as Error).message || t('capture.couldNotAddTask'), 'error');
     }
   };
 
@@ -46,16 +58,16 @@ export default function CapturePage() {
     if (!value) return;
     try {
       await upsertEntry.mutateAsync({ date: dayLabel(new Date()).iso, slot, recipeId: null, freeText: value });
-      toast('Meal note saved', 'success');
+      toast(t('capture.mealNoteSaved'), 'success');
       reset();
     } catch (e) {
-      toast((e as Error).message || 'Could not save the note', 'error');
+      toast((e as Error).message || t('capture.couldNotSaveNote'), 'error');
     }
   };
 
   return (
     <div className="space-y-4 max-w-md mx-auto">
-      <h3 className="font-serif text-2xl text-ink">Quick capture</h3>
+      <h3 className="font-serif text-2xl text-ink">{t('capture.title')}</h3>
 
       {mode === null && (
         <div className="grid grid-cols-2 gap-3">
@@ -64,14 +76,14 @@ export default function CapturePage() {
             className="flex flex-col items-center gap-2 rounded-xl border border-tan bg-card py-8 text-ink hover:border-ember"
           >
             <ListChecks className="h-7 w-7 text-ember" />
-            <span className="text-sm font-medium">Add task</span>
+            <span className="text-sm font-medium">{t('capture.addTask')}</span>
           </button>
           <button
             onClick={() => setMode('meal')}
             className="flex flex-col items-center gap-2 rounded-xl border border-tan bg-card py-8 text-ink hover:border-ember"
           >
             <UtensilsCrossed className="h-7 w-7 text-ember" />
-            <span className="text-sm font-medium">Meal note</span>
+            <span className="text-sm font-medium">{t('capture.mealNote')}</span>
           </button>
         </div>
       )}
@@ -79,16 +91,16 @@ export default function CapturePage() {
       {mode === 'task' && (
         <Card>
           <CardContent className="p-4 space-y-3">
-            <p className="text-sm text-ash">Goes straight to the shared household list.</p>
+            <p className="text-sm text-ash">{t('capture.taskHint')}</p>
             <Input
               autoFocus value={text} onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void submitTask()} placeholder="What needs doing?"
+              onKeyDown={(e) => e.key === 'Enter' && void submitTask()} placeholder={t('capture.taskPlaceholder')}
             />
             <div className="flex gap-2">
               <Button className="flex-1" onClick={() => void submitTask()} disabled={createTask.isPending || !text.trim()}>
-                Add task
+                {t('capture.addTask')}
               </Button>
-              <Button variant="outline" onClick={reset}>Cancel</Button>
+              <Button variant="outline" onClick={reset}>{t('common.cancel')}</Button>
             </div>
           </CardContent>
         </Card>
@@ -106,19 +118,19 @@ export default function CapturePage() {
                     slot === s.value ? 'border-ember bg-ember/10 text-ember' : 'border-tan text-ash'
                   }`}
                 >
-                  {s.label}
+                  {t(SLOT_LABEL_KEY[s.value])}
                 </button>
               ))}
             </div>
             <Input
               autoFocus value={text} onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void submitMeal()} placeholder="e.g. Leftovers, eating out…"
+              onKeyDown={(e) => e.key === 'Enter' && void submitMeal()} placeholder={t('capture.mealPlaceholder')}
             />
             <div className="flex gap-2">
               <Button className="flex-1" onClick={() => void submitMeal()} disabled={upsertEntry.isPending || !text.trim()}>
-                Save note
+                {t('capture.saveNote')}
               </Button>
-              <Button variant="outline" onClick={reset}>Cancel</Button>
+              <Button variant="outline" onClick={reset}>{t('common.cancel')}</Button>
             </div>
           </CardContent>
         </Card>

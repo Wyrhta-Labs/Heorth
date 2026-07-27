@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Trash2, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ShoppingListItem } from '@/lib/types';
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGenerate }: Props) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const sorted = sortItems(items);
   const add = () => { if (name.trim()) { onAdd(name.trim()); setName(''); } };
@@ -25,8 +27,8 @@ export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGener
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-ash">{items.filter((i) => !i.checked).length} to buy</span>
-        <Button variant="outline" size="sm" onClick={onGenerate}>Generate from this week</Button>
+        <span className="text-sm text-ash">{t('shopping.toBuy', { count: items.filter((i) => !i.checked).length })}</span>
+        <Button variant="outline" size="sm" onClick={onGenerate}>{t('shopping.generateFromWeek')}</Button>
       </div>
       <ul className="space-y-1.5">
         {sorted.map((item) => (
@@ -50,7 +52,7 @@ export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGener
       </ul>
       <div className="flex gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="Add an item" />
+          onKeyDown={(e) => e.key === 'Enter' && add()} placeholder={t('shopping.addItemPlaceholder')} />
         <Button onClick={add}><Plus className="h-4 w-4" /></Button>
       </div>
     </div>

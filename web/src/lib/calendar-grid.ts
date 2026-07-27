@@ -1,10 +1,11 @@
-import { startOfMonth, startOfWeek, addDays, format } from 'date-fns';
+import { startOfMonth, startOfWeek, addDays, format, type Locale } from 'date-fns';
+import { enUS } from 'date-fns/locale';
 import type { EventOccurrence } from './types';
 
-/** A 6x7 grid of ISO dates covering the month (Monday-first), with leading/trailing days. */
-export function monthGrid(year: number, month0: number): string[][] {
+/** A 6x7 grid of ISO dates covering the month (locale-first weekday), with leading/trailing days. */
+export function monthGrid(year: number, month0: number, locale: Locale = enUS): string[][] {
   const first = startOfMonth(new Date(year, month0, 1));
-  const gridStart = startOfWeek(first, { weekStartsOn: 1 });
+  const gridStart = startOfWeek(first, { locale });
   const weeks: string[][] = [];
   let cursor = gridStart;
   for (let w = 0; w < 6; w += 1) {

@@ -16,13 +16,15 @@ services:
     restart: unless-stopped
 
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: heorth
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: heorth
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ keeps its data under a version subdirectory
+      # (/var/lib/postgresql/18/docker), so the volume mounts one level up.
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U heorth -d heorth"]
       interval: 5s

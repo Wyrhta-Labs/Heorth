@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-28
+
+### Added
+
+- **Web localisation, German first** (#4): the household `locale` setting was
+  stored but nothing consumed it — the whole UI (including the wall display's
+  day/date strings) was hardcoded English. The web app now speaks the household
+  language end to end: react-i18next with `en` + `de` message catalogues
+  (informal du), typed `t()` keys, and a parity test guarding key sets and
+  `{{placeholder}}` drift between languages; a locale map resolving every
+  supported locale to its catalogue language and closest date-fns locale;
+  `I18nProvider` driving both from `household.locale`; and a `useFormatters`
+  hook for locale-aware date/number formatting. Translated surface: Hearth
+  View first, then the phone screens (today, shopping, capture), the main app
+  pages, settings, layout chrome, PWA banners, option labels, and user-facing
+  error display, with proper i18next plurals for count strings.
+
 ### Changed
 
 - **Household settings — timezone and locale are pick-from-list** (#2): both were
@@ -21,9 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validation) stays visible and selected rather than being silently replaced by
   the first option, and a rejected save now surfaces an error toast instead of
   reporting success.
+- Bumped `@wyrhta/core` to v0.1.3.
 
 ### Fixed
 
+- **Hearth View — tasks due-window 400s** (#3): `/hearth` polled
+  `GET /api/v1/tasks` with date-only `due_from`/`due_to` values, which the
+  validator (full ISO datetime) rejected — every poll 400'd and the footer
+  stuck on "Reconnecting…". The page now sends full ISO instants for the
+  window bounds.
 - **Calendar mirror — recurring series** (first live-tenant run, 2026-07-25):
   `calendarView/delta` delivers recurring series as a `seriesMaster` item (at
   its original, possibly decades-old start — birthdays surfaced as 1932 events)

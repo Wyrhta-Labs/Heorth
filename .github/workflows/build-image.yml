@@ -1,0 +1,116 @@
+name: Build & Push Container Image
+
+on:
+  push:
+    # Build on every branch except main (this includes `staging`), plus version tags.
+    # NOTE: main is intentionally excluded here; staging pushes DO trigger this workflow.
+    # Release tags (v*) are cut on main, so production images still come from main's
+    # history — via the tag push, not the branch push.
+    branches-ignore:
+      - main
+    tags:
+      - "v*"
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Lightweight fast-feedback checks: backend typecheck + web build.
+  # Runs on the same triggers as the image build (so it covers `staging` too).
+  # Intentionally NOT a dependency of `build`, so it never blocks existing
+  # branch/tag image builds — it is an independent signal. No Postgres is
+  # provisioned, so this stays limited to typecheck/build (no runtime tests);
+  # the full suite against a real Postgres lives in staging.yml, which overlaps
+  # this job on the `staging` branch only.
+  ci:
+    name: Typecheck & Web Build
+    if: >-
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skipci]') &&
+      !contains(github.event.head_commit.message, '[no ci]') &&
+      !contains(github.event.head_commit.message, '[no build]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Backend typecheck
+        run: npm run typecheck
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Web build
+        run: npm run build
+        working-directory: web
+
+  build:
+    # Skip when commit message contains skip markers
+    if: >-
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skipci]') &&
+      !contains(github.event.head_commit.message, '[no ci]') &&
+      !contains(github.event.head_commit.message, '[no build]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # On tag push: use the tag as-is (e.g. v1.0.0 -> v1.0.0, latest)
+            # Production/release tags (semver + latest) are ONLY produced by `v*` tag pushes.
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            # On branch push: use the branch name as the tag (staging -> :staging, moving tag)
+            type=ref,event=branch
+            # On staging branch push only: add an immutable, clearly-labelled :staging-<sha>
+            # tag for traceability. Staging never receives a semver/latest (production) tag:
+            # the default flavor `latest=auto` applies `latest` ONLY on semver tag pushes,
+            # so branch (incl. staging) builds are never tagged `latest`.
+            type=sha,prefix=staging-,format=short,enable=${{ github.ref == 'refs/heads/staging' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

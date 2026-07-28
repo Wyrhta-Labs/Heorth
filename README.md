@@ -2,7 +2,7 @@
 
 The flagship self-hosted household system in the Wyrhta Labs stack: household
 membership, calendar, meal planning, and a media/book library, built with
-Node.js 22 + TypeScript, Hono, Drizzle ORM, PostgreSQL 16, Zod, and Vitest.
+Node.js 22 + TypeScript, Hono, Drizzle ORM, PostgreSQL 18, Zod, and Vitest.
 Finance is not in-process — it is proxied to the independent **Feoh**
 satellite service (its own repo and database); see
 [Finance (Feoh satellite)](#finance-feoh-satellite) below.
@@ -35,7 +35,7 @@ with Zod and exits the process if anything is missing or malformed.
 
 ```bash
 npm install
-npm run docker:up      # API + PostgreSQL 16 via docker-compose.yml
+npm run docker:up      # API + PostgreSQL 18 via docker-compose.yml
 # or, with your own Postgres running and DATABASE_URL pointed at it:
 npm run dev             # API only (tsx watch src/index.ts)
 npm run dev:all          # API + web dev server concurrently

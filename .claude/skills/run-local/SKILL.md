@@ -24,7 +24,7 @@ docker exec kith-testdb pg_isready -U kith      # → accepting connections
 ```
 
 If `kith-testdb` doesn't exist, create it:
-`docker run -d --name kith-testdb -e POSTGRES_USER=kith -e POSTGRES_PASSWORD=kithpw -e POSTGRES_DB=heorth -p 55432:5432 postgres:16-alpine`
+`docker run -d --name kith-testdb -e POSTGRES_USER=kith -e POSTGRES_PASSWORD=kithpw -e POSTGRES_DB=heorth -p 55432:5432 postgres:18-alpine`
 then `docker exec kith-testdb createdb -U kith kithledger`. The app runs
 migrations + seeds the admin on boot, so an empty DB self-populates.
 

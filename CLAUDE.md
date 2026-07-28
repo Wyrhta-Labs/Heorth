@@ -1,7 +1,7 @@
 # CLAUDE.md — Heorth
 
 The flagship self-hosted household system. Node.js 22 + TypeScript, Hono,
-Drizzle ORM, PostgreSQL 16, Zod, Vitest. Consumes `@wyrhta/core` as a pinned
+Drizzle ORM, PostgreSQL 18, Zod, Vitest. Consumes `@wyrhta/core` as a pinned
 GitHub-tag dependency (not a workspace link). See `README.md` for the full
 architecture, API surface, and the Feoh satellite proxy.
 

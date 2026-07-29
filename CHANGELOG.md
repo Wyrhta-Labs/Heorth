@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-29
+
+### Changed
+
+- **PostgreSQL 16 → 18** — **breaking for existing deployments.** Postgres is
+  now pinned to 18 everywhere it is configured: the Compose `db` service, the
+  staging CI service container, and the local `kith-testdb` bootstrap in the
+  `run-local` skill. Two migration steps are required and neither is automatic:
+  - The Compose volume moves from `/var/lib/postgresql/data` to
+    `/var/lib/postgresql`. This is not cosmetic — the `postgres:18` image
+    relocated its default `PGDATA` to `/var/lib/postgresql/<major>/docker`, so a
+    volume left on the old path no longer covers the data directory and the
+    container initialises into its own image layer, silently failing to persist.
+  - An existing `postgres_data` volume was written by 16 and **cannot be read by
+    18**. `pg_dump` (or `pg_dumpall`) under 16, then restore into a fresh volume
+    under 18. Verified locally on 18.4 by dump/restore of a 16.13 cluster: 8
+    databases, 82 tables, 271 rows, byte-identical row counts, full backend and
+    web suites green afterwards.
+
+  Historical records (earlier changelog entries, `docs/superpowers/` plans and
+  specs, `.superpowers/sdd/` task briefs) deliberately keep their `16`
+  references — they document what was built at the time.
+
+### Added
+
+- **Container images published to GHCR** — new
+  `.github/workflows/build-image.yml`, mirroring KithLedger's workflow so both
+  services behave identically. Images go to `ghcr.io/wyrhta-labs/heorth`:
+  `:staging` (moving) plus an immutable `:staging-<sha>` for staging pushes,
+  and semver (`X.Y.Z`, `X.Y`, `X`) plus `latest` only from `v*` tag pushes —
+  branch builds never receive a production tag. Builds run on every branch
+  except `main` plus version tags, use the `gha` build cache, and honour
+  `[skip ci]` / `[no build]` commit-message markers. A lightweight
+  typecheck-and-web-build job gives fast feedback on branches that
+  `staging.yml` does not cover.
+
+### Fixed
+
+- **The container image could not be built at all.** The single-stage
+  `Dockerfile` installed only root dependencies and then ran `build:web`
+  (`cd web && npm run build`), but this repo is not an npm workspace, so
+  `web/node_modules` never existed and the web build failed on a missing
+  `@vitejs/plugin-react`. The documented `npm run docker:up` path was therefore
+  broken too. Replaced with the same three-stage build KithLedger uses — web
+  builder, backend builder, production-only runner — which also drops
+  devDependencies and source from the published image (351 MB). Two runtime
+  inputs a multi-stage build does not pick up incidentally are now copied
+  explicitly: the drizzle migration SQL and snapshot metadata (`bootstrap()`
+  migrates from `./src/db/migrations` at boot) and `web/dist` (`createApp()`
+  serves it for every non-`/api` route). Verified by running the image against
+  a throwaway database: 13 migrations applied, 15 tables created, household and
+  admin seeded, a JWT from `POST /api/v1/auth/token` authenticating
+  `GET /api/v1/household`, the SPA and its hashed assets served, and the `/api`
+  404 envelope and `/health` intact.
+
 ## [0.3.1] - 2026-07-28
 
 ### Added

@@ -2,11 +2,10 @@ name: Build & Push Container Image
 
 on:
   push:
-    # Build on every branch except main (this includes `staging`), plus version tags.
-    # NOTE: main is intentionally excluded here; staging pushes DO trigger this workflow.
-    # Release tags (v*) are cut on main, so production images still come from main's
-    # history — via the tag push, not the branch push.
-    branches-ignore:
+    # Pre-alpha single-trunk flow: main is the branch, so every push to it builds
+    # and publishes an image unless the commit message carries a skip marker.
+    # Version tags build too, and additionally carry the semver tag.
+    branches:
       - main
     tags:
       - "v*"
@@ -25,12 +24,12 @@ env:
 
 jobs:
   # Lightweight fast-feedback checks: backend typecheck + web build.
-  # Runs on the same triggers as the image build (so it covers `staging` too).
-  # Intentionally NOT a dependency of `build`, so it never blocks existing
-  # branch/tag image builds — it is an independent signal. No Postgres is
-  # provisioned, so this stays limited to typecheck/build (no runtime tests);
-  # the full suite against a real Postgres lives in staging.yml, which overlaps
-  # this job on the `staging` branch only.
+  # Runs on the same triggers as the image build, so main pushes and tags both
+  # get it. Intentionally NOT a dependency of `build`, so it never blocks or
+  # delays publishing — it is an independent signal. No Postgres is provisioned,
+  # so this stays limited to typecheck/build; the full suite against a real
+  # Postgres lives in staging.yml, which still only triggers on the `staging`
+  # branch and therefore does NOT cover main pushes.
   ci:
     name: Typecheck & Web Build
     if: >-
@@ -91,19 +90,20 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # `latest=false` disables the default `latest=auto` behaviour (which would
+          # apply :latest on semver tag pushes only) so the rules below are the whole
+          # story: every build published from here is :latest and :<sha>, and a tag
+          # build adds its version on top.
+          flavor: |
+            latest=false
           tags: |
-            # On tag push: use the tag as-is (e.g. v1.0.0 -> v1.0.0, latest)
-            # Production/release tags (semver + latest) are ONLY produced by `v*` tag pushes.
+            # Moving pointer at the newest build, from a main push or a tag push alike.
+            type=raw,value=latest
+            # Immutable, per-commit handle for traceability and pinning. Bare short sha
+            # (no `sha-` prefix) so the tag reads as :<sha>.
+            type=sha,prefix=,format=short
+            # Only on a v* tag push: the release version, e.g. v0.5.0 -> :0.5.0
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            # On branch push: use the branch name as the tag (staging -> :staging, moving tag)
-            type=ref,event=branch
-            # On staging branch push only: add an immutable, clearly-labelled :staging-<sha>
-            # tag for traceability. Staging never receives a semver/latest (production) tag:
-            # the default flavor `latest=auto` applies `latest` ONLY on semver tag pushes,
-            # so branch (incl. staging) builds are never tagged `latest`.
-            type=sha,prefix=staging-,format=short,enable=${{ github.ref == 'refs/heads/staging' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6

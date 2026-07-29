@@ -1,17 +1,12 @@
 import { beforeAll, beforeEach } from 'vitest';
 
-// The .env auto-loader (src/config/env.ts) fills DATABASE_URL when it isn't
-// exported. This destructive suite truncates tables — refuse dev databases.
-// (The ??= defaults below run before src is imported, so an unexported
-// DATABASE_URL gets the test default, never the .env dev value.)
-if ((process.env['DATABASE_URL'] ?? '').includes('_dev')) {
-  throw new Error(
-    'Refusing to run tests against a _dev database — export a dedicated test DATABASE_URL.',
-  );
-}
-
 // Set required env BEFORE importing modules that read process.env at load time.
-process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:5432/heorth';
+// The src imports at the bottom are dynamic (`await import`) precisely so these
+// assignments land first — a static import would be hoisted above them.
+// The .env auto-loader (src/config/env.ts) only fills DATABASE_URL if it is still
+// unset by then, so an unexported DATABASE_URL gets the test default below rather
+// than the .env dev value.
+process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:55432/heorth_test';
 process.env['JWT_SECRET'] ??= 'test-secret-test-secret-test-secret-123';
 process.env['HOUSEHOLD_NAME'] ??= 'Test Household';
 process.env['ADMIN_EMAIL'] ??= 'admin@test.local';
@@ -30,6 +25,32 @@ for (const k of [
   'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX', 'M365_SHARED_TODO_LIST',
 ]) {
   process.env[k] = '';
+}
+
+// Destructive-suite guard. This file TRUNCATEs every application table between
+// tests, so it must only ever run against a throwaway database.
+//
+// This is an ALLOWLIST — the database name has to END IN `_test`. It replaces an
+// earlier denylist that merely rejected names containing `_dev`, which failed
+// open: a primary database name like `heorth` passed the check, so pointing
+// DATABASE_URL at the running dev stack silently wiped real data.
+//
+// Checked AFTER the assignments above so it validates the URL actually in force,
+// whichever source it came from, and BEFORE the dynamic imports below so no
+// database client is constructed against a rejected URL.
+const testDbName = (() => {
+  try {
+    return new URL(process.env['DATABASE_URL'] ?? '').pathname.replace(/^\//, '');
+  } catch {
+    return '';
+  }
+})();
+if (!testDbName.endsWith('_test')) {
+  // Never interpolate the URL itself — it carries a password.
+  throw new Error(
+    `Refusing to run destructive tests against database '${testDbName || '<unparseable DATABASE_URL>'}'. ` +
+      'Export a DATABASE_URL whose database name ends in _test (e.g. heorth_test).',
+  );
 }
 
 const { migrate } = await import('drizzle-orm/postgres-js/migrator');

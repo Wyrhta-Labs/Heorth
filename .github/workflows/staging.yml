@@ -1,11 +1,14 @@
-name: staging
+name: tests
 
-# Real staging build + test gate. Build and test only — no deploy/publish.
+# The real test gate: full backend suite against a live Postgres, plus the web
+# suite. Build and test only — no deploy/publish (images come from
+# build-image.yml). Runs on main, the pre-alpha single-trunk branch, so every
+# push is covered rather than only a promotion branch.
 on:
   push:
-    branches: [staging]
+    branches: [main]
   pull_request:
-    branches: [staging]
+    branches: [main]
 
 jobs:
   backend:

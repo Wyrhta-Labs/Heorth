@@ -16,7 +16,7 @@ import { useIdle } from '@/components/hearth/use-idle';
 import { useEvents } from '@/hooks/use-calendar';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
 import { useWeekPlan, useRecipes, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
-import { useMembers } from '@/hooks/use-household';
+import { useHouseholdMembers } from '@/hooks/use-household';
 import { useM365Status } from '@/hooks/use-m365';
 import { useFormatters } from '@/hooks/use-formatters';
 import {
@@ -69,7 +69,7 @@ function HearthInner() {
   const tasksQuery = useTasks({ due_from: fromIso, due_to: toIso }, { refetchInterval: POLL_TASKS, gcTime: GC, placeholderData: keepPreviousData });
   const planQuery = useWeekPlan(fromDay, toDay, { refetchInterval: POLL_MEALS, gcTime: GC, placeholderData: keepPreviousData });
   const recipesQuery = useRecipes();
-  const membersQuery = useMembers();
+  const membersQuery = useHouseholdMembers();
   const statusQuery = useM365Status();
   const complete = useCompleteTask();
   const upsertMeal = useUpsertPlanEntry();

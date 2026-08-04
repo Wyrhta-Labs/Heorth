@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../wiring.js';
+import { assertNotMaintenanceAdmin } from '../household/maintenance-admin.js';
 import { getM365Runtime } from './runtime.js';
 import { signConnectState, verifyConnectState } from './state.js';
 import { runCalendarSync } from './calendar-sync.js';
@@ -28,6 +29,7 @@ function toPublicFeed(row: M365SyncStateRow) {
  * catch-all 404 — the documented disabled-mode behaviour.
  *
  *  GET    /connect     (auth)  → 302 to Microsoft consent (state binds the member)
+ *  GET    /connect-url (auth)  → 200 JSON { url } twin of /connect (Task 8; see below)
  *  GET    /callback            → exchange code, store encrypted refresh token
  *  GET    /status      (auth)  → acting member's connection (admin sees all
  *                                connections); `feeds[]` is EVERY feed's sync
@@ -45,18 +47,32 @@ m365Router.get('/connect', requireAuth, async (c) => {
   return c.redirect(url, 302);
 });
 
+/**
+ * JSON twin of `/connect`. The web client authenticates with a Bearer token from
+ * localStorage, which a top-level browser navigation cannot carry — so the UI
+ * fetches the consent URL here and assigns `window.location.href` itself.
+ */
+m365Router.get('/connect-url', requireAuth, async (c) => {
+  const memberId = c.get('auth').userId;
+  await assertNotMaintenanceAdmin(memberId);
+  const state = await signConnectState(memberId);
+  return ok(c, { url: getM365Runtime().delegated.authorizeUrl(state) });
+});
+
 m365Router.get('/callback', async (c) => {
   const rt = getM365Runtime();
   const error = c.req.query('error');
   if (error) {
-    return err(c, 'M365_CONSENT_DENIED', c.req.query('error_description') ?? error, 400);
+    return c.redirect('/profile?connectError=M365_CONSENT_DENIED', 302);
   }
   const code = c.req.query('code');
   const state = c.req.query('state');
-  if (!code || !state) return err(c, 'M365_CALLBACK_INVALID', 'Missing code or state', 400);
+  if (!code || !state) return c.redirect('/profile?connectError=M365_CALLBACK_INVALID', 302);
 
   const memberId = await verifyConnectState(state);
-  if (!memberId) return err(c, 'M365_STATE_INVALID', 'State validation failed', 400);
+  if (!memberId) return c.redirect('/profile?connectError=M365_STATE_INVALID', 302);
+
+  await assertNotMaintenanceAdmin(memberId);
 
   try {
     const { refreshToken, accessToken, scopes } = await rt.delegated.exchangeCode(code);
@@ -67,9 +83,9 @@ m365Router.get('/callback', async (c) => {
   } catch {
     // Upstream identity/Graph failure or unexpected error. Details are not
     // surfaced (may reference tokens); the member simply retries the connect.
-    return err(c, 'M365_EXCHANGE_FAILED', 'Failed to complete M365 connection', 500);
+    return c.redirect('/profile?connectError=M365_EXCHANGE_FAILED', 302);
   }
-  return c.redirect('/?m365=connected', 302);
+  return c.redirect('/profile?connected=m365', 302);
 });
 
 m365Router.get('/status', requireAuth, async (c) => {

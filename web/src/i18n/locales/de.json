@@ -288,7 +288,8 @@
     "tabs": {
       "members": "Mitglieder",
       "apiKeys": "API-Schlüssel",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "connections": "Verbindungen"
     },
     "household": {
       "name": "Name",
@@ -344,6 +345,27 @@
       "create": "Erstellen",
       "copyWarning": "Kopiere diesen Schlüssel jetzt — du siehst ihn nicht noch einmal.",
       "done": "Fertig"
+    },
+    "connectionsPanel": {
+      "title": "Microsoft-365-Verbindungen",
+      "syncNow": "Jetzt synchronisieren",
+      "syncStarted": "Synchronisierung gestartet",
+      "syncSummary_one": "Synchronisierung abgeschlossen: {{count}} Feed verarbeitet",
+      "syncSummary_other": "Synchronisierung abgeschlossen: {{count}} Feeds verarbeitet",
+      "syncFailed": "Synchronisierung konnte nicht gestartet werden",
+      "noConnections": "Noch kein Mitglied hat ein Microsoft-365-Konto verbunden.",
+      "member": "Mitglied",
+      "account": "Konto",
+      "status": "Status",
+      "lastSync": "Letzte Synchronisierung",
+      "lastError": "Letzter Fehler",
+      "feedsTitle": "Feed-Zustand",
+      "feed": "Feed",
+      "feedStatus": "Status",
+      "consecutiveFailures": "Aufeinanderfolgende Fehlversuche",
+      "feedOk": "OK",
+      "feedFailing": "Fehlerhaft",
+      "none": "—"
     }
   },
   "library": {

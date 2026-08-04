@@ -1,4 +1,4 @@
-import { apiGet, apiDelete } from './client';
+import { apiGet, apiPost, apiDelete } from './client';
 import type { SingleResponse } from '@/lib/types';
 import type { FeedStatus } from '@/lib/hearth';
 
@@ -35,4 +35,20 @@ export function getM365ConnectUrl(): Promise<SingleResponse<{ url: string }>> {
 
 export function disconnectM365(): Promise<SingleResponse<{ disconnected: boolean }>> {
   return apiDelete('/m365/connection');
+}
+
+/** A single feed's outcome from a manual sync trigger. */
+export interface M365SyncResult {
+  feedKey: string;
+  status: 'ok' | 'skipped' | 'error';
+  reason?: string;
+}
+
+/**
+ * POST /api/v1/m365/sync — admin-only manual sync trigger. Runs all calendar
+ * feeds then all To Do feeds once and returns the combined per-feed result
+ * summary (used by the admin connections overview's "Sync now" button).
+ */
+export function triggerM365Sync(): Promise<SingleResponse<{ results: M365SyncResult[] }>> {
+  return apiPost('/m365/sync', {});
 }

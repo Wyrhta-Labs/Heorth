@@ -1,5 +1,15 @@
 import type { AvatarColor, MealSlot, Role } from './types';
 
+/**
+ * The maintenance admin's fixed handle — mirrors `MAINTENANCE_ADMIN_HANDLE` in
+ * `src/household/maintenance-admin.ts`. The quarantine is anchored on this
+ * handle, NOT on `role`: a real household member can be promoted to admin
+ * (`PATCH /members/:id/role`) and remains an ordinary, non-quarantined member.
+ * UI code that needs to distinguish the maintenance login from a real member
+ * (even one with role 'admin') must filter on `handle`, never on `role`.
+ */
+export const MAINTENANCE_ADMIN_HANDLE = 'admin';
+
 export const QUERY_KEYS = {
   household: ['household'] as const,
   // Deliberately not nested under `household`: saving the household invalidates

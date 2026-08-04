@@ -57,6 +57,22 @@ describe('ProviderCard', () => {
     expect(screen.getByRole('button', { name: /disconnect/i })).toBeInTheDocument();
   });
 
+  it('renders lastSuccessAt (last refresh) when connected', () => {
+    renderCard(providerIn('connected', {
+      memberId: 'b', accountLabel: 'anna@example.com',
+      lastSuccessAt: '2026-08-04T10:00:00Z', lastError: null,
+    }));
+    expect(screen.getByText(/last refreshed/i)).toBeInTheDocument();
+  });
+
+  it('renders no last-refresh line when lastSuccessAt is null', () => {
+    renderCard(providerIn('connected', {
+      memberId: 'b', accountLabel: 'anna@example.com',
+      lastSuccessAt: null, lastError: null,
+    }));
+    expect(screen.queryByText(/last refreshed/i)).not.toBeInTheDocument();
+  });
+
   it('offers Reconnect and shows the error when re-auth is needed', () => {
     renderCard(providerIn('needs_reauth', {
       memberId: 'b', accountLabel: 'anna@example.com',

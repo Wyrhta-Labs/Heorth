@@ -1,6 +1,7 @@
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { logError } from '@wyrhta/core/lib';
+import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import { requireAuth, requireRole } from '../../wiring.js';
 import { SatelliteUnreachableError, type SatelliteRequest } from '../satellite-client.js';
 import { getFeohRuntime } from './runtime.js';
@@ -39,7 +40,19 @@ import { RosterMappingMissingError, type FeohRoster } from './roster.js';
 
 type Json = Record<string, unknown>;
 
-const canWrite = requireRole('admin', 'adult');
+const requireWriteRole = requireRole('admin', 'adult');
+/**
+ * Write gate for every finance mutation route: the existing role check, plus
+ * the maintenance-admin quarantine on the acting principal. Composed once here
+ * rather than repeated per route (there are twelve) — `requireRole` returns a
+ * plain Hono `MiddlewareHandler`, so wrapping it and calling `next` ourselves
+ * after the extra check slots in exactly where the role check used to sit.
+ */
+const canWrite: MiddlewareHandler = async (c, next) =>
+  requireWriteRole(c, async () => {
+    await assertNotMaintenanceAdmin(c.get('auth').userId);
+    await next();
+  });
 
 function serviceUnavailable(c: Context, e: unknown) {
   logError('feoh proxy: Feoh satellite unreachable', e);
@@ -110,6 +123,9 @@ async function transformRecordTransaction(body: Json, c: Context, roster: FeohRo
   const createdBy = await roster.partyIdFor(memberId);
   const out: Json = { ...body, createdBy };
   if (Array.isArray(body['splits'])) {
+    await assertNoneAreMaintenanceAdmin(
+      (body['splits'] as Array<{ memberId: string }>).map((s) => s.memberId),
+    );
     out['splits'] = await Promise.all(
       (body['splits'] as Array<{ memberId: string; share: number }>).map(async (s) => ({
         partyId: await roster.partyIdFor(s.memberId),

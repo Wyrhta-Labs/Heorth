@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { createApp } from '../src/app.js';
+import { createApp, heorthErrorHandler } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 import { m365Router } from '../src/m365/routes.js';
 import { setM365Runtime } from '../src/m365/runtime.js';
@@ -12,10 +12,16 @@ import { m365Connections } from '../src/m365/schema.js';
 import { createFakeGraph, runtimeForFakeGraph } from './fake-graph.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 
-/** A bare app with just the M365 router mounted (integration forced-enabled). */
+/**
+ * A bare app with just the M365 router mounted (integration forced-enabled).
+ * `heorthErrorHandler` is mounted explicitly because this app is NOT built via
+ * `createApp` — without it, a thrown `MaintenanceAdminError` would surface as
+ * an unhandled 500 rather than the documented 403.
+ */
 function enabledApp() {
   const app = new Hono();
   app.route('/api/v1/m365', m365Router);
+  app.onError(heorthErrorHandler);
   return app;
 }
 
@@ -45,7 +51,7 @@ describe('m365 routes (enabled)', () => {
     const state = await signConnectState(adult.user.id);
     const res = await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe('/?m365=connected');
+    expect(res.headers.get('location')).toBe('/profile?connected=m365');
 
     const [row] = await db.select().from(m365Connections).where(eq(m365Connections.memberId, adult.user.id));
     expect(row!.accountUpn).toBe('member@contoso.test');
@@ -55,9 +61,8 @@ describe('m365 routes (enabled)', () => {
   it('GET /callback rejects an invalid state', async () => {
     setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
     const res = await enabledApp().request('/api/v1/m365/callback?code=abc&state=tampered');
-    expect(res.status).toBe(400);
-    const body = await res.json() as { error: { code: string } };
-    expect(body.error.code).toBe('M365_STATE_INVALID');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=M365_STATE_INVALID');
   });
 
   it('GET /status returns the acting member connection; admin sees all connections', async () => {
@@ -120,6 +125,67 @@ describe('m365 routes (enabled)', () => {
       method: 'DELETE', headers: authHeaders(adult.jwt),
     });
     expect(del2.status).toBe(404);
+  });
+});
+
+describe('GET /connect-url', () => {
+  it('requires auth', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const res = await enabledApp().request('/api/v1/m365/connect-url');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns the Microsoft authorize URL as JSON', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { adult } = await seedTestHousehold();
+    const res = await enabledApp().request('/api/v1/m365/connect-url', {
+      headers: authHeaders(adult.jwt),
+    });
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data.url).toContain('/oauth2/v2.0/authorize');
+    expect(data.url).toContain('state=');
+  });
+
+  it('refuses the maintenance admin', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { admin } = await seedTestHousehold();
+    const res = await enabledApp().request('/api/v1/m365/connect-url', {
+      headers: authHeaders(admin.jwt),
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('callback redirects', () => {
+  it('redirects to /profile on success', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { adult } = await seedTestHousehold();
+    const state = await signConnectState(adult.user.id);
+    const res = await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${state}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connected=m365');
+  });
+
+  it('redirects to /profile with a code when consent is denied', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const res = await enabledApp().request('/api/v1/m365/callback?error=access_denied');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=M365_CONSENT_DENIED');
+  });
+
+  it('redirects with M365_STATE_INVALID for a bad state', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const res = await enabledApp().request('/api/v1/m365/callback?code=c&state=not-a-jwt');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=M365_STATE_INVALID');
+  });
+
+  it('redirects with M365_CALLBACK_INVALID when code or state is missing', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const res = await enabledApp().request('/api/v1/m365/callback');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=M365_CALLBACK_INVALID');
   });
 });
 

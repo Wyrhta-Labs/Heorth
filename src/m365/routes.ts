@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../wiring.js';
+import { assertNotMaintenanceAdmin, isMaintenanceAdminId } from '../household/maintenance-admin.js';
 import { getM365Runtime } from './runtime.js';
 import { signConnectState, verifyConnectState } from './state.js';
 import { runCalendarSync } from './calendar-sync.js';
@@ -28,12 +29,19 @@ function toPublicFeed(row: M365SyncStateRow) {
  * catch-all 404 — the documented disabled-mode behaviour.
  *
  *  GET    /connect     (auth)  → 302 to Microsoft consent (state binds the member)
+ *  GET    /connect-url (auth)  → 200 JSON { url } twin of /connect (Task 8; see below)
  *  GET    /callback            → exchange code, store encrypted refresh token
- *  GET    /status      (auth)  → acting member's connection (admin sees all
- *                                connections); `feeds[]` is EVERY feed's sync
- *                                status regardless of role — no secrets in it,
- *                                and the Hearth View needs household-wide
- *                                staleness even for a non-admin kiosk session.
+ *  GET    /status      (auth)  → acting member's connection (admin ALSO sees
+ *                                every connection under `connections`);
+ *                                `feeds[]` is EVERY feed's sync status
+ *                                regardless of role — no secrets in it, and the
+ *                                Hearth View needs household-wide staleness even
+ *                                for a non-admin kiosk session. An admin session
+ *                                may itself be a promoted household member (role
+ *                                is not the quarantine anchor — see
+ *                                maintenance-admin.ts), so it must still see and
+ *                                be able to disconnect its OWN connection, not
+ *                                just the household-wide list.
  *  DELETE /connection  (auth)  → acting member disconnects (row deleted)
  */
 export const m365Router = new Hono();
@@ -45,18 +53,37 @@ m365Router.get('/connect', requireAuth, async (c) => {
   return c.redirect(url, 302);
 });
 
+/**
+ * JSON twin of `/connect`. The web client authenticates with a Bearer token from
+ * localStorage, which a top-level browser navigation cannot carry — so the UI
+ * fetches the consent URL here and assigns `window.location.href` itself.
+ */
+m365Router.get('/connect-url', requireAuth, async (c) => {
+  const memberId = c.get('auth').userId;
+  await assertNotMaintenanceAdmin(memberId);
+  const state = await signConnectState(memberId);
+  return ok(c, { url: getM365Runtime().delegated.authorizeUrl(state) });
+});
+
 m365Router.get('/callback', async (c) => {
   const rt = getM365Runtime();
   const error = c.req.query('error');
   if (error) {
-    return err(c, 'M365_CONSENT_DENIED', c.req.query('error_description') ?? error, 400);
+    return c.redirect('/profile?connectError=M365_CONSENT_DENIED', 302);
   }
   const code = c.req.query('code');
   const state = c.req.query('state');
-  if (!code || !state) return err(c, 'M365_CALLBACK_INVALID', 'Missing code or state', 400);
+  if (!code || !state) return c.redirect('/profile?connectError=M365_CALLBACK_INVALID', 302);
 
   const memberId = await verifyConnectState(state);
-  if (!memberId) return err(c, 'M365_STATE_INVALID', 'State validation failed', 400);
+  if (!memberId) return c.redirect('/profile?connectError=M365_STATE_INVALID', 302);
+
+  // Redirect (not throw) here: unlike /connect-url, this is a browser navigation,
+  // not a JSON API call — a thrown MaintenanceAdminError would render a raw JSON
+  // 403 in the user's tab, exactly the failure mode this task exists to eliminate.
+  if (await isMaintenanceAdminId(memberId)) {
+    return c.redirect('/profile?connectError=ADMIN_NOT_A_MEMBER', 302);
+  }
 
   try {
     const { refreshToken, accessToken, scopes } = await rt.delegated.exchangeCode(code);
@@ -67,9 +94,9 @@ m365Router.get('/callback', async (c) => {
   } catch {
     // Upstream identity/Graph failure or unexpected error. Details are not
     // surfaced (may reference tokens); the member simply retries the connect.
-    return err(c, 'M365_EXCHANGE_FAILED', 'Failed to complete M365 connection', 500);
+    return c.redirect('/profile?connectError=M365_EXCHANGE_FAILED', 302);
   }
-  return c.redirect('/?m365=connected', 302);
+  return c.redirect('/profile?connected=m365', 302);
 });
 
 m365Router.get('/status', requireAuth, async (c) => {
@@ -84,7 +111,11 @@ m365Router.get('/status', requireAuth, async (c) => {
   // Connection details (account UPN etc.) stay member-scoped for non-admins.
   const feeds = (await rt.store.listSyncState()).map(toPublicFeed);
   if (auth.role === 'admin') {
-    return ok(c, { connections: await rt.store.listConnections(), feeds });
+    const [connection, connections] = await Promise.all([
+      rt.store.getConnection(auth.userId),
+      rt.store.listConnections(),
+    ]);
+    return ok(c, { connection, connections, feeds });
   }
   const conn = await rt.store.getConnection(auth.userId);
   return ok(c, { connection: conn, feeds });

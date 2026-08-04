@@ -273,6 +273,7 @@
     "library": "Library",
     "household": "Household",
     "hearth": "Hearth (wall)",
+    "profile": "Profile",
     "shoppingTab": "Shopping",
     "captureTab": "Capture",
     "more": "More",
@@ -287,7 +288,8 @@
     "tabs": {
       "members": "Members",
       "apiKeys": "API keys",
-      "settings": "Settings"
+      "settings": "Settings",
+      "connections": "Connections"
     },
     "household": {
       "name": "Name",
@@ -343,6 +345,31 @@
       "create": "Create",
       "copyWarning": "Copy this key now — you won’t see it again.",
       "done": "Done"
+    },
+    "connectionsPanel": {
+      "title": "Microsoft 365 connections",
+      "syncNow": "Sync now",
+      "syncSummary_one": "Sync complete: {{count}} feed processed",
+      "syncSummary_other": "Sync complete: {{count}} feeds processed",
+      "syncFailed": "Could not trigger a sync",
+      "noConnections": "No members have connected a Microsoft 365 account yet.",
+      "member": "Member",
+      "account": "Account",
+      "statusHeader": "Status",
+      "status": {
+        "active": "Active",
+        "needs_reauth": "Needs reconnecting",
+        "error": "Error"
+      },
+      "lastSync": "Last sync",
+      "lastError": "Last error",
+      "feedsTitle": "Feed health",
+      "feed": "Feed",
+      "feedStatus": "Status",
+      "consecutiveFailures": "Consecutive failures",
+      "feedOk": "OK",
+      "feedFailing": "Failing",
+      "none": "—"
     }
   },
   "library": {
@@ -413,6 +440,45 @@
     "item": {
       "rating": "Rating: {{rating}}",
       "viewSource": "View on source"
+    }
+  },
+  "connections": {
+    "pageTitle": "Connected accounts",
+    "maintenanceAdmin": {
+      "title": "This is the maintenance account",
+      "description": "The admin login is a maintenance account for running Heorth, not a household member.",
+      "hint": "It can’t connect a personal Microsoft 365 account or own household items such as events or recipes. To connect your own account, sign in with your household member login instead."
+    },
+    "m365": {
+      "name": "Microsoft 365",
+      "description": "Sync your calendar and To Do lists with your Microsoft account."
+    },
+    "state": {
+      "unavailable": "Not available",
+      "disconnected": "Not connected",
+      "connected": "Connected",
+      "needs_reauth": "Needs reconnecting"
+    },
+    "capability": {
+      "calendar": "Calendar",
+      "tasks": "Tasks"
+    },
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "reconnect": "Reconnect",
+    "lastRefreshed": "Last refreshed {{date}} at {{time}}",
+    "unavailableHint": "This integration is not available on this server.",
+    "connected": "Account connected",
+    "connectFailed": "Could not start the connection",
+    "disconnected": "Account disconnected",
+    "disconnectFailed": "Could not disconnect the account",
+    "error": {
+      "M365_CONSENT_DENIED": "You declined the Microsoft consent request, so the account wasn’t connected.",
+      "M365_CALLBACK_INVALID": "The response from Microsoft was invalid. Please try connecting again.",
+      "M365_STATE_INVALID": "The connection attempt expired or was tampered with. Please try connecting again.",
+      "M365_EXCHANGE_FAILED": "Microsoft couldn’t confirm the connection. Please try again.",
+      "ADMIN_NOT_A_MEMBER": "The maintenance admin account can’t connect a Microsoft 365 account.",
+      "unknown": "Something went wrong connecting your account. Please try again."
     }
   }
 }

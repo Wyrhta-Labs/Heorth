@@ -36,4 +36,13 @@ describe('library connections service', () => {
     const deleted = await service.deleteConnection(conn.id, { userId: admin.user.id, role: 'admin' });
     expect(deleted).toEqual({ id: conn.id });
   });
+
+  describe('maintenance admin quarantine', () => {
+    it('refuses a LibraryThing connection for the admin, even called directly', async () => {
+      const { admin } = await seedTestHousehold();
+      await expect(
+        service.createLibraryThingConnection(admin.user.id, { userid: 'u1', key: 'k1' }),
+      ).rejects.toMatchObject({ code: 'ADMIN_NOT_A_MEMBER' });
+    });
+  });
 });

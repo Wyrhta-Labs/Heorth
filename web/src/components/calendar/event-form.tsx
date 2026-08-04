@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MemberAvatar } from '@/components/ui/member-avatar';
 import { RECURRENCE_OPTIONS } from '@/lib/constants';
-import { useMembers } from '@/hooks/use-household';
+import { useHouseholdMembers } from '@/hooks/use-household';
 import type { Event } from '@/lib/types';
 import type { TFunction } from 'i18next';
 
@@ -53,7 +53,7 @@ interface Props {
 export default function EventForm({ event, onSubmit, onCancel, isLoading }: Props) {
   const { t } = useTranslation();
   const schema = useMemo(() => buildSchema(t), [t]);
-  const { data: membersData } = useMembers();
+  const { data: membersData } = useHouseholdMembers();
   const members = membersData?.data ?? [];
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),

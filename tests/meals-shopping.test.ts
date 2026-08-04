@@ -4,13 +4,13 @@ import * as service from '../src/modules/meals/service.js';
 
 describe('shopping list', () => {
   it('merges like ingredients across planned recipes and preserves hand-added items', async () => {
-    const { admin } = await seedTestHousehold();
+    const { adult } = await seedTestHousehold();
     const a = await service.createRecipe({
       title: 'Soup', servings: 4, ingredients: [{ name: 'Onion', qty: 2, unit: 'each' }, { name: 'Stock', qty: 1, unit: 'L' }], steps: [], tags: [],
-    }, admin.user.id);
+    }, adult.user.id);
     const b = await service.createRecipe({
       title: 'Curry', servings: 4, ingredients: [{ name: 'Onion', qty: 3, unit: 'each' }], steps: [], tags: [],
-    }, admin.user.id);
+    }, adult.user.id);
 
     await service.upsertPlanEntry({ date: '2026-07-13', slot: 'supper', recipeId: a.id });
     await service.upsertPlanEntry({ date: '2026-07-14', slot: 'supper', recipeId: b.id });

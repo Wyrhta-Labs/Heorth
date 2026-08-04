@@ -4,6 +4,7 @@ import { expandEvent } from './recurrence.js';
 import { eq, and, or, lte, gte, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
 import type { CreateEventInput, UpdateEventInput, ListEventsQuery } from './validators.js';
 import { listMirrorInRange, mirrorRowToOccurrence, isMirrorEvent, getMirrorEvent } from './mirror-store.js';
+import { assertNotMaintenanceAdmin, assertNoneAreMaintenanceAdmin } from '../../household/maintenance-admin.js';
 
 /** An occurrence carrying its source; native events are `'native'`. */
 export type OccurrenceView = EventOccurrence & {
@@ -110,6 +111,12 @@ export async function getEventSource(id: string): Promise<'native' | 'mirror' | 
 }
 
 export async function createEvent(input: CreateEventInput, createdBy: string) {
+  // The maintenance admin is not a household person: it may neither own nor
+  // attend anything. Guarded here (service layer) so REST, MCP and API-key
+  // callers are all covered by one implementation.
+  await assertNotMaintenanceAdmin(createdBy);
+  await assertNoneAreMaintenanceAdmin(input.attendeeIds ?? []);
+
   const [row] = await db.insert(events).values({
     title: input.title,
     startAt: new Date(input.startAt),
@@ -128,6 +135,7 @@ export async function createEvent(input: CreateEventInput, createdBy: string) {
 
 export async function updateEvent(id: string, input: UpdateEventInput) {
   if (await isMirrorEvent(id)) throw new ReadOnlyEventError();
+  if (input.attendeeIds) await assertNoneAreMaintenanceAdmin(input.attendeeIds);
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (input.title !== undefined) patch['title'] = input.title;
   if (input.startAt !== undefined) patch['startAt'] = new Date(input.startAt);

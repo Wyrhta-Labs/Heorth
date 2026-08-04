@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { LogOut } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -14,8 +15,10 @@ export default function TopBar({ title }: { title: string }) {
     <header className="flex items-center justify-between px-6 py-4 bg-card border-b border-tan">
       <h2 className="font-serif text-2xl text-ink">{title}</h2>
       <div className="flex items-center gap-3">
-        {me && <MemberAvatar name={me.displayName} color={me.avatarColor} size="sm" />}
-        <span className="text-sm text-ash hidden sm:block">{me?.displayName}</span>
+        <Link to="/profile" className="flex items-center gap-3">
+          {me && <MemberAvatar name={me.displayName} color={me.avatarColor} size="sm" />}
+          <span className="text-sm text-ash hidden sm:block">{me?.displayName}</span>
+        </Link>
         <Button variant="ghost" size="icon" onClick={logout} title={t('nav.signOut')}>
           <LogOut className="h-4 w-4" />
         </Button>

@@ -5,7 +5,7 @@ import { householdCore } from '../src/wiring.js';
 import { setFeohRuntime, type FeohRuntime } from '../src/satellites/feoh/runtime.js';
 import { SatelliteClient } from '../src/satellites/satellite-client.js';
 import { FeohClient } from '../src/satellites/feoh/client.js';
-import { FeohRoster } from '../src/satellites/feoh/roster.js';
+import { FeohRoster, RosterMappingMissingError } from '../src/satellites/feoh/roster.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 import { createFakeFeoh, runtimeForFake, type FakeFeoh } from './fake-feoh.js';
 
@@ -167,6 +167,63 @@ describe('feoh finance proxy → Feoh satellite', () => {
     expect(body.error.code).toBe('ROSTER_MAPPING_MISSING');
   });
 
+  describe('maintenance admin quarantine', () => {
+    it('refuses a finance write by the admin', async () => {
+      const { admin } = await seedTestHousehold();
+      const res = await app.request('/api/v1/feoh/envelopes', {
+        method: 'POST', headers: authHeaders(admin.jwt), body: JSON.stringify({ name: 'Groceries', monthlyBudget: 400 }),
+      });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('ADMIN_NOT_A_MEMBER');
+    });
+
+    it('refuses the admin as a split participant', async () => {
+      const { admin, adult } = await seedTestHousehold();
+      const envRes = await app.request('/api/v1/feoh/envelopes', {
+        method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ name: 'Groceries', monthlyBudget: 400 }),
+      });
+      const { data: envelope } = (await envRes.json()) as { data: { id: string } };
+      const acctRes = await app.request('/api/v1/feoh/accounts', {
+        method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ name: 'Checking', kind: 'asset', openingBalance: 0 }),
+      });
+      const { data: account } = (await acctRes.json()) as { data: { id: string } };
+
+      const res = await app.request('/api/v1/feoh/transactions', {
+        method: 'POST', headers: authHeaders(adult.jwt),
+        body: JSON.stringify({
+          date: '2026-07-05', payee: 'Shared', amount: 10,
+          postings: [{ envelopeId: envelope.id, debit: 10, credit: 0 }, { accountId: account.id, debit: 0, credit: 10 }],
+          splits: [{ memberId: admin.user.id, share: 1 }],
+        }),
+      });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('ADMIN_NOT_A_MEMBER');
+    });
+
+    it('still allows an adult to write', async () => {
+      const { adult } = await seedTestHousehold();
+      const envRes = await app.request('/api/v1/feoh/envelopes', {
+        method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ name: 'Groceries', monthlyBudget: 400 }),
+      });
+      const { data: envelope } = (await envRes.json()) as { data: { id: string } };
+      const acctRes = await app.request('/api/v1/feoh/accounts', {
+        method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ name: 'Checking', kind: 'asset', openingBalance: 0 }),
+      });
+      const { data: account } = (await acctRes.json()) as { data: { id: string } };
+
+      const res = await app.request('/api/v1/feoh/transactions', {
+        method: 'POST', headers: authHeaders(adult.jwt),
+        body: JSON.stringify({
+          date: '2026-07-05', payee: 'Groceries', amount: 10,
+          postings: [{ envelopeId: envelope.id, debit: 10, credit: 0 }, { accountId: account.id, debit: 0, credit: 10 }],
+        }),
+      });
+      expect(res.status).toBeLessThan(400);
+    });
+  });
+
   it('maps an unreachable Feoh to a 503 in Heorth’s envelope', async () => {
     const { adult } = await seedTestHousehold();
     const down: FeohRuntime = (() => {
@@ -210,25 +267,31 @@ describe('feoh roster re-upsert on displayName change (finding G)', () => {
 describe('feoh roster sync', () => {
   afterEach(() => setFeohRuntime(null));
 
-  it('upserts every member idempotently and caches both mapping directions', async () => {
+  it('upserts every member idempotently and caches both mapping directions, skipping the maintenance admin', async () => {
     const { admin, adult, child } = await seedTestHousehold();
     const fake = createFakeFeoh();
     const runtime = runtimeForFake(fake, listMembers);
 
     await runtime.roster.sync();
     const firstAdultParty = fake.partiesByMember.get(adult.user.id)!.id;
-    expect(fake.partiesByMember.size).toBe(3);
+    // The maintenance admin is not a finance actor — the sync mirrors only the
+    // adult and the child, never the admin (see roster.ts's isMaintenanceAdmin guard).
+    expect(fake.partiesByMember.size).toBe(2);
+    expect(fake.partiesByMember.has(admin.user.id)).toBe(false);
 
     // Second sync must not create duplicates and must keep ids stable.
     await runtime.roster.sync();
-    expect(fake.partiesByMember.size).toBe(3);
+    expect(fake.partiesByMember.size).toBe(2);
     expect(fake.partiesByMember.get(adult.user.id)!.id).toBe(firstAdultParty);
 
-    // Forward + reverse mapping resolve for each member.
-    for (const m of [admin, adult, child]) {
+    // Forward + reverse mapping resolve for each non-admin member.
+    for (const m of [adult, child]) {
       const partyId = await runtime.roster.partyIdFor(m.user.id);
       expect(runtime.roster.memberIdFor(partyId)).toBe(m.user.id);
     }
+
+    // The admin can never resolve a Feoh party — no party was ever created for it.
+    await expect(runtime.roster.partyIdFor(admin.user.id)).rejects.toThrow(RosterMappingMissingError);
   });
 
   it('lazily syncs on a mapping miss (no explicit startup sync)', async () => {

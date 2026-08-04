@@ -3,13 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Event } from '@/lib/types';
 
-// EventForm reads the household roster via useMembers; stub it with two members.
+// EventForm reads the household roster via useHouseholdMembers; stub it with two members.
 const members = [
   { id: 'm1', email: 'a@t', handle: 'ada', role: 'adult', displayName: 'Ada', avatarColor: 'ember', createdAt: '', updatedAt: '' },
   { id: 'm2', email: 'b@t', handle: 'ben', role: 'child', displayName: 'Ben', avatarColor: 'sky', createdAt: '', updatedAt: '' },
 ];
 vi.mock('@/hooks/use-household', () => ({
-  useMembers: () => ({ data: { data: members } }),
+  useHouseholdMembers: () => ({ data: { data: members } }),
 }));
 
 import EventForm from './event-form';

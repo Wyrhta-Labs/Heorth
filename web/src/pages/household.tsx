@@ -102,7 +102,7 @@ export default function HouseholdPage() {
         <TabsContent value="settings">
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">{t('nav.household')}</CardTitle></CardHeader>
-            <CardContent><HouseholdSettings canManage={canManage} /></CardContent>
+            <CardContent><HouseholdSettings /></CardContent>
           </Card>
         </TabsContent>
       )}

@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import { getM365Status } from '@/api/m365';
-import type { M365Connection } from '@/api/m365';
 import { ApiError } from '@/api/client';
 import type { FeedStatus } from '@/lib/hearth';
+// Type-only: providers.ts imports the *value* `useM365ProviderStatus` from
+// this module, so this import must stay type-only to avoid a runtime cycle.
+import type { ProviderConnection } from '@/lib/providers';
 
 const M365_FEED_STATUS_KEY = ['m365', 'feedStatus'] as const;
 
@@ -54,19 +56,30 @@ export function useM365Status() {
  */
 export function useM365ProviderStatus(): {
   state: ProviderState;
-  connection: M365Connection | null;
+  connection: ProviderConnection | null;
   isLoading: boolean;
 } {
   const query = useM365Status();
 
   const notMounted = query.error instanceof ApiError && query.error.status === 404;
-  const connection = query.data?.data.connection ?? null;
+  const raw = query.data?.data.connection ?? null;
+
+  // Map the M365 wire shape onto the provider-neutral contract — the
+  // rendering component never sees `accountUpn` or the raw `status` string.
+  const connection: ProviderConnection | null = raw
+    ? {
+        memberId: raw.memberId,
+        accountLabel: raw.accountUpn,
+        lastSuccessAt: raw.lastRefreshSuccessAt,
+        lastError: raw.lastRefreshError,
+      }
+    : null;
 
   const state: ProviderState = notMounted
     ? 'unavailable'
-    : !connection
+    : !raw
       ? 'disconnected'
-      : connection.status === 'active'
+      : raw.status === 'active'
         ? 'connected'
         : 'needs_reauth';
 

@@ -433,6 +433,7 @@
     "connect": "Connect",
     "disconnect": "Disconnect",
     "reconnect": "Reconnect",
+    "unavailableHint": "This integration is not available on this server.",
     "connected": "Account connected",
     "connectFailed": "Could not start the connection",
     "disconnected": "Account disconnected",

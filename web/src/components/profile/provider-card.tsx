@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/api/client';
 import { QUERY_KEYS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useFormatters } from '@/hooks/use-formatters';
 import type { ConnectionProvider } from '@/lib/providers';
 
 interface ProviderCardProps {
@@ -25,6 +26,7 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatDate, formatTime } = useFormatters();
   const { state, connection, isLoading } = provider.api.useStatus();
 
   const Icon = provider.icon;
@@ -86,7 +88,17 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
         )}
 
         {state === 'connected' && connection && (
-          <p className="text-sm text-gray-700">{connection.accountLabel}</p>
+          <div className="space-y-0.5">
+            <p className="text-sm text-gray-700">{connection.accountLabel}</p>
+            {connection.lastSuccessAt && (
+              <p className="text-xs text-gray-500">
+                {t('connections.lastRefreshed', {
+                  date: formatDate(connection.lastSuccessAt),
+                  time: formatTime(connection.lastSuccessAt),
+                })}
+              </p>
+            )}
+          </div>
         )}
 
         {isNeedsReauth && (

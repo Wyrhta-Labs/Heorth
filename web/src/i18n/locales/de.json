@@ -273,6 +273,7 @@
     "library": "Bibliothek",
     "household": "Haushalt",
     "hearth": "Hearth (Wandansicht)",
+    "profile": "Profil",
     "shoppingTab": "Einkaufen",
     "captureTab": "Erfassen",
     "more": "Mehr",
@@ -416,6 +417,7 @@
     }
   },
   "connections": {
+    "pageTitle": "Verbundene Konten",
     "m365": {
       "name": "Microsoft 365",
       "description": "Synchronisiere deinen Kalender und deine To-Do-Listen mit deinem Microsoft-Konto."

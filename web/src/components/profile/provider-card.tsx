@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
+import { ApiError } from '@/api/client';
 import { QUERY_KEYS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import type { ConnectionProvider } from '@/lib/providers';
@@ -32,8 +33,12 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
     try {
       const url = await provider.api.getConnectUrl();
       window.location.href = url;
-    } catch {
-      toast(t('connections.connectFailed'), 'error');
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'ADMIN_NOT_A_MEMBER') {
+        toast(t('connections.error.ADMIN_NOT_A_MEMBER'), 'error');
+      } else {
+        toast(t('connections.connectFailed'), 'error');
+      }
     }
   };
 

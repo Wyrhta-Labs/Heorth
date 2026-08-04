@@ -6,6 +6,7 @@ import { db } from '../db/index.js';
 import { config } from '../config/env.js';
 import { identity, householdCore } from '../wiring.js';
 import { getFeohRuntime } from '../satellites/feoh/runtime.js';
+import { MAINTENANCE_ADMIN_HANDLE, MaintenanceAdminError } from './maintenance-admin.js';
 import type { CreateMemberInput, UpdateMemberInput, UpdateHouseholdInput } from './validators.js';
 
 export function getHousehold() {
@@ -31,6 +32,11 @@ export function getMember(id: string) {
 }
 
 export async function createMember(input: CreateMemberInput) {
+  // The UNIQUE constraint already makes the handle unclaimable once seeded; this
+  // closes the pre-seed window and returns a clear 403 instead of a conflict.
+  if (input.handle === MAINTENANCE_ADMIN_HANDLE) {
+    throw new MaintenanceAdminError('ADMIN_PROTECTED', 'That handle is reserved');
+  }
   try {
     return await identity.createUser({
       email: input.email,

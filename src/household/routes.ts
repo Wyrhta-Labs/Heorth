@@ -4,6 +4,7 @@ import { logEvent } from '@wyrhta/core/lib';
 import { requireAuth, requireJwt, requireRole, identity } from '../wiring.js';
 import * as service from './service.js';
 import { householdOptions } from './options.js';
+import { isMaintenanceAdminId } from './maintenance-admin.js';
 import {
   createMemberSchema, updateMemberSchema, setRoleSchema,
   updateHouseholdSchema, loginSchema, createKeySchema,
@@ -70,12 +71,18 @@ membersRouter.patch('/:id', async (c) => {
   }
   const body = updateMemberSchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  if (body.data.email !== undefined && (await isMaintenanceAdminId(id))) {
+    return err(c, 'ADMIN_PROTECTED', 'The maintenance account email is managed by env', 403);
+  }
   const member = await service.updateMember(id, body.data);
   if (!member) return err(c, 'NOT_FOUND', 'Member not found', 404);
   return ok(c, member);
 });
 
 membersRouter.patch('/:id/role', requireRole('admin'), async (c) => {
+  if (await isMaintenanceAdminId(c.req.param('id'))) {
+    return err(c, 'ADMIN_PROTECTED', 'The maintenance account cannot be demoted', 403);
+  }
   const body = setRoleSchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
   const member = await service.setMemberRole(c.req.param('id'), body.data.role);
@@ -86,6 +93,9 @@ membersRouter.patch('/:id/role', requireRole('admin'), async (c) => {
 
 membersRouter.delete('/:id', requireRole('admin'), async (c) => {
   try {
+    if (await isMaintenanceAdminId(c.req.param('id'))) {
+      return err(c, 'ADMIN_PROTECTED', 'The maintenance account cannot be removed', 403);
+    }
     const member = await service.deleteMember(c.req.param('id'), c.get('auth').userId);
     if (!member) return err(c, 'NOT_FOUND', 'Member not found', 404);
     return ok(c, { id: member.id });

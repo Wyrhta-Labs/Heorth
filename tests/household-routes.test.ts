@@ -120,3 +120,63 @@ describe('household & members routes', () => {
     expect(withKey.status).toBe(401);
   });
 });
+
+describe('maintenance admin protection', () => {
+  it('refuses to delete the maintenance admin', async () => {
+    const { admin } = await seedTestHousehold();
+    const res = await app.request(`/api/v1/members/${admin.user.id}`, {
+      method: 'DELETE', headers: authHeaders(admin.jwt),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe('ADMIN_PROTECTED');
+  });
+
+  it('refuses to demote the maintenance admin', async () => {
+    const { admin } = await seedTestHousehold();
+    const res = await app.request(`/api/v1/members/${admin.user.id}/role`, {
+      method: 'PATCH', headers: authHeaders(admin.jwt), body: JSON.stringify({ role: 'adult' }),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe('ADMIN_PROTECTED');
+  });
+
+  it('refuses to change the maintenance admin email', async () => {
+    const { admin } = await seedTestHousehold();
+    const res = await app.request(`/api/v1/members/${admin.user.id}`, {
+      method: 'PATCH', headers: authHeaders(admin.jwt),
+      body: JSON.stringify({ email: 'someone-else@test.local' }),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe('ADMIN_PROTECTED');
+  });
+
+  it('still allows editing the admin display name', async () => {
+    const { admin } = await seedTestHousehold();
+    const res = await app.request(`/api/v1/members/${admin.user.id}`, {
+      method: 'PATCH', headers: authHeaders(admin.jwt),
+      body: JSON.stringify({ displayName: 'Maintenance' }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses to create a member claiming the admin handle', async () => {
+    const { admin } = await seedTestHousehold();
+    const res = await app.request('/api/v1/members', {
+      method: 'POST', headers: authHeaders(admin.jwt),
+      body: JSON.stringify({
+        email: 'imposter@test.local', password: 'pw-imposter-1',
+        displayName: 'Imposter', avatarColor: 'sage', handle: 'admin',
+      }),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe('ADMIN_PROTECTED');
+  });
+
+  it('still deletes an ordinary member', async () => {
+    const { admin, child } = await seedTestHousehold();
+    const res = await app.request(`/api/v1/members/${child.user.id}`, {
+      method: 'DELETE', headers: authHeaders(admin.jwt),
+    });
+    expect(res.status).toBe(200);
+  });
+});

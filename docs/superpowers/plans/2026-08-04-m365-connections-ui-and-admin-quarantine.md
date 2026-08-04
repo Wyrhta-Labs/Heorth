@@ -673,7 +673,8 @@ export async function repairMaintenanceAdmin(input: RepairInput): Promise<{ admi
       patch['email'] = input.adminEmail;
     }
     if (anchored.role !== 'admin') patch['role'] = 'admin';
-    if (!(await verifyPassword(input.adminPassword, anchored.passwordHash))) {
+    // NOTE the argument order: core's signature is verifyPassword(hash, plain).
+    if (!(await verifyPassword(anchored.passwordHash, input.adminPassword))) {
       patch['passwordHash'] = await hashPassword(input.adminPassword);
     }
     if (Object.keys(patch).length > 0) {
@@ -715,7 +716,10 @@ async function stripAdminOwnedData(adminId: string): Promise<void> {
 }
 ```
 
-If `hashPassword` / `verifyPassword` are not exported from `@wyrhta/core/identity` under those names, check `node_modules/@wyrhta/core/dist/identity/password.d.ts` and use the actual exports; do not reimplement hashing.
+Both helpers are confirmed exported from `@wyrhta/core/identity`:
+`hashPassword(plain): Promise<string>` and `verifyPassword(hash, plain): Promise<boolean>`
+(`node_modules/@wyrhta/core/dist/identity/password.d.ts`). Never reimplement hashing.
+The Drizzle column is `users.passwordHash` (SQL `password_hash`).
 
 - [ ] **Step 4: Run the test to verify it passes**
 

@@ -1,0 +1,109 @@
+import { describe, it, expect } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { users } from '@wyrhta/core/identity';
+import { db } from '../src/db/index.js';
+import { repairMaintenanceAdmin } from '../src/household/maintenance-admin.js';
+import { events, eventAttendees } from '../src/modules/calendar/schema.js';
+import { recipes, mealPlanEntries } from '../src/modules/meals/schema.js';
+import { identity, householdCore } from '../src/wiring.js';
+import { seedTestHousehold } from './helpers.js';
+
+const CREDS = { adminEmail: 'admin@test.local', adminPassword: 'test-admin-password' };
+
+describe('repairMaintenanceAdmin', () => {
+  it('seeds the admin when absent', async () => {
+    await householdCore.seedHousehold({ name: 'Test Household' });
+    const { adminId } = await repairMaintenanceAdmin(CREDS);
+
+    const [row] = await db.select().from(users).where(eq(users.id, adminId));
+    expect(row!.handle).toBe('admin');
+    expect(row!.role).toBe('admin');
+    expect(row!.email).toBe('admin@test.local');
+  });
+
+  it('rotates ADMIN_EMAIL in place without creating a second admin', async () => {
+    await seedTestHousehold();
+    await repairMaintenanceAdmin({ ...CREDS, adminEmail: 'newadmin@test.local' });
+
+    const admins = await db.select().from(users).where(eq(users.handle, 'admin'));
+    expect(admins).toHaveLength(1);
+    expect(admins[0]!.email).toBe('newadmin@test.local');
+  });
+
+  it('re-syncs a changed password so env stays the source of truth', async () => {
+    await seedTestHousehold();
+    const [before] = await db.select().from(users).where(eq(users.handle, 'admin'));
+
+    await repairMaintenanceAdmin({ ...CREDS, adminPassword: 'a-brand-new-password' });
+
+    const [after] = await db.select().from(users).where(eq(users.handle, 'admin'));
+    expect(after!.passwordHash).not.toBe(before!.passwordHash);
+  });
+
+  it('restores the admin role if it drifted', async () => {
+    const { admin } = await seedTestHousehold();
+    await db.update(users).set({ role: 'child' }).where(eq(users.id, admin.user.id));
+
+    await repairMaintenanceAdmin(CREDS);
+
+    const [row] = await db.select().from(users).where(eq(users.id, admin.user.id));
+    expect(row!.role).toBe('admin');
+  });
+
+  it('fails loudly when ADMIN_EMAIL is held by a different member', async () => {
+    await seedTestHousehold();
+    await identity.createUser({
+      email: 'squatter@test.local', handle: 'squatter', password: 'pw-squatter-1',
+      role: 'adult', displayName: 'Squatter', avatarColor: 'sky',
+    });
+
+    await expect(
+      repairMaintenanceAdmin({ ...CREDS, adminEmail: 'squatter@test.local' }),
+    ).rejects.toThrow(/already held/i);
+  });
+
+  it('strips admin-owned household data and repoints creators', async () => {
+    const { admin, adult } = await seedTestHousehold();
+    const [event] = await db.insert(events).values({
+      title: 'Admin event', startAt: new Date(), endAt: new Date(), createdBy: admin.user.id,
+    }).returning();
+    await db.insert(eventAttendees).values({ eventId: event!.id, memberId: admin.user.id });
+    await db.insert(recipes).values({ title: 'Admin recipe', createdBy: admin.user.id });
+    await db.insert(mealPlanEntries).values({
+      date: '2026-08-04', slot: 'supper', cook: admin.user.id, helper: admin.user.id,
+    });
+
+    await repairMaintenanceAdmin(CREDS);
+
+    expect(await db.select().from(eventAttendees)).toHaveLength(0);
+    const [ev] = await db.select().from(events);
+    expect(ev!.createdBy).toBe(adult.user.id);
+    const [rec] = await db.select().from(recipes);
+    expect(rec!.createdBy).toBe(adult.user.id);
+    const [entry] = await db.select().from(mealPlanEntries);
+    expect(entry!.cook).toBeNull();
+    expect(entry!.helper).toBeNull();
+  });
+
+  it('is idempotent', async () => {
+    const { admin } = await seedTestHousehold();
+    await db.insert(recipes).values({ title: 'Admin recipe', createdBy: admin.user.id });
+
+    await repairMaintenanceAdmin(CREDS);
+    await expect(repairMaintenanceAdmin(CREDS)).resolves.toBeDefined();
+
+    const admins = await db.select().from(users).where(eq(users.handle, 'admin'));
+    expect(admins).toHaveLength(1);
+  });
+
+  it('skips creator repointing when no non-admin member exists', async () => {
+    await householdCore.seedHousehold({ name: 'Test Household' });
+    const { adminId } = await repairMaintenanceAdmin(CREDS);
+    await db.insert(recipes).values({ title: 'Lonely recipe', createdBy: adminId });
+
+    await expect(repairMaintenanceAdmin(CREDS)).resolves.toBeDefined();
+
+    const [rec] = await db.select().from(recipes);
+    expect(rec!.createdBy).toBe(adminId); // left alone; repaired on a later boot
+  });
+});

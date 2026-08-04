@@ -24,6 +24,21 @@ export function useHouseholdOptions() {
 export function useMembers() {
   return useQuery({ queryKey: QUERY_KEYS.members, queryFn: () => api.listMembers() });
 }
+/**
+ * Members for daily business — the maintenance admin excluded.
+ *
+ * The admin is a maintenance login, not a household person: it may not own or be
+ * assigned anything (the server enforces this too). Use this everywhere EXCEPT the
+ * household members table and the admin connections overview, which need the raw
+ * `useMembers()`.
+ */
+export function useHouseholdMembers() {
+  const query = useMembers();
+  const data = query.data
+    ? { ...query.data, data: query.data.data.filter((m) => m.role !== 'admin') }
+    : undefined;
+  return { ...query, data } as typeof query;
+}
 export function useCreateMember() {
   const qc = useQueryClient();
   return useMutation({

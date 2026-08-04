@@ -3,9 +3,11 @@ import { QUERY_KEYS } from '@/lib/constants';
 import { getM365Status } from '@/api/m365';
 import { ApiError } from '@/api/client';
 import type { FeedStatus } from '@/lib/hearth';
-// Type-only: providers.ts imports the *value* `useM365ProviderStatus` from
-// this module, so this import must stay type-only to avoid a runtime cycle.
-import type { ProviderConnection } from '@/lib/providers';
+// `ProviderState`/`ProviderConnection` are provider-neutral and live in
+// providers.ts alongside the rest of the registry contract; providers.ts in
+// turn imports the *value* `useM365ProviderStatus` from this module. Both
+// imports here are type-only, so there is no runtime cycle.
+import type { ProviderState, ProviderConnection } from '@/lib/providers';
 
 const M365_FEED_STATUS_KEY = ['m365', 'feedStatus'] as const;
 
@@ -37,8 +39,6 @@ export function useM365FeedStatus(refetchInterval = 60_000) {
     gcTime: 10 * 60_000,
   });
 }
-
-export type ProviderState = 'unavailable' | 'disconnected' | 'connected' | 'needs_reauth';
 
 /** Raw query — the admin panel needs `connections` and `feeds` too. */
 export function useM365Status() {

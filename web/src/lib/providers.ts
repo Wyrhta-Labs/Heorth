@@ -1,9 +1,14 @@
 import { Cloud, type LucideIcon } from 'lucide-react';
 import { getM365ConnectUrl, disconnectM365 } from '@/api/m365';
 import { useM365ProviderStatus } from '@/hooks/use-m365';
-import type { ProviderState } from '@/hooks/use-m365';
 
-export type { ProviderState };
+/**
+ * Provider-neutral connection state. Lives HERE (not in a provider-specific
+ * adapter like `use-m365.ts`) so a second provider never has to import its
+ * state enum from the Microsoft adapter — that inverted dependency was the
+ * actual cycle a type-only import used to paper over.
+ */
+export type ProviderState = 'unavailable' | 'disconnected' | 'connected' | 'needs_reauth';
 
 /**
  * Provider-neutral connection shape — every provider adapter maps its own wire

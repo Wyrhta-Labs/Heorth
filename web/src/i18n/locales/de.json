@@ -433,6 +433,7 @@
     "connect": "Verbinden",
     "disconnect": "Trennen",
     "reconnect": "Neu verbinden",
+    "unavailableHint": "Diese Integration ist auf diesem Server nicht verfügbar.",
     "connected": "Konto verbunden",
     "connectFailed": "Verbindung konnte nicht gestartet werden",
     "disconnected": "Konto getrennt",

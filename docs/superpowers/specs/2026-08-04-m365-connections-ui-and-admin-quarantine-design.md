@@ -134,7 +134,11 @@ household members table and the admin connections join.
 
 **Call sites switched to `useHouseholdMembers()`:**
 
-- `components/calendar/event-form.tsx` — the attendee/owner picker
+- `components/calendar/event-form.tsx` — the attendee picker. Note the form has no
+  owner field: its schema carries only `attendeeIds`
+  (`web/src/components/calendar/event-form.tsx:25`) and `events.created_by` is taken
+  from the authenticated principal server-side (`src/modules/calendar/routes.ts:35`).
+  So the UI change is attendee filtering only; creator quarantine is server-side.
 - `components/dashboard/members-row.tsx`
 - `pages/hearth.tsx` — wall columns and the `membersById` map
 
@@ -152,12 +156,43 @@ Hearth wall show their empty state.
 
 ## E. The maintenance admin account
 
-**Identity anchor.** `isMaintenanceAdmin(user) => user.email === config.adminEmail`,
-in a new `src/household/maintenance-admin.ts`. No schema change. `seedAdmin()` in
-`src/index.ts` already keys its idempotency on that same email, so changing
-`ADMIN_EMAIL` moves the marker and seeds the new account on the next boot. Adding a
-column is not viable: `users` is owned by `@wyrhta/core`, a pinned tag dependency,
-and Heorth must not diverge its schema.
+**Identity anchor: `handle`, not email.** `isMaintenanceAdmin(user) =>
+user.handle === MAINTENANCE_ADMIN_HANDLE` (the constant `'admin'`), in a new
+`src/household/maintenance-admin.ts`. No schema change — adding a column is not
+viable, since `users` is owned by `@wyrhta/core`, a pinned tag dependency, and Heorth
+must not diverge its schema.
+
+Handle is the right anchor because it is **stable and unique**:
+`users_handle_unique` (`src/db/migrations/0000_watery_namora.sql:34`) and
+`seedAdmin()` hardcodes `handle: 'admin'` (`src/index.ts:24`), independent of env.
+
+Email was the obvious candidate and is **wrong**, for two reasons found in review:
+
+1. **Rotation orphans the old account.** `ADMIN_EMAIL` is a credential, not an
+   identity. Anchoring on it means changing `ADMIN_EMAIL` seeds a *second* admin and
+   silently demotes the old one to an ordinary, deletable, un-quarantined admin that
+   can own household items — the exact state this design exists to prevent.
+2. **First-boot ambush.** `seedAdmin()` returns if *any* row has that email
+   (`src/index.ts:21`), regardless of role. A pre-existing ordinary member whose
+   email happens to match would inherit the maintenance marker and be quarantined out
+   of their own household.
+
+With the handle anchor, `ADMIN_EMAIL` becomes purely a credential synced onto the
+anchored row, and rotating it is an in-place update of that row — no second account,
+no orphan.
+
+**Handle protection.** `handle` is settable through the member API
+(`src/household/validators.ts:12`). Creating or updating any member with
+`handle === 'admin'` is rejected with `403 ADMIN_PROTECTED`, so the anchor cannot be
+claimed or moved. (The `UNIQUE` constraint already makes it unclaimable once seeded
+at first boot; this closes the pre-seed window and gives a clear error instead of a
+constraint violation.)
+
+**Boot integrity check.** If the anchored row exists but its role is not `admin`,
+`seedAdmin()` restores it. If no anchored row exists but a row already holds
+`ADMIN_EMAIL`, boot fails loudly rather than guessing — that is an operator error
+(pre-existing member colliding with the configured admin address), not something to
+paper over.
 
 **Protected against removal and alteration**, in `src/household/routes.ts` /
 `service.ts`:
@@ -167,20 +202,20 @@ and Heorth must not diverge its schema.
   ordinary admins.
 - `PATCH /members/:id/role` → `403 ADMIN_PROTECTED`; the account cannot be demoted
   out of `admin`.
-- `PATCH /members/:id` → email changes on the maintenance admin are rejected with
-  `403 ADMIN_PROTECTED` (they would break the env anchor and cause a duplicate seed
-  on next boot). Display name and avatar colour remain editable.
+- `PATCH /members/:id` → email and handle changes on the maintenance admin are
+  rejected with `403 ADMIN_PROTECTED`; its credentials are managed by env alone.
+  Display name and avatar colour remain editable.
 
 **Env-driven credentials.** `ADMIN_EMAIL` and `ADMIN_PASSWORD` already exist in
-`src/config/env.ts` and are required, so the login is not a fixed target. One
-behavioural change: `seedAdmin()` **re-syncs the password from env on every boot**
-when it differs from the stored hash, making `ADMIN_PASSWORD` the genuine source of
-truth rather than a first-boot-only value. Accepted consequence: an out-of-band
-password change is reverted on restart — correct for a maintenance account.
+`src/config/env.ts` and are required, so the login is not a fixed target. `seedAdmin()`
+**re-syncs both onto the anchored row on every boot** when they differ, making env the
+genuine source of truth rather than first-boot-only values. Accepted consequence: an
+out-of-band credential change is reverted on restart — correct for a maintenance
+account. Email re-sync is what makes `ADMIN_EMAIL` rotation safe under the handle
+anchor.
 
-The hardcoded `handle: 'admin'` and `displayName: 'Admin'` are unchanged. Neither is
-a login credential (login is by email only, `authRouter.post('/token')`), and the
-display name is what the members list should show.
+`displayName: 'Admin'` is unchanged — it is not a credential (login is by email only,
+`authRouter.post('/token')`), and it is what the members list should show.
 
 ## F. Quarantine: no household item may be owned by the admin
 
@@ -191,10 +226,16 @@ layer so REST and MCP are both covered by one implementation. Every rejection is
 **Guarded paths:**
 
 - **Calendar** (`src/modules/calendar/service.ts`) — reject if the maintenance admin
-  appears in `memberIds` (the `event_attendees` write) or is the acting creator
-  (`events.created_by`) on create or update.
+  appears in `attendeeIds` (`src/modules/calendar/validators.ts:13,28` — the
+  `event_attendees` write) or is the acting creator (`events.created_by`) on create
+  or update.
 - **Meals** (`src/modules/meals/service.ts`) — reject the maintenance admin as recipe
-  `created_by`.
+  `created_by`, **and** as `cook` or `helper` on `upsertPlanEntry`. Those two are real
+  member FKs (`src/modules/meals/schema.ts:33-34`) accepted by both REST
+  (`src/modules/meals/validators.ts:25-26`) and MCP (`src/modules/meals/mcp.ts:47`) —
+  meal duty is exactly the daily business the admin must stay out of. The web UI does
+  not currently expose a cook/helper picker, so this is a server-side-only gap and
+  needs no UI change today.
 - **Tasks** (`src/modules/tasks/service.ts`) — tasks have no free assignee field:
   ownership is derived entirely from the To Do feed owner, so the enforcement points
   are `listAvailableLists`, `setAllowlist`, and the outward-create path, all of which
@@ -202,8 +243,20 @@ layer so REST and MCP are both covered by one implementation. Every rejection is
   Connections below), no admin-owned feed can come into existence in the first place;
   these guards are defence in depth.
 - **Connections** — `GET /m365/connect-url` and the M365 `/callback` reject the
-  maintenance admin, as do the LibraryThing and Trakt connect routes in
-  `src/modules/library/routes.ts`.
+  maintenance admin. For LibraryThing and Trakt the guard goes **inside
+  `src/modules/library/service.ts`** (`createLibraryThingConnection`,
+  `pollTraktDevice`), not in `routes.ts`: those services insert whatever `memberId`
+  they are handed (`service.ts:35`, `service.ts:58`), so a route-only guard would
+  leave a direct service-call path to an admin-owned connection. This is the same
+  service-layer rule the rest of this section follows.
+- **Feoh (finance)** — the satellite proxy lets admins write
+  (`requireRole('admin', 'adult')`, `src/satellites/feoh/proxy.ts:42`), injects the
+  acting principal as a transaction's `createdBy`
+  (`transformRecordTransaction`, `proxy.ts:109`), and the roster mirrors *every*
+  member into Feoh as a party (`src/satellites/feoh/roster.ts:80`). Finance is
+  household business, so: reject maintenance-admin writes through the proxy, reject
+  it as a split participant, and exclude it from `roster.sync()` / `upsertMember` so
+  no Feoh party is created for it at all.
 
 The admin retains full access to everything administrative: members, household
 settings, API keys, the connections overview, and `POST /m365/sync`.
@@ -211,14 +264,26 @@ settings, API keys, the connections overview, and `POST /m365/sync`.
 **Web side.** `/profile` renders a plain explanatory card instead of provider cards
 when the session is the maintenance admin, so the 403 is never reached by clicking.
 
-**Boot-time repair**, idempotent, in `seedAdmin()` (after the seed, so it can resolve
-the admin by env email — something a static SQL migration cannot do, and which
-re-runs correctly if `ADMIN_EMAIL` later changes):
+**Auth-path independence.** Because every guard lives in the service layer and keys
+on a member id, it holds regardless of how the caller authenticated — JWT session,
+MCP tool call, or an API key issued to the admin (`api_keys.user_id`, core-owned).
+There is no separate API-key bypass to close.
+
+**Boot-time repair**, idempotent, extracted as an exported
+`repairMaintenanceAdmin({ db, adminEmail, adminPassword })` in
+`src/household/maintenance-admin.ts` and called by `seedAdmin()` after the seed.
+Extracting it is what makes it testable: `seedAdmin()` is currently a private
+function in `src/index.ts:20`, and `config` is parsed at module load
+(`src/config/env.ts:87`), so a test cannot re-run it under a changed `ADMIN_PASSWORD`
+without module-state surgery. Taking its inputs as parameters sidesteps that
+entirely. The repair steps:
 
 1. Delete the admin's `event_attendees` rows. An event left with no attendees is a
    valid household/family item; it is not deleted.
 2. Repoint `events.created_by` and `recipes.created_by` from the admin to the oldest
-   non-admin member.
+   non-admin member, and set `meal_plan_entries.cook` / `.helper` to `NULL` wherever
+   they reference the admin (both columns are nullable with `ON DELETE set null`, so
+   clearing is the schema's own notion of "unassigned" — no repointing needed).
 3. Delete any `m365_connections`, `library_connections`, `todo_list_allowlist`,
    `task_mirror`, and admin-scoped `calendar_mirror_events` rows for the admin, plus
    the corresponding `m365_sync_state` rows for its feed keys. Mirror rows are
@@ -240,10 +305,14 @@ point at — and it runs on a later boot once a member exists. Steps 1 and 3 alw
   admin and succeeds for a normal member.
 - `DELETE /members/:id` and `PATCH /members/:id/role` on the maintenance admin return
   `403 ADMIN_PROTECTED`; both still work on an ordinary member.
-- Bootstrap test: seed admin-owned `event_attendees` / `created_by` / connection rows,
-  run `seedAdmin()`, assert the repair; run it twice, assert idempotence; assert the
-  no-non-admin-member case skips step 2 without error.
-- `seedAdmin()` re-syncs a changed `ADMIN_PASSWORD`.
+- Repair test: seed admin-owned `event_attendees` / `created_by` / `cook` / `helper` /
+  connection rows, call `repairMaintenanceAdmin(...)` directly, assert the repair; call
+  it twice, assert idempotence; assert the no-non-admin-member case skips the
+  `created_by` repointing without error.
+- `repairMaintenanceAdmin` re-syncs a changed `ADMIN_PASSWORD` and a changed
+  `ADMIN_EMAIL` onto the handle-anchored row, creating no second admin.
+- Creating or updating a member with `handle: 'admin'` returns `403 ADMIN_PROTECTED`.
+- Boot fails loudly when `ADMIN_EMAIL` is held by a row that is not the anchored admin.
 
 **Web** (Vitest):
 
@@ -257,9 +326,10 @@ point at — and it runs on a later boot once a member exists. Steps 1 and 3 alw
 ## Files touched
 
 **Backend:** `src/m365/routes.ts`, `src/household/maintenance-admin.ts` (new),
-`src/household/routes.ts`, `src/household/service.ts`, `src/index.ts`,
-`src/modules/calendar/service.ts`, `src/modules/meals/service.ts`,
-`src/modules/tasks/service.ts`, `src/modules/library/routes.ts`.
+`src/household/routes.ts`, `src/household/service.ts`, `src/household/validators.ts`,
+`src/index.ts`, `src/modules/calendar/service.ts`, `src/modules/meals/service.ts`,
+`src/modules/tasks/service.ts`, `src/modules/library/service.ts`,
+`src/satellites/feoh/proxy.ts`, `src/satellites/feoh/roster.ts`.
 
 **Web:** `web/src/app.tsx`, `web/src/components/layout/top-bar.tsx`,
 `web/src/components/layout/app-shell.tsx`, `web/src/pages/profile.tsx` (new),

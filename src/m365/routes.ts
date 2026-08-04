@@ -31,11 +31,17 @@ function toPublicFeed(row: M365SyncStateRow) {
  *  GET    /connect     (auth)  → 302 to Microsoft consent (state binds the member)
  *  GET    /connect-url (auth)  → 200 JSON { url } twin of /connect (Task 8; see below)
  *  GET    /callback            → exchange code, store encrypted refresh token
- *  GET    /status      (auth)  → acting member's connection (admin sees all
- *                                connections); `feeds[]` is EVERY feed's sync
- *                                status regardless of role — no secrets in it,
- *                                and the Hearth View needs household-wide
- *                                staleness even for a non-admin kiosk session.
+ *  GET    /status      (auth)  → acting member's connection (admin ALSO sees
+ *                                every connection under `connections`);
+ *                                `feeds[]` is EVERY feed's sync status
+ *                                regardless of role — no secrets in it, and the
+ *                                Hearth View needs household-wide staleness even
+ *                                for a non-admin kiosk session. An admin session
+ *                                may itself be a promoted household member (role
+ *                                is not the quarantine anchor — see
+ *                                maintenance-admin.ts), so it must still see and
+ *                                be able to disconnect its OWN connection, not
+ *                                just the household-wide list.
  *  DELETE /connection  (auth)  → acting member disconnects (row deleted)
  */
 export const m365Router = new Hono();
@@ -105,7 +111,11 @@ m365Router.get('/status', requireAuth, async (c) => {
   // Connection details (account UPN etc.) stay member-scoped for non-admins.
   const feeds = (await rt.store.listSyncState()).map(toPublicFeed);
   if (auth.role === 'admin') {
-    return ok(c, { connections: await rt.store.listConnections(), feeds });
+    const [connection, connections] = await Promise.all([
+      rt.store.getConnection(auth.userId),
+      rt.store.listConnections(),
+    ]);
+    return ok(c, { connection, connections, feeds });
   }
   const conn = await rt.store.getConnection(auth.userId);
   return ok(c, { connection: conn, feeds });

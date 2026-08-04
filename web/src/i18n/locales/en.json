@@ -288,7 +288,8 @@
     "tabs": {
       "members": "Members",
       "apiKeys": "API keys",
-      "settings": "Settings"
+      "settings": "Settings",
+      "connections": "Connections"
     },
     "household": {
       "name": "Name",
@@ -344,6 +345,27 @@
       "create": "Create",
       "copyWarning": "Copy this key now — you won’t see it again.",
       "done": "Done"
+    },
+    "connectionsPanel": {
+      "title": "Microsoft 365 connections",
+      "syncNow": "Sync now",
+      "syncStarted": "Sync started",
+      "syncSummary_one": "Sync complete: {{count}} feed processed",
+      "syncSummary_other": "Sync complete: {{count}} feeds processed",
+      "syncFailed": "Could not trigger a sync",
+      "noConnections": "No members have connected a Microsoft 365 account yet.",
+      "member": "Member",
+      "account": "Account",
+      "status": "Status",
+      "lastSync": "Last sync",
+      "lastError": "Last error",
+      "feedsTitle": "Feed health",
+      "feed": "Feed",
+      "feedStatus": "Status",
+      "consecutiveFailures": "Consecutive failures",
+      "feedOk": "OK",
+      "feedFailing": "Failing",
+      "none": "—"
     }
   },
   "library": {

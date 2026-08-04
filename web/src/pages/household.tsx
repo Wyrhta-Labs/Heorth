@@ -10,6 +10,7 @@ import MembersTable from '@/components/household/members-table';
 import MemberForm from '@/components/household/member-form';
 import ApiKeysPanel from '@/components/household/api-keys-panel';
 import HouseholdSettings from '@/components/household/household-settings';
+import ConnectionsPanel from '@/components/household/connections-panel';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useMembers, useCreateMember, useUpdateMember, useSetMemberRole, useDeleteMember, useWhoami } from '@/hooks/use-household';
@@ -72,8 +73,9 @@ export default function HouseholdPage() {
     <Tabs defaultValue="members" className="space-y-4">
       <TabsList>
         <TabsTrigger value="members">{t('settings.tabs.members')}</TabsTrigger>
-        <TabsTrigger value="keys">{t('settings.tabs.apiKeys')}</TabsTrigger>
-        <TabsTrigger value="settings">{t('settings.tabs.settings')}</TabsTrigger>
+        {canManage && <TabsTrigger value="keys">{t('settings.tabs.apiKeys')}</TabsTrigger>}
+        {canManage && <TabsTrigger value="settings">{t('settings.tabs.settings')}</TabsTrigger>}
+        {canManage && <TabsTrigger value="connections">{t('settings.tabs.connections')}</TabsTrigger>}
       </TabsList>
 
       <TabsContent value="members">
@@ -87,19 +89,29 @@ export default function HouseholdPage() {
         </CardContent></Card>
       </TabsContent>
 
-      <TabsContent value="keys">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">{t('settings.tabs.apiKeys')}</CardTitle></CardHeader>
-          <CardContent><ApiKeysPanel /></CardContent>
-        </Card>
-      </TabsContent>
+      {canManage && (
+        <TabsContent value="keys">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-base">{t('settings.tabs.apiKeys')}</CardTitle></CardHeader>
+            <CardContent><ApiKeysPanel /></CardContent>
+          </Card>
+        </TabsContent>
+      )}
 
-      <TabsContent value="settings">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">{t('nav.household')}</CardTitle></CardHeader>
-          <CardContent><HouseholdSettings canManage={canManage} /></CardContent>
-        </Card>
-      </TabsContent>
+      {canManage && (
+        <TabsContent value="settings">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-base">{t('nav.household')}</CardTitle></CardHeader>
+            <CardContent><HouseholdSettings canManage={canManage} /></CardContent>
+          </Card>
+        </TabsContent>
+      )}
+
+      {canManage && (
+        <TabsContent value="connections">
+          <ConnectionsPanel />
+        </TabsContent>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

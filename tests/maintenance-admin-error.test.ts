@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { createApp } from '../src/app.js';
+import { heorthErrorHandler } from '../src/app.js';
 import { MaintenanceAdminError } from '../src/household/maintenance-admin.js';
+
+function appThatThrows(error: unknown) {
+  const app = new Hono();
+  app.onError(heorthErrorHandler);
+  app.get('/boom', () => { throw error; });
+  return app;
+}
 
 describe('MaintenanceAdminError mapping', () => {
   it('maps a thrown MaintenanceAdminError to 403 with its code', async () => {
-    const app = createApp([]);
-    app.get('/boom', () => { throw new MaintenanceAdminError('ADMIN_NOT_A_MEMBER'); });
+    const app = appThatThrows(new MaintenanceAdminError('ADMIN_NOT_A_MEMBER'));
 
     const res = await app.request('/boom');
     expect(res.status).toBe(403);
@@ -16,8 +22,7 @@ describe('MaintenanceAdminError mapping', () => {
   });
 
   it('maps ADMIN_PROTECTED too', async () => {
-    const app = createApp([]);
-    app.get('/boom', () => { throw new MaintenanceAdminError('ADMIN_PROTECTED', 'Nope'); });
+    const app = appThatThrows(new MaintenanceAdminError('ADMIN_PROTECTED', 'Nope'));
 
     const res = await app.request('/boom');
     expect(res.status).toBe(403);
@@ -25,8 +30,7 @@ describe('MaintenanceAdminError mapping', () => {
   });
 
   it('still delegates unknown errors to core (500, no detail leak)', async () => {
-    const app = createApp([]);
-    app.get('/boom', () => { throw new Error('secret internal detail'); });
+    const app = appThatThrows(new Error('secret internal detail'));
 
     const res = await app.request('/boom');
     expect(res.status).toBe(500);

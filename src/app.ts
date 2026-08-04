@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
+import type { ErrorHandler } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
 import { trimTrailingSlash } from 'hono/trailing-slash';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { requestId, securityHeaders, errorHandler } from '@wyrhta/core/http';
 import type { Role } from '@wyrhta/core/identity';
 import { config } from './config/env.js';
@@ -22,6 +24,18 @@ declare module 'hono' {
     requestId: string;
   }
 }
+
+/**
+ * Core's errorHandler only classifies ZodError; anything else becomes a 500.
+ * Core is a pinned dependency, so the quarantine's 403 is mapped here instead
+ * of in every route — this also covers routes added later for free.
+ */
+export const heorthErrorHandler: ErrorHandler = (error, c) => {
+  if (error instanceof MaintenanceAdminError) {
+    return c.json({ error: { code: error.code, message: error.message } }, 403);
+  }
+  return errorHandler(error, c);
+};
 
 export function createApp(modules: HeorthModule[]): Hono {
   const app = new Hono();
@@ -48,15 +62,10 @@ export function createApp(modules: HeorthModule[]): Hono {
     c.json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404)
   );
 
-  // Core's errorHandler only classifies ZodError; anything else becomes a 500.
-  // Core is a pinned dependency, so the quarantine's 403 is mapped here instead
-  // of in every route — this also covers routes added later for free.
-  app.onError((error, c) => {
-    if (error instanceof MaintenanceAdminError) {
-      return c.json({ error: { code: error.code, message: error.message } }, 403);
-    }
-    return errorHandler(error, c);
-  });
+  app.use('/*', serveStatic({ root: './web/dist' }));
+  app.get('/*', serveStatic({ root: './web/dist', rewriteRequestPath: () => '/index.html' }));
+
+  app.onError(heorthErrorHandler);
 
   return app;
 }

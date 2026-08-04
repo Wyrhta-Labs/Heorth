@@ -444,6 +444,11 @@
   },
   "connections": {
     "pageTitle": "Verbundene Konten",
+    "maintenanceAdmin": {
+      "title": "Dies ist das Wartungskonto",
+      "description": "Der Admin-Login ist ein Wartungskonto zum Betrieb von Heorth, kein Haushaltsmitglied.",
+      "hint": "Es kann kein persönliches Microsoft-365-Konto verbinden oder Haushaltsdinge wie Termine oder Rezepte besitzen. Um dein eigenes Konto zu verbinden, melde dich stattdessen mit deinem Haushaltsmitglieds-Login an."
+    },
     "m365": {
       "name": "Microsoft 365",
       "description": "Synchronisiere deinen Kalender und deine To-Do-Listen mit deinem Microsoft-Konto."
@@ -461,6 +466,7 @@
     "connect": "Verbinden",
     "disconnect": "Trennen",
     "reconnect": "Neu verbinden",
+    "lastRefreshed": "Zuletzt aktualisiert am {{date}} um {{time}}",
     "unavailableHint": "Diese Integration ist auf diesem Server nicht verfügbar.",
     "connected": "Konto verbunden",
     "connectFailed": "Verbindung konnte nicht gestartet werden",

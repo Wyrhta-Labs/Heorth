@@ -150,6 +150,16 @@ describe('maintenance admin protection', () => {
     expect((await res.json()).error.code).toBe('ADMIN_PROTECTED');
   });
 
+  it('refuses to change the maintenance admin password', async () => {
+    const { admin } = await seedTestHousehold();
+    const res = await app.request(`/api/v1/members/${admin.user.id}`, {
+      method: 'PATCH', headers: authHeaders(admin.jwt),
+      body: JSON.stringify({ password: 'a-new-password-12' }),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe('ADMIN_PROTECTED');
+  });
+
   it('still allows editing the admin display name', async () => {
     const { admin } = await seedTestHousehold();
     const res = await app.request(`/api/v1/members/${admin.user.id}`, {

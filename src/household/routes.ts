@@ -71,8 +71,14 @@ membersRouter.patch('/:id', async (c) => {
   }
   const body = updateMemberSchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
-  if (body.data.email !== undefined && (await isMaintenanceAdminId(id))) {
-    return err(c, 'ADMIN_PROTECTED', 'The maintenance account email is managed by env', 403);
+  // Maintenance credentials (email AND password) are env-only by design — see
+  // `repairMaintenanceAdmin`, which re-syncs both from env on every boot, so a
+  // manual change here would just be silently overwritten anyway.
+  // NOTE: `updateMemberSchema` currently has no `handle` field, which is why a
+  // handle change is already impossible; if one is ever added, it MUST be
+  // guarded here too — the quarantine is anchored on the handle.
+  if ((body.data.email !== undefined || body.data.password !== undefined) && (await isMaintenanceAdminId(id))) {
+    return err(c, 'ADMIN_PROTECTED', 'The maintenance account credentials are managed by env', 403);
   }
   const member = await service.updateMember(id, body.data);
   if (!member) return err(c, 'NOT_FOUND', 'Member not found', 404);

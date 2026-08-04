@@ -414,5 +414,36 @@
       "rating": "Rating: {{rating}}",
       "viewSource": "View on source"
     }
+  },
+  "connections": {
+    "m365": {
+      "name": "Microsoft 365",
+      "description": "Sync your calendar and To Do lists with your Microsoft account."
+    },
+    "state": {
+      "unavailable": "Not available",
+      "disconnected": "Not connected",
+      "connected": "Connected",
+      "needs_reauth": "Needs reconnecting"
+    },
+    "capability": {
+      "calendar": "Calendar",
+      "tasks": "Tasks"
+    },
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "reconnect": "Reconnect",
+    "connected": "Account connected",
+    "connectFailed": "Could not start the connection",
+    "disconnected": "Account disconnected",
+    "disconnectFailed": "Could not disconnect the account",
+    "error": {
+      "M365_CONSENT_DENIED": "You declined the Microsoft consent request, so the account wasn’t connected.",
+      "M365_CALLBACK_INVALID": "The response from Microsoft was invalid. Please try connecting again.",
+      "M365_STATE_INVALID": "The connection attempt expired or was tampered with. Please try connecting again.",
+      "M365_EXCHANGE_FAILED": "Microsoft couldn’t confirm the connection. Please try again.",
+      "ADMIN_NOT_A_MEMBER": "The maintenance admin account can’t connect a Microsoft 365 account.",
+      "unknown": "Something went wrong connecting your account. Please try again."
+    }
   }
 }

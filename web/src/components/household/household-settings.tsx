@@ -20,7 +20,7 @@ function groupZones(zones: string[]): { region: string; zones: string[] }[] {
   return [...groups].map(([region, list]) => ({ region, zones: list }));
 }
 
-export default function HouseholdSettings({ canManage }: { canManage: boolean }) {
+export default function HouseholdSettings() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { data } = useHousehold();
@@ -74,10 +74,10 @@ export default function HouseholdSettings({ canManage }: { canManage: boolean })
   return (
     <div className="space-y-4 max-w-md">
       <div className="space-y-1"><Label htmlFor="hhname">{t('settings.household.name')}</Label>
-        <Input id="hhname" value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+        <Input id="hhname" value={name} onChange={(e) => setName(e.target.value)} /></div>
       <div className="space-y-1"><Label htmlFor="tz">{t('settings.household.timezone')}</Label>
         <select id="tz" className={SELECT_CLASS} value={timezone}
-          onChange={(e) => setTimezone(e.target.value)} disabled={!canManage}>
+          onChange={(e) => setTimezone(e.target.value)}>
           {zoneGroups.map((g) => (g.region
             ? <optgroup key={g.region} label={g.region}>{g.zones.map((z) => <option key={z} value={z}>{z}</option>)}</optgroup>
             : g.zones.map((z) => <option key={z} value={z}>{z}</option>)
@@ -85,10 +85,10 @@ export default function HouseholdSettings({ canManage }: { canManage: boolean })
         </select></div>
       <div className="space-y-1"><Label htmlFor="locale">{t('settings.household.locale')}</Label>
         <select id="locale" className={SELECT_CLASS} value={locale}
-          onChange={(e) => setLocale(e.target.value)} disabled={!canManage}>
+          onChange={(e) => setLocale(e.target.value)}>
           {localeOptions.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
         </select></div>
-      {canManage && <Button onClick={save} disabled={update.isPending}>{t('common.save')}</Button>}
+      <Button onClick={save} disabled={update.isPending}>{t('common.save')}</Button>
     </div>
   );
 }

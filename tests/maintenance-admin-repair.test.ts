@@ -5,6 +5,9 @@ import { db } from '../src/db/index.js';
 import { repairMaintenanceAdmin } from '../src/household/maintenance-admin.js';
 import { events, eventAttendees } from '../src/modules/calendar/schema.js';
 import { recipes, mealPlanEntries } from '../src/modules/meals/schema.js';
+import { todoListAllowlist } from '../src/modules/tasks/schema.js';
+import { m365SyncState } from '../src/m365/schema.js';
+import { feedKeys } from '../src/m365/feed-keys.js';
 import { identity, householdCore } from '../src/wiring.js';
 import { seedTestHousehold } from './helpers.js';
 
@@ -102,6 +105,33 @@ describe('repairMaintenanceAdmin', () => {
     const [entry] = await db.select().from(mealPlanEntries);
     expect(entry!.cook).toBeNull();
     expect(entry!.helper).toBeNull();
+  });
+
+  it('cleans up m365_sync_state rows for the admin-owned feeds (calendar + allowlisted To Do lists)', async () => {
+    const { admin } = await seedTestHousehold();
+
+    // Simulate the admin having connected M365 in the past: an allowlisted list
+    // and sync state for both its calendar feed and its To Do feed, PLUS a
+    // feed belonging to someone else that must survive untouched.
+    await db.insert(todoListAllowlist).values({
+      memberId: admin.user.id, listId: 'list-1', listName: 'Admin List',
+    });
+    const adminCalendarKey = feedKeys.calendarMember(admin.user.id);
+    const adminTodoKey = feedKeys.todoMember(admin.user.id, 'list-1');
+    const familyKey = feedKeys.calendarFamily();
+    await db.insert(m365SyncState).values([
+      { feedKey: adminCalendarKey, lastError: null },
+      { feedKey: adminTodoKey, lastError: null },
+      { feedKey: familyKey, lastError: null },
+    ]);
+
+    await repairMaintenanceAdmin(CREDS);
+
+    const remaining = await db.select().from(m365SyncState);
+    const remainingKeys = remaining.map((r) => r.feedKey);
+    expect(remainingKeys).not.toContain(adminCalendarKey);
+    expect(remainingKeys).not.toContain(adminTodoKey);
+    expect(remainingKeys).toContain(familyKey);
   });
 
   it('is idempotent', async () => {

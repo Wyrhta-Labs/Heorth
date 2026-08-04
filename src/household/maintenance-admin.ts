@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { createUser, hashPassword, users, verifyPassword } from '@wyrhta/core/identity';
+import { logEvent } from '@wyrhta/core/lib';
 import { db } from '../db/index.js';
 import { events, eventAttendees } from '../modules/calendar/schema.js';
 import { calendarMirrorEvents } from '../modules/calendar/mirror-schema.js';
@@ -8,10 +9,13 @@ import { libraryConnections } from '../modules/library/schema.js';
 import { m365Connections } from '../m365/schema.js';
 import { taskMirror, todoListAllowlist } from '../modules/tasks/schema.js';
 
+/** The transaction handle `db.transaction()` hands its callback. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * The maintenance admin is anchored on its HANDLE, not its email.
  *
- * `users.handle` is UNIQUE (migration 0000) and `seedAdmin()` hardcodes it, so the
+ * `users.handle` is UNIQUE (migration 0000) and `repairMaintenanceAdmin()` hardcodes it, so the
  * anchor is stable and independent of env. Anchoring on `ADMIN_EMAIL` was rejected
  * in review: rotating the email would seed a SECOND admin and silently leave the
  * old one as an ordinary, deletable, un-quarantined account — the exact state this
@@ -81,80 +85,102 @@ export interface RepairInput {
  * ADMIN_PASSWORD after that without module-state surgery.
  */
 export async function repairMaintenanceAdmin(input: RepairInput): Promise<{ adminId: string }> {
-  const [anchored] = await db.select().from(users)
-    .where(eq(users.handle, MAINTENANCE_ADMIN_HANDLE)).limit(1);
+  return db.transaction(async (tx) => {
+    const [anchored] = await tx.select().from(users)
+      .where(eq(users.handle, MAINTENANCE_ADMIN_HANDLE)).limit(1);
 
-  let adminId: string;
-  if (!anchored) {
-    // No anchored admin. Refuse to seed if the configured email already belongs
-    // to somebody else — that is an operator error, not something to paper over.
-    const [emailOwner] = await db.select().from(users)
-      .where(eq(users.email, input.adminEmail)).limit(1);
-    if (emailOwner) {
-      throw new Error(
-        `ADMIN_EMAIL is already held by member ${emailOwner.id} (handle '${emailOwner.handle}'). ` +
-          'Change ADMIN_EMAIL or rename that member before starting.',
-      );
-    }
-    const created = await createUser(db, {
-      email: input.adminEmail, handle: MAINTENANCE_ADMIN_HANDLE,
-      password: input.adminPassword, role: 'admin', displayName: 'Admin',
-    });
-    adminId = created.id;
-  } else {
-    adminId = anchored.id;
-    // Re-sync env onto the anchored row: env is the source of truth, so an
-    // ADMIN_EMAIL rotation is an in-place update, never a second account.
-    const patch: Record<string, unknown> = {};
-    if (anchored.email !== input.adminEmail) {
-      const [emailOwner] = await db.select().from(users)
-        .where(and(eq(users.email, input.adminEmail), ne(users.id, adminId))).limit(1);
+    let adminId: string;
+    if (!anchored) {
+      // No anchored admin. Refuse to seed if the configured email already belongs
+      // to somebody else — that is an operator error, not something to paper over.
+      const [emailOwner] = await tx.select().from(users)
+        .where(eq(users.email, input.adminEmail)).limit(1);
       if (emailOwner) {
         throw new Error(
-          `ADMIN_EMAIL is already held by member ${emailOwner.id} (handle '${emailOwner.handle}').`,
+          `ADMIN_EMAIL is already held by member ${emailOwner.id} (handle '${emailOwner.handle}'). ` +
+            'Change ADMIN_EMAIL or rename that member before starting.',
         );
       }
-      patch['email'] = input.adminEmail;
+      const created = await createUser(tx, {
+        email: input.adminEmail, handle: MAINTENANCE_ADMIN_HANDLE,
+        password: input.adminPassword, role: 'admin', displayName: 'Admin',
+      });
+      adminId = created.id;
+    } else {
+      adminId = anchored.id;
+      // Re-sync env onto the anchored row: env is the source of truth, so an
+      // ADMIN_EMAIL rotation is an in-place update, never a second account.
+      const patch: Partial<typeof users.$inferInsert> = {};
+      if (anchored.email !== input.adminEmail) {
+        const [emailOwner] = await tx.select().from(users)
+          .where(and(eq(users.email, input.adminEmail), ne(users.id, adminId))).limit(1);
+        if (emailOwner) {
+          throw new Error(
+            `ADMIN_EMAIL is already held by member ${emailOwner.id} (handle '${emailOwner.handle}').`,
+          );
+        }
+        patch.email = input.adminEmail;
+      }
+      if (anchored.role !== 'admin') patch.role = 'admin';
+      // NOTE the argument order: core's signature is verifyPassword(hash, plain).
+      if (!(await verifyPassword(anchored.passwordHash, input.adminPassword))) {
+        patch.passwordHash = await hashPassword(input.adminPassword);
+      }
+      const changedFields = Object.keys(patch);
+      if (changedFields.length > 0) {
+        patch.updatedAt = new Date();
+        await tx.update(users).set(patch).where(eq(users.id, adminId));
+        // Field NAMES only — never log the password, the hash, or any token material.
+        logEvent({ event: 'maintenance_admin.repair.resynced', member_id: adminId, fields: changedFields });
+      }
     }
-    if (anchored.role !== 'admin') patch['role'] = 'admin';
-    // NOTE the argument order: core's signature is verifyPassword(hash, plain).
-    if (!(await verifyPassword(anchored.passwordHash, input.adminPassword))) {
-      patch['passwordHash'] = await hashPassword(input.adminPassword);
-    }
-    if (Object.keys(patch).length > 0) {
-      patch['updatedAt'] = new Date();
-      await db.update(users).set(patch).where(eq(users.id, adminId));
-    }
-  }
 
-  await stripAdminOwnedData(adminId);
-  return { adminId };
+    await stripAdminOwnedData(tx, adminId);
+    return { adminId };
+  });
 }
 
 /**
  * Remove every trace of the admin from household content. Mirror rows are derived
  * data — a re-sync rebuilds them — so they are deleted rather than repointed.
  */
-async function stripAdminOwnedData(adminId: string): Promise<void> {
-  await db.delete(eventAttendees).where(eq(eventAttendees.memberId, adminId));
-  await db.delete(m365Connections).where(eq(m365Connections.memberId, adminId));
-  await db.delete(libraryConnections).where(eq(libraryConnections.memberId, adminId));
-  await db.delete(todoListAllowlist).where(eq(todoListAllowlist.memberId, adminId));
-  await db.delete(taskMirror).where(eq(taskMirror.memberId, adminId));
-  await db.delete(calendarMirrorEvents).where(eq(calendarMirrorEvents.memberId, adminId));
+async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
+  const counts: Record<string, number> = {};
+
+  const attendees = await tx.delete(eventAttendees).where(eq(eventAttendees.memberId, adminId));
+  counts['event_attendees'] = attendees.count;
+  const m365 = await tx.delete(m365Connections).where(eq(m365Connections.memberId, adminId));
+  counts['m365_connections'] = m365.count;
+  const library = await tx.delete(libraryConnections).where(eq(libraryConnections.memberId, adminId));
+  counts['library_connections'] = library.count;
+  const allowlist = await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.memberId, adminId));
+  counts['todo_list_allowlist'] = allowlist.count;
+  const tasks = await tx.delete(taskMirror).where(eq(taskMirror.memberId, adminId));
+  counts['task_mirror'] = tasks.count;
+  const mirrorEvents = await tx.delete(calendarMirrorEvents).where(eq(calendarMirrorEvents.memberId, adminId));
+  counts['calendar_mirror_events'] = mirrorEvents.count;
 
   // `cook`/`helper` are nullable with ON DELETE set null — clearing is the
   // schema's own notion of "unassigned", so no repointing is needed.
-  await db.update(mealPlanEntries).set({ cook: null }).where(eq(mealPlanEntries.cook, adminId));
-  await db.update(mealPlanEntries).set({ helper: null }).where(eq(mealPlanEntries.helper, adminId));
+  const cooks = await tx.update(mealPlanEntries).set({ cook: null }).where(eq(mealPlanEntries.cook, adminId));
+  counts['meal_plan_entries.cook'] = cooks.count;
+  const helpers = await tx.update(mealPlanEntries).set({ helper: null }).where(eq(mealPlanEntries.helper, adminId));
+  counts['meal_plan_entries.helper'] = helpers.count;
 
   // `created_by` is NOT NULL, so it must be repointed. With no non-admin member
   // there is nothing to point at; leave it and repair on a later boot.
-  const [heir] = await db.select({ id: users.id }).from(users)
+  const [heir] = await tx.select({ id: users.id }).from(users)
     .where(ne(users.handle, MAINTENANCE_ADMIN_HANDLE))
     .orderBy(asc(users.createdAt)).limit(1);
-  if (!heir) return;
+  if (heir) {
+    const eventsRepointed = await tx.update(events).set({ createdBy: heir.id }).where(eq(events.createdBy, adminId));
+    counts['events.created_by'] = eventsRepointed.count;
+    const recipesRepointed = await tx.update(recipes).set({ createdBy: heir.id }).where(eq(recipes.createdBy, adminId));
+    counts['recipes.created_by'] = recipesRepointed.count;
+  }
 
-  await db.update(events).set({ createdBy: heir.id }).where(eq(events.createdBy, adminId));
-  await db.update(recipes).set({ createdBy: heir.id }).where(eq(recipes.createdBy, adminId));
+  const totalAffected = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  if (totalAffected > 0) {
+    logEvent({ event: 'maintenance_admin.repair.stripped', member_id: adminId, ...counts });
+  }
 }

@@ -6,7 +6,8 @@ import { events, eventAttendees } from '../modules/calendar/schema.js';
 import { calendarMirrorEvents } from '../modules/calendar/mirror-schema.js';
 import { recipes, mealPlanEntries } from '../modules/meals/schema.js';
 import { libraryConnections } from '../modules/library/schema.js';
-import { m365Connections } from '../m365/schema.js';
+import { m365Connections, m365SyncState } from '../m365/schema.js';
+import { feedKeys } from '../m365/feed-keys.js';
 import { taskMirror, todoListAllowlist } from '../modules/tasks/schema.js';
 
 /** The transaction handle `db.transaction()` hands its callback. */
@@ -153,6 +154,28 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
   counts['m365_connections'] = m365.count;
   const library = await tx.delete(libraryConnections).where(eq(libraryConnections.memberId, adminId));
   counts['library_connections'] = library.count;
+
+  // `m365_sync_state` is keyed by a generic `feedKey` string, not `memberId`, so
+  // it cannot be targeted with a plain `where(eq(memberId, adminId))` delete —
+  // the feed keys must be rebuilt via `feedKeys` (never hand-formatted, per its
+  // own contract) BEFORE the allowlist rows they are derived from are deleted.
+  // Without this, a feed the admin had connected leaves a permanently frozen
+  // row in `/m365/status`'s `feeds[]` forever.
+  const adminAllowlistRows = await tx.select().from(todoListAllowlist)
+    .where(eq(todoListAllowlist.memberId, adminId));
+  const staleFeedKeys = [
+    feedKeys.calendarMember(adminId),
+    ...adminAllowlistRows.map((row) => feedKeys.todoMember(adminId, row.listId)),
+  ];
+  // `inArray` with an empty list is a footgun in some drizzle versions; the
+  // list is never empty here (calendarMember(adminId) is always included), but
+  // guard anyway so this stays correct if that invariant ever changes.
+  if (staleFeedKeys.length > 0) {
+    const syncState = await tx.delete(m365SyncState)
+      .where(inArray(m365SyncState.feedKey, staleFeedKeys));
+    counts['m365_sync_state'] = syncState.count;
+  }
+
   const allowlist = await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.memberId, adminId));
   counts['todo_list_allowlist'] = allowlist.count;
   const tasks = await tx.delete(taskMirror).where(eq(taskMirror.memberId, adminId));

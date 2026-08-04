@@ -349,14 +349,18 @@
     "connectionsPanel": {
       "title": "Microsoft 365 connections",
       "syncNow": "Sync now",
-      "syncStarted": "Sync started",
       "syncSummary_one": "Sync complete: {{count}} feed processed",
       "syncSummary_other": "Sync complete: {{count}} feeds processed",
       "syncFailed": "Could not trigger a sync",
       "noConnections": "No members have connected a Microsoft 365 account yet.",
       "member": "Member",
       "account": "Account",
-      "status": "Status",
+      "statusHeader": "Status",
+      "status": {
+        "active": "Active",
+        "needs_reauth": "Needs reconnecting",
+        "error": "Error"
+      },
       "lastSync": "Last sync",
       "lastError": "Last error",
       "feedsTitle": "Feed health",

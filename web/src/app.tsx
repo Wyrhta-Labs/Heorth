@@ -20,6 +20,7 @@ import TodayPage from '@/pages/today';
 import ShoppingPage from '@/pages/shopping';
 import CapturePage from '@/pages/capture';
 import HearthPage from '@/pages/hearth';
+import ProfilePage from '@/pages/profile';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -78,13 +79,14 @@ const libraryRoute = createRoute({ getParentRoute: () => authRoute, path: '/libr
 const todayRoute = createRoute({ getParentRoute: () => authRoute, path: '/today', component: TodayPage });
 const shoppingRoute = createRoute({ getParentRoute: () => authRoute, path: '/shopping', component: ShoppingPage });
 const captureRoute = createRoute({ getParentRoute: () => authRoute, path: '/capture', component: CapturePage });
+const profileRoute = createRoute({ getParentRoute: () => authRoute, path: '/profile', component: ProfilePage });
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
   hearthRoute,
   authRoute.addChildren([
     dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute, householdRoute, libraryRoute,
-    todayRoute, shoppingRoute, captureRoute,
+    todayRoute, shoppingRoute, captureRoute, profileRoute,
   ]),
 ]);
 

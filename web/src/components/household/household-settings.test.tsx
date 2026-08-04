@@ -25,10 +25,13 @@ vi.mock('@/hooks/use-household', () => ({
   useUpdateHousehold: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+// HouseholdSettings is only ever mounted from household.tsx inside
+// `{canManage && <TabsContent value="settings">...}` — non-admins never render
+// this component at all, so it no longer takes (or needs) a `canManage` prop.
 describe('HouseholdSettings', () => {
   it('resyncs the form to newly refetched household data instead of keeping stale values', () => {
     useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
-    const { rerender } = render(<HouseholdSettings canManage />);
+    const { rerender } = render(<HouseholdSettings />);
 
     expect(screen.getByLabelText('Name')).toHaveValue('The Smiths');
     expect(screen.getByLabelText('Timezone')).toHaveValue('Europe/London');
@@ -39,7 +42,7 @@ describe('HouseholdSettings', () => {
     useHouseholdMock.mockReturnValue({
       data: { data: household({ name: 'The Joneses', timezone: 'America/New_York', locale: 'en-US' }) },
     });
-    rerender(<HouseholdSettings canManage />);
+    rerender(<HouseholdSettings />);
 
     // Without the fix, the form would still show the original stale values
     // because the render-time guard only fires once (while fields are '').
@@ -50,7 +53,7 @@ describe('HouseholdSettings', () => {
 
   it('renders timezone and locale as selects populated from the API option lists', () => {
     useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
-    render(<HouseholdSettings canManage />);
+    render(<HouseholdSettings />);
 
     const tz = screen.getByLabelText('Timezone');
     const locale = screen.getByLabelText('Locale');
@@ -69,19 +72,10 @@ describe('HouseholdSettings', () => {
     // has not loaded yet — the select must still show the household's value
     // rather than silently substituting the first option.
     useHouseholdMock.mockReturnValue({ data: { data: household({ timezone: 'Mars/Olympus', locale: 'xx-XX' }) } });
-    render(<HouseholdSettings canManage />);
+    render(<HouseholdSettings />);
 
     expect(screen.getByLabelText('Timezone')).toHaveValue('Mars/Olympus');
     expect(screen.getByLabelText('Locale')).toHaveValue('xx-XX');
-  });
-
-  it('disables both selects for members who cannot manage the household', () => {
-    useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
-    render(<HouseholdSettings canManage={false} />);
-
-    expect(screen.getByLabelText('Timezone')).toBeDisabled();
-    expect(screen.getByLabelText('Locale')).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
   });
 
   afterEach(() => {

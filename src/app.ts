@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { ErrorHandler } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
@@ -10,6 +11,7 @@ import { config } from './config/env.js';
 import { healthRouter } from './routes/health.js';
 import { McpRegistry, type HeorthModule } from './modules/registry.js';
 import { createFeohProxyRouter } from './satellites/feoh/proxy.js';
+import { MaintenanceAdminError } from './household/maintenance-admin.js';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -22,6 +24,18 @@ declare module 'hono' {
     requestId: string;
   }
 }
+
+/**
+ * Core's errorHandler only classifies ZodError; anything else becomes a 500.
+ * Core is a pinned dependency, so the quarantine's 403 is mapped here instead
+ * of in every route — this also covers routes added later for free.
+ */
+export const heorthErrorHandler: ErrorHandler = (error, c) => {
+  if (error instanceof MaintenanceAdminError) {
+    return c.json({ error: { code: error.code, message: error.message } }, 403);
+  }
+  return errorHandler(error, c);
+};
 
 export function createApp(modules: HeorthModule[]): Hono {
   const app = new Hono();
@@ -51,7 +65,7 @@ export function createApp(modules: HeorthModule[]): Hono {
   app.use('/*', serveStatic({ root: './web/dist' }));
   app.get('/*', serveStatic({ root: './web/dist', rewriteRequestPath: () => '/index.html' }));
 
-  app.onError(errorHandler);
+  app.onError(heorthErrorHandler);
 
   return app;
 }

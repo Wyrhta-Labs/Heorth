@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@/lib/constants';
+import { QUERY_KEYS, MAINTENANCE_ADMIN_HANDLE } from '@/lib/constants';
 import * as api from '@/api/household';
 import { whoami } from '@/api/auth';
 import type { Role } from '@/lib/types';
@@ -23,6 +23,27 @@ export function useHouseholdOptions() {
 }
 export function useMembers() {
   return useQuery({ queryKey: QUERY_KEYS.members, queryFn: () => api.listMembers() });
+}
+/**
+ * Members for daily business — the maintenance admin excluded.
+ *
+ * The admin is a maintenance login, not a household person: it may not own or be
+ * assigned anything (the server enforces this too). Use this everywhere EXCEPT the
+ * household members table and the admin connections overview, which need the raw
+ * `useMembers()`.
+ *
+ * Filters on `handle`, NOT `role`: the quarantine is anchored on the fixed
+ * maintenance handle (`MAINTENANCE_ADMIN_HANDLE`), because a real household
+ * member can be promoted to admin (`PATCH /members/:id/role`) and remains an
+ * ordinary, non-quarantined member who must stay visible here. A `null` handle
+ * is never the maintenance admin and must be kept.
+ */
+export function useHouseholdMembers() {
+  const query = useMembers();
+  const data = query.data
+    ? { ...query.data, data: query.data.data.filter((m) => m.handle !== MAINTENANCE_ADMIN_HANDLE) }
+    : undefined;
+  return { ...query, data } as typeof query;
 }
 export function useCreateMember() {
   const qc = useQueryClient();

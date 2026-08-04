@@ -1,3 +1,4 @@
+import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import { feedKeys } from '../../m365/feed-keys.js';
 import { getTaskProvider, getSharedListName } from './provider.js';
 import * as store from './store.js';
@@ -41,6 +42,7 @@ export interface AvailableListView {
 
 /** A member's To Do lists, each flagged with whether it is currently allowlisted. */
 export async function listAvailableLists(memberId: string): Promise<AvailableListView[]> {
+  await assertNotMaintenanceAdmin(memberId);
   const provider = requireProvider();
   const lists = await provider.listAvailableLists(memberId); // throws TaskProviderError
   const enabled = new Set((await store.getAllowlist(memberId)).map((a) => a.listId));
@@ -57,6 +59,7 @@ export async function getAllowlist(memberId: string): Promise<TodoListAllowlistR
  * the member cannot actually access.
  */
 export async function setAllowlist(memberId: string, listIds: string[]): Promise<TodoListAllowlistRow[]> {
+  await assertNotMaintenanceAdmin(memberId);
   const provider = requireProvider();
   const available = await provider.listAvailableLists(memberId); // throws TaskProviderError
   const byId = new Map(available.map((l) => [l.id, l.name]));
@@ -90,6 +93,7 @@ export async function completeTask(taskId: string, completed: boolean): Promise<
  * outward through that member's connection, then mirrors the created task locally.
  */
 export async function createTask(input: CreateTaskInput, actingMemberId: string): Promise<TaskMirrorRow> {
+  await assertNotMaintenanceAdmin(actingMemberId);
   const provider = requireProvider();
   const feed = await resolveSharedFeed(actingMemberId);
   const created = await provider.createTask(feed.feedKey, input); // throws TaskProviderError

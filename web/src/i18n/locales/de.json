@@ -273,6 +273,7 @@
     "library": "Bibliothek",
     "household": "Haushalt",
     "hearth": "Hearth (Wandansicht)",
+    "profile": "Profil",
     "shoppingTab": "Einkaufen",
     "captureTab": "Erfassen",
     "more": "Mehr",
@@ -287,7 +288,8 @@
     "tabs": {
       "members": "Mitglieder",
       "apiKeys": "API-Schlüssel",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "connections": "Verbindungen"
     },
     "household": {
       "name": "Name",
@@ -343,6 +345,31 @@
       "create": "Erstellen",
       "copyWarning": "Kopiere diesen Schlüssel jetzt — du siehst ihn nicht noch einmal.",
       "done": "Fertig"
+    },
+    "connectionsPanel": {
+      "title": "Microsoft-365-Verbindungen",
+      "syncNow": "Jetzt synchronisieren",
+      "syncSummary_one": "Synchronisierung abgeschlossen: {{count}} Feed verarbeitet",
+      "syncSummary_other": "Synchronisierung abgeschlossen: {{count}} Feeds verarbeitet",
+      "syncFailed": "Synchronisierung konnte nicht gestartet werden",
+      "noConnections": "Noch kein Mitglied hat ein Microsoft-365-Konto verbunden.",
+      "member": "Mitglied",
+      "account": "Konto",
+      "statusHeader": "Status",
+      "status": {
+        "active": "Aktiv",
+        "needs_reauth": "Erneute Anmeldung nötig",
+        "error": "Fehler"
+      },
+      "lastSync": "Letzte Synchronisierung",
+      "lastError": "Letzter Fehler",
+      "feedsTitle": "Feed-Zustand",
+      "feed": "Feed",
+      "feedStatus": "Status",
+      "consecutiveFailures": "Aufeinanderfolgende Fehlversuche",
+      "feedOk": "OK",
+      "feedFailing": "Fehlerhaft",
+      "none": "—"
     }
   },
   "library": {
@@ -413,6 +440,45 @@
     "item": {
       "rating": "Bewertung: {{rating}}",
       "viewSource": "Zur Quelle"
+    }
+  },
+  "connections": {
+    "pageTitle": "Verbundene Konten",
+    "maintenanceAdmin": {
+      "title": "Dies ist das Wartungskonto",
+      "description": "Der Admin-Login ist ein Wartungskonto zum Betrieb von Heorth, kein Haushaltsmitglied.",
+      "hint": "Es kann kein persönliches Microsoft-365-Konto verbinden oder Haushaltsdinge wie Termine oder Rezepte besitzen. Um dein eigenes Konto zu verbinden, melde dich stattdessen mit deinem Haushaltsmitglieds-Login an."
+    },
+    "m365": {
+      "name": "Microsoft 365",
+      "description": "Synchronisiere deinen Kalender und deine To-Do-Listen mit deinem Microsoft-Konto."
+    },
+    "state": {
+      "unavailable": "Nicht verfügbar",
+      "disconnected": "Nicht verbunden",
+      "connected": "Verbunden",
+      "needs_reauth": "Muss neu verbunden werden"
+    },
+    "capability": {
+      "calendar": "Kalender",
+      "tasks": "Aufgaben"
+    },
+    "connect": "Verbinden",
+    "disconnect": "Trennen",
+    "reconnect": "Neu verbinden",
+    "lastRefreshed": "Zuletzt aktualisiert am {{date}} um {{time}}",
+    "unavailableHint": "Diese Integration ist auf diesem Server nicht verfügbar.",
+    "connected": "Konto verbunden",
+    "connectFailed": "Verbindung konnte nicht gestartet werden",
+    "disconnected": "Konto getrennt",
+    "disconnectFailed": "Konto konnte nicht getrennt werden",
+    "error": {
+      "M365_CONSENT_DENIED": "Du hast der Microsoft-Zustimmung nicht zugestimmt, das Konto wurde daher nicht verbunden.",
+      "M365_CALLBACK_INVALID": "Die Antwort von Microsoft war ungültig. Bitte versuche die Verbindung erneut.",
+      "M365_STATE_INVALID": "Der Verbindungsversuch ist abgelaufen oder wurde manipuliert. Bitte versuche die Verbindung erneut.",
+      "M365_EXCHANGE_FAILED": "Microsoft konnte die Verbindung nicht bestätigen. Bitte versuche es erneut.",
+      "ADMIN_NOT_A_MEMBER": "Das Wartungskonto (Admin) kann kein Microsoft-365-Konto verbinden.",
+      "unknown": "Beim Verbinden deines Kontos ist etwas schiefgelaufen. Bitte versuche es erneut."
     }
   }
 }

@@ -1,3 +1,4 @@
+import { isMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import type { FeohClient } from './client.js';
 
 /** The subset of a household member Feoh's roster needs. */
@@ -71,6 +72,8 @@ export class FeohRoster {
    * `household/service.ts#updateMember`).
    */
   async upsertMember(member: RosterMember): Promise<void> {
+    // The maintenance admin is not a finance actor — never mirror it into Feoh.
+    if (isMaintenanceAdmin(member)) return;
     const displayName = member.displayName ?? member.handle ?? member.email;
     const party = await this.client.upsertPartyByMember(member.id, { displayName });
     this.record(member.id, party.id);
@@ -79,6 +82,8 @@ export class FeohRoster {
   private async runSync(): Promise<void> {
     const members = await this.listMembers();
     for (const m of members) {
+      // The maintenance admin is not a finance actor — never mirror it into Feoh.
+      if (isMaintenanceAdmin(m)) continue;
       const displayName = m.displayName ?? m.handle ?? m.email;
       const party = await this.client.upsertPartyByMember(m.id, { displayName });
       this.record(m.id, party.id);

@@ -15,8 +15,8 @@ vi.mock('@/hooks/use-meals', () => ({
   useUpsertPlanEntry: () => ({ mutateAsync: vi.fn() }),
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/hooks/use-household', () => ({ useMembers: () => emptyQuery }));
-vi.mock('@/hooks/use-m365', () => ({ useM365Status: () => ({ data: [] }) }));
+vi.mock('@/hooks/use-household', () => ({ useHouseholdMembers: () => emptyQuery }));
+vi.mock('@/hooks/use-m365', () => ({ useM365FeedStatus: () => ({ data: [] }) }));
 
 import HearthPage from './hearth';
 

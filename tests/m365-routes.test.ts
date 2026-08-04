@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { createApp } from '../src/app.js';
+import { sign } from 'hono/jwt';
+import { createApp, heorthErrorHandler } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 import { m365Router } from '../src/m365/routes.js';
 import { setM365Runtime } from '../src/m365/runtime.js';
@@ -9,13 +10,21 @@ import { feedKeys } from '../src/m365/feed-keys.js';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { m365Connections } from '../src/m365/schema.js';
+import { config } from '../src/config/env.js';
+import { householdCore } from '../src/wiring.js';
 import { createFakeGraph, runtimeForFakeGraph } from './fake-graph.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 
-/** A bare app with just the M365 router mounted (integration forced-enabled). */
+/**
+ * A bare app with just the M365 router mounted (integration forced-enabled).
+ * `heorthErrorHandler` is mounted explicitly because this app is NOT built via
+ * `createApp` — without it, a thrown `MaintenanceAdminError` would surface as
+ * an unhandled 500 rather than the documented 403.
+ */
 function enabledApp() {
   const app = new Hono();
   app.route('/api/v1/m365', m365Router);
+  app.onError(heorthErrorHandler);
   return app;
 }
 
@@ -45,7 +54,7 @@ describe('m365 routes (enabled)', () => {
     const state = await signConnectState(adult.user.id);
     const res = await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe('/?m365=connected');
+    expect(res.headers.get('location')).toBe('/profile?connected=m365');
 
     const [row] = await db.select().from(m365Connections).where(eq(m365Connections.memberId, adult.user.id));
     expect(row!.accountUpn).toBe('member@contoso.test');
@@ -55,9 +64,8 @@ describe('m365 routes (enabled)', () => {
   it('GET /callback rejects an invalid state', async () => {
     setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
     const res = await enabledApp().request('/api/v1/m365/callback?code=abc&state=tampered');
-    expect(res.status).toBe(400);
-    const body = await res.json() as { error: { code: string } };
-    expect(body.error.code).toBe('M365_STATE_INVALID');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=M365_STATE_INVALID');
   });
 
   it('GET /status returns the acting member connection; admin sees all connections', async () => {
@@ -73,6 +81,31 @@ describe('m365 routes (enabled)', () => {
     const all = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(admin.jwt) });
     const allBody = await all.json() as { data: { connections: unknown[] } };
     expect(allBody.data.connections).toHaveLength(1);
+  });
+
+  it('GET /status also returns the acting member\'s own connection for an admin session (a promoted member is not quarantined)', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { adult } = await seedTestHousehold();
+
+    // Connect while still an ordinary member (the maintenance admin itself can
+    // never connect — see /connect-url's ADMIN_NOT_A_MEMBER guard).
+    const state = await signConnectState(adult.user.id);
+    await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
+
+    // Promote to admin. Role, not handle, is the quarantine anchor's opposite —
+    // this member is now an "admin session" but is not the maintenance admin.
+    await householdCore.setRole(adult.user.id, 'admin');
+    const promotedJwt = await sign(
+      { sub: adult.user.id, role: 'admin', iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600 },
+      config.jwtSecret,
+    );
+
+    const res = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(promotedJwt) });
+    const body = await res.json() as { data: { connection: { accountUpn: string } | null; connections: unknown[] } };
+    expect(body.data.connection).not.toBeNull();
+    expect(body.data.connection!.accountUpn).toBe('member@contoso.test');
+    // `connections` (the admin panel's household-wide view) must still be present.
+    expect(body.data.connections).toHaveLength(1);
   });
 
   it('GET /status exposes every feed status to a non-admin session (household-visible staleness, Finding 2)', async () => {
@@ -120,6 +153,64 @@ describe('m365 routes (enabled)', () => {
       method: 'DELETE', headers: authHeaders(adult.jwt),
     });
     expect(del2.status).toBe(404);
+  });
+});
+
+describe('GET /connect-url', () => {
+  it('requires auth', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const res = await enabledApp().request('/api/v1/m365/connect-url');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns the Microsoft authorize URL as JSON', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { adult } = await seedTestHousehold();
+    const res = await enabledApp().request('/api/v1/m365/connect-url', {
+      headers: authHeaders(adult.jwt),
+    });
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data.url).toContain('/oauth2/v2.0/authorize');
+    expect(data.url).toContain('state=');
+  });
+
+  it('refuses the maintenance admin', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { admin } = await seedTestHousehold();
+    const res = await enabledApp().request('/api/v1/m365/connect-url', {
+      headers: authHeaders(admin.jwt),
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('callback redirects', () => {
+  // The plain success redirect and the M365_STATE_INVALID case are already
+  // covered above ('GET /callback exchanges the code and stores an encrypted
+  // connection' and 'GET /callback rejects an invalid state') — not repeated here.
+
+  it('redirects with ADMIN_NOT_A_MEMBER when the state binds the maintenance admin', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { admin } = await seedTestHousehold();
+    const state = await signConnectState(admin.user.id);
+    const res = await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=ADMIN_NOT_A_MEMBER');
+  });
+
+  it('redirects to /profile with a code when consent is denied', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const res = await enabledApp().request('/api/v1/m365/callback?error=access_denied');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=M365_CONSENT_DENIED');
+  });
+
+  it('redirects with M365_CALLBACK_INVALID when code or state is missing', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const res = await enabledApp().request('/api/v1/m365/callback');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=M365_CALLBACK_INVALID');
   });
 });
 

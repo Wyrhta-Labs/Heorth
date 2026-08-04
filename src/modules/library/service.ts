@@ -1,4 +1,5 @@
 import { and, eq, sql, inArray, desc } from 'drizzle-orm';
+import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import { db } from '../../db/index.js';
 import {
   libraryConnections, libraryItems,
@@ -35,6 +36,7 @@ async function getRaw(id: string): Promise<LibraryConnectionRow | null> {
 export async function createLibraryThingConnection(
   memberId: string, input: { userid: string; key: string },
 ): Promise<PublicConnection> {
+  await assertNotMaintenanceAdmin(memberId);
   const conn = new LibraryThingConnector();
   const { externalRef, label, credentials } = await conn.connect(input);
   const [row] = await db.insert(libraryConnections).values({
@@ -52,6 +54,7 @@ export async function startTraktDevice() {
 export async function pollTraktDevice(
   memberId: string, deviceCode: string,
 ): Promise<{ status: 'pending' } | { status: 'authorized'; connection: PublicConnection }> {
+  await assertNotMaintenanceAdmin(memberId);
   const result = await trakt.pollForToken(deviceCode);
   if (result.status === 'pending') return { status: 'pending' };
   const { externalRef, label, credentials } = result.connection;

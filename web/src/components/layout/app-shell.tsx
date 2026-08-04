@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, NavLabelKey | 'nav.homeTitle'> = {
   '/today': 'nav.today',
   '/shopping': 'nav.shoppingList',
   '/capture': 'nav.quickCapture',
+  '/profile': 'nav.profile',
 };
 
 export default function AppShell() {

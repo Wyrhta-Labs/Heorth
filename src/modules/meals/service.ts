@@ -2,6 +2,7 @@ import { db } from '../../db/index.js';
 import { recipes, mealPlanEntries, shoppingListItems, type Recipe, type ShoppingListItem } from './schema.js';
 import { eq, and, gte, lte, sql, isNotNull, inArray } from 'drizzle-orm';
 import type { CreateRecipeInput, UpdateRecipeInput, UpsertPlanEntryInput, AddShoppingItemInput, UpdateShoppingItemInput } from './validators.js';
+import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 
 export async function listRecipes(q: { limit?: number; offset?: number; tag?: string }) {
   const limit = Math.min(100, Math.max(1, q.limit ?? 20));
@@ -18,6 +19,7 @@ export async function getRecipe(id: string): Promise<Recipe | null> {
 }
 
 export async function createRecipe(input: CreateRecipeInput, createdBy: string) {
+  await assertNotMaintenanceAdmin(createdBy);
   const [row] = await db.insert(recipes).values({
     title: input.title, servings: input.servings,
     ingredients: input.ingredients, steps: input.steps, tags: input.tags, createdBy,
@@ -48,6 +50,9 @@ export async function getWeekPlan(from: string, to: string) {
 }
 
 export async function upsertPlanEntry(input: UpsertPlanEntryInput) {
+  // cook/helper are nullable — a null means "unassigned" and passes the guard.
+  await assertNotMaintenanceAdmin(input.cook);
+  await assertNotMaintenanceAdmin(input.helper);
   const [row] = await db.insert(mealPlanEntries).values({
     date: input.date, slot: input.slot,
     recipeId: input.recipeId ?? null, freeText: input.freeText ?? null,

@@ -349,14 +349,18 @@
     "connectionsPanel": {
       "title": "Microsoft-365-Verbindungen",
       "syncNow": "Jetzt synchronisieren",
-      "syncStarted": "Synchronisierung gestartet",
       "syncSummary_one": "Synchronisierung abgeschlossen: {{count}} Feed verarbeitet",
       "syncSummary_other": "Synchronisierung abgeschlossen: {{count}} Feeds verarbeitet",
       "syncFailed": "Synchronisierung konnte nicht gestartet werden",
       "noConnections": "Noch kein Mitglied hat ein Microsoft-365-Konto verbunden.",
       "member": "Mitglied",
       "account": "Konto",
-      "status": "Status",
+      "statusHeader": "Status",
+      "status": {
+        "active": "Aktiv",
+        "needs_reauth": "Erneute Anmeldung nötig",
+        "error": "Fehler"
+      },
       "lastSync": "Letzte Synchronisierung",
       "lastError": "Letzter Fehler",
       "feedsTitle": "Feed-Zustand",

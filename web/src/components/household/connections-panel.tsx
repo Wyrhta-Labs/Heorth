@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,12 +29,14 @@ export default function ConnectionsPanel() {
   const { formatDate, formatTime } = useFormatters();
   const membersQuery = useMembers();
   const statusQuery = useM365Status();
+  const [syncing, setSyncing] = useState(false);
 
   const membersById = new Map<string, Member>((membersQuery.data?.data ?? []).map((m) => [m.id, m]));
   const connections = statusQuery.data?.data.connections ?? [];
   const feeds = statusQuery.data?.data.feeds ?? [];
 
   const syncNow = async () => {
+    setSyncing(true);
     try {
       const res = await triggerM365Sync();
       const count = res.data.results.length;
@@ -41,15 +44,18 @@ export default function ConnectionsPanel() {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.m365Status });
     } catch (e) {
       toast((e as Error).message || t('settings.connectionsPanel.syncFailed'), 'error');
+    } finally {
+      setSyncing(false);
     }
   };
 
   const lastSync = (iso: string | null) => (iso ? `${formatDate(iso)} ${formatTime(iso)}` : t('settings.connectionsPanel.none'));
+  const statusLabel = (status: string) => t(`settings.connectionsPanel.status.${status}`, { defaultValue: status });
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button size="sm" onClick={syncNow}>
+        <Button size="sm" onClick={syncNow} disabled={syncing}>
           <RefreshCw className="h-4 w-4 mr-1" /> {t('settings.connectionsPanel.syncNow')}
         </Button>
       </div>
@@ -65,7 +71,7 @@ export default function ConnectionsPanel() {
                 <TableRow>
                   <TableHead>{t('settings.connectionsPanel.member')}</TableHead>
                   <TableHead>{t('settings.connectionsPanel.account')}</TableHead>
-                  <TableHead>{t('settings.connectionsPanel.status')}</TableHead>
+                  <TableHead>{t('settings.connectionsPanel.statusHeader')}</TableHead>
                   <TableHead>{t('settings.connectionsPanel.lastSync')}</TableHead>
                   <TableHead>{t('settings.connectionsPanel.lastError')}</TableHead>
                 </TableRow>
@@ -75,7 +81,7 @@ export default function ConnectionsPanel() {
                   <TableRow key={c.memberId}>
                     <TableCell>{membersById.get(c.memberId)?.displayName ?? c.memberId}</TableCell>
                     <TableCell>{c.accountUpn}</TableCell>
-                    <TableCell>{c.status}</TableCell>
+                    <TableCell>{statusLabel(c.status)}</TableCell>
                     <TableCell>{lastSync(c.lastRefreshSuccessAt)}</TableCell>
                     <TableCell>{c.lastRefreshError ?? t('settings.connectionsPanel.none')}</TableCell>
                   </TableRow>

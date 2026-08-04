@@ -162,9 +162,18 @@ describe('callback redirects', () => {
     setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
     const { adult } = await seedTestHousehold();
     const state = await signConnectState(adult.user.id);
-    const res = await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${state}`);
+    const res = await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('/profile?connected=m365');
+  });
+
+  it('redirects with ADMIN_NOT_A_MEMBER when the state binds the maintenance admin', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { admin } = await seedTestHousehold();
+    const state = await signConnectState(admin.user.id);
+    const res = await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/profile?connectError=ADMIN_NOT_A_MEMBER');
   });
 
   it('redirects to /profile with a code when consent is denied', async () => {

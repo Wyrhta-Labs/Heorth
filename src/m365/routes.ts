@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../wiring.js';
-import { assertNotMaintenanceAdmin } from '../household/maintenance-admin.js';
+import { assertNotMaintenanceAdmin, isMaintenanceAdminId } from '../household/maintenance-admin.js';
 import { getM365Runtime } from './runtime.js';
 import { signConnectState, verifyConnectState } from './state.js';
 import { runCalendarSync } from './calendar-sync.js';
@@ -72,7 +72,12 @@ m365Router.get('/callback', async (c) => {
   const memberId = await verifyConnectState(state);
   if (!memberId) return c.redirect('/profile?connectError=M365_STATE_INVALID', 302);
 
-  await assertNotMaintenanceAdmin(memberId);
+  // Redirect (not throw) here: unlike /connect-url, this is a browser navigation,
+  // not a JSON API call — a thrown MaintenanceAdminError would render a raw JSON
+  // 403 in the user's tab, exactly the failure mode this task exists to eliminate.
+  if (await isMaintenanceAdminId(memberId)) {
+    return c.redirect('/profile?connectError=ADMIN_NOT_A_MEMBER', 302);
+  }
 
   try {
     const { refreshToken, accessToken, scopes } = await rt.delegated.exchangeCode(code);

@@ -414,5 +414,36 @@
       "rating": "Bewertung: {{rating}}",
       "viewSource": "Zur Quelle"
     }
+  },
+  "connections": {
+    "m365": {
+      "name": "Microsoft 365",
+      "description": "Synchronisiere deinen Kalender und deine To-Do-Listen mit deinem Microsoft-Konto."
+    },
+    "state": {
+      "unavailable": "Nicht verfügbar",
+      "disconnected": "Nicht verbunden",
+      "connected": "Verbunden",
+      "needs_reauth": "Muss neu verbunden werden"
+    },
+    "capability": {
+      "calendar": "Kalender",
+      "tasks": "Aufgaben"
+    },
+    "connect": "Verbinden",
+    "disconnect": "Trennen",
+    "reconnect": "Neu verbinden",
+    "connected": "Konto verbunden",
+    "connectFailed": "Verbindung konnte nicht gestartet werden",
+    "disconnected": "Konto getrennt",
+    "disconnectFailed": "Konto konnte nicht getrennt werden",
+    "error": {
+      "M365_CONSENT_DENIED": "Du hast der Microsoft-Zustimmung nicht zugestimmt, das Konto wurde daher nicht verbunden.",
+      "M365_CALLBACK_INVALID": "Die Antwort von Microsoft war ungültig. Bitte versuche die Verbindung erneut.",
+      "M365_STATE_INVALID": "Der Verbindungsversuch ist abgelaufen oder wurde manipuliert. Bitte versuche die Verbindung erneut.",
+      "M365_EXCHANGE_FAILED": "Microsoft konnte die Verbindung nicht bestätigen. Bitte versuche es erneut.",
+      "ADMIN_NOT_A_MEMBER": "Das Wartungskonto (Admin) kann kein Microsoft-365-Konto verbinden.",
+      "unknown": "Beim Verbinden deines Kontos ist etwas schiefgelaufen. Bitte versuche es erneut."
+    }
   }
 }

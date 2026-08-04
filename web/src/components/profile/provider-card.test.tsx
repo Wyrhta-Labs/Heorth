@@ -4,8 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProviderCard from './provider-card';
 import type { ConnectionProvider, ProviderState, ProviderConnection } from '@/lib/providers';
 import { Plug } from 'lucide-react';
+import { ApiError } from '@/api/client';
 
-afterEach(cleanup);
+const toast = vi.fn();
+vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast }) }));
+
+afterEach(() => { cleanup(); toast.mockClear(); });
 
 const getConnectUrl = vi.fn();
 const disconnect = vi.fn();
@@ -79,5 +83,27 @@ describe('ProviderCard', () => {
 
     await waitFor(() => expect(getConnectUrl).toHaveBeenCalled());
     await waitFor(() => expect(locationSpy).toHaveBeenCalledWith('https://login.microsoftonline.com/authorize?x=1'));
+  });
+
+  it('toasts the specific message when the server rejects the maintenance admin', async () => {
+    getConnectUrl.mockRejectedValue(new ApiError(403, 'ADMIN_NOT_A_MEMBER', 'nope'));
+
+    renderCard(providerIn('disconnected'));
+    fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(
+      expect.stringContaining('maintenance admin'),
+      'error',
+    ));
+  });
+
+  it('falls back to the generic connect-failed toast for other errors', async () => {
+    getConnectUrl.mockRejectedValue(new Error('network down'));
+
+    renderCard(providerIn('disconnected'));
+    fireEvent.click(screen.getByRole('button', { name: /connect/i }));
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.any(String), 'error'));
+    expect(toast.mock.calls[0][0]).not.toContain('maintenance admin');
   });
 });

@@ -19,7 +19,8 @@ export type NavLabelKey =
   | 'nav.feoh'
   | 'nav.library'
   | 'nav.household'
-  | 'nav.hearth';
+  | 'nav.hearth'
+  | 'nav.profile';
 
 interface NavItem {
   to: string;

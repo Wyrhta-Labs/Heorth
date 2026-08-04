@@ -273,6 +273,7 @@
     "library": "Library",
     "household": "Household",
     "hearth": "Hearth (wall)",
+    "profile": "Profile",
     "shoppingTab": "Shopping",
     "captureTab": "Capture",
     "more": "More",
@@ -416,6 +417,7 @@
     }
   },
   "connections": {
+    "pageTitle": "Connected accounts",
     "m365": {
       "name": "Microsoft 365",
       "description": "Sync your calendar and To Do lists with your Microsoft account."

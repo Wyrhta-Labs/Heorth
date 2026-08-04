@@ -38,7 +38,7 @@ describe('assembled MCP server', () => {
   });
 
   it('enforces roles end-to-end: a child key cannot edit another member’s event', async () => {
-    const { admin, child } = await seedTestHousehold();
+    const { adult, child } = await seedTestHousehold();
     const key = await identity.createApiKey(child.user.id, 'kid-agent');
     const adapter = createApiKeyAuthAdapter(identity);
 
@@ -50,7 +50,7 @@ describe('assembled MCP server', () => {
     //    a child may not edit an event owned by another member.
     const tools = collectMcpTools(ALL_MODULES).all();
     const created = await invokeTool(tools, 'calendar.create_event',
-      { userId: admin.user.id, role: 'admin' },
+      { userId: adult.user.id, role: 'adult' },
       { title: 'Board meeting', startAt: '2026-07-05T09:00:00Z', endAt: '2026-07-05T10:00:00Z' }) as { id: string };
     await expect(
       invokeTool(tools, 'calendar.update_event',

@@ -522,7 +522,9 @@ describe('ApiKeysPanel', () => {
     expect(screen.queryByRole('button', { name: /new key/i })).not.toBeInTheDocument();
     // The key itself is still listed; only the mutating controls are gone.
     expect(screen.getByText('agent')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(0);
+    // queryAllByRole, NOT getAllByRole: the `getAll*` variants THROW when there
+    // are no matches, so `getAllByRole(...).toHaveLength(0)` can never pass.
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 });
 ```

@@ -132,12 +132,15 @@ authRouter.get('/whoami', requireAuth, async (c) => {
   return ok(c, member);
 });
 
-authRouter.get('/keys', requireJwt, async (c) => {
+// Keys are self-scoped (each handler uses `auth.userId`), but the role gate is
+// still required: children get no programmatic credential for the household API.
+// `requireJwt` sets `principal`, which `requireRole` reads — so this composes.
+authRouter.get('/keys', requireJwt, requireRole('admin', 'adult'), async (c) => {
   const keys = await identity.listApiKeys(c.get('auth').userId);
   return ok(c, keys);
 });
 
-authRouter.post('/keys', requireJwt, async (c) => {
+authRouter.post('/keys', requireJwt, requireRole('admin', 'adult'), async (c) => {
   const body = createKeySchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
   const key = await identity.createApiKey(c.get('auth').userId, body.data.name);
@@ -145,7 +148,7 @@ authRouter.post('/keys', requireJwt, async (c) => {
   return ok(c, key, undefined, 201);
 });
 
-authRouter.delete('/keys/:id', requireJwt, async (c) => {
+authRouter.delete('/keys/:id', requireJwt, requireRole('admin', 'adult'), async (c) => {
   const id = c.req.param('id');
   const revoked = await identity.revokeApiKey(c.get('auth').userId, id);
   if (!revoked) return err(c, 'NOT_FOUND', 'API key not found', 404);

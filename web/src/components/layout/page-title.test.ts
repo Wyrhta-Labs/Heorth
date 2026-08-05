@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { titleKeyFor } from './app-shell';
 import { navItems, isNavItemActive } from './sidebar';
+import { DEFAULT_SETTINGS_TAB } from '@/lib/settings-tabs';
 
 describe('titleKeyFor', () => {
   it('resolves an exact route', () => {
@@ -20,7 +21,7 @@ describe('titleKeyFor', () => {
 
   it('points the household nav item at a concrete tab so a click costs no redirect', () => {
     const household = navItems.find((item) => item.labelKey === 'nav.household');
-    expect(household?.to).toBe('/household/members');
+    expect(household?.to).toBe(`/household/${DEFAULT_SETTINGS_TAB}`);
     // …but keeps /household as its active range, or the item would go dim on
     // every tab except Members. See `activePrefix` in sidebar.tsx.
     expect(household?.activePrefix).toBe('/household');

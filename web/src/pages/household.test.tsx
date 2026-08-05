@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import {
   createRootRoute, createRoute, createRouter, createMemoryHistory, RouterProvider, redirect, Outlet,
 } from '@tanstack/react-router';
@@ -48,6 +48,25 @@ function setRole(role: 'admin' | 'adult' | 'child') {
 function setWhoamiPending() {
   useWhoamiMock.mockReturnValue({ data: undefined, isError: false, refetch: vi.fn() });
   useMembersMock.mockReturnValue({ data: { data: members }, isError: false, refetch: vi.fn() });
+}
+
+/** whoami itself failed to load. Returns its refetch spy so a test can assert on it. */
+function setWhoamiError() {
+  const refetch = vi.fn();
+  useWhoamiMock.mockReturnValue({ data: undefined, isError: true, refetch });
+  useMembersMock.mockReturnValue({ data: { data: members }, isError: false, refetch: vi.fn() });
+  return refetch;
+}
+
+/** whoami resolved fine, but the members query failed. Returns its refetch spy. */
+function setMembersError(role: 'admin' | 'adult' | 'child') {
+  const refetch = vi.fn();
+  useWhoamiMock.mockReturnValue({
+    data: { data: { id: 'b', handle: 'anna', role, displayName: 'Anna' } },
+    isError: false, refetch: vi.fn(),
+  });
+  useMembersMock.mockReturnValue({ data: undefined, isError: true, refetch });
+  return refetch;
 }
 
 /** Mounts the real /household layout + $tab child route at `path`. */
@@ -137,6 +156,26 @@ describe('HouseholdPage read-only propagation', () => {
   });
 });
 
+describe('HouseholdPage error states', () => {
+  it('shows a load error and retries when whoami fails', async () => {
+    const refetch = setWhoamiError();
+    renderAt('/household/members');
+
+    expect(await screen.findByText('We couldn’t load your household.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it('shows a load error and retries when the members query fails', async () => {
+    const refetch = setMembersError('admin');
+    renderAt('/household/members');
+
+    expect(await screen.findByText('We couldn’t load your household.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalled();
+  });
+});
+
 describe('HouseholdPage routing', () => {
   it('redirects /household to the default tab', async () => {
     setRole('admin');
@@ -202,5 +241,13 @@ describe('HouseholdPage routing', () => {
     render(<RouterProvider router={router} />);
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/household/members'));
+  });
+
+  it('clicking a tab trigger navigates to that tab', async () => {
+    setRole('admin');
+    const { router } = renderAt('/household/members');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/household/settings'));
   });
 });

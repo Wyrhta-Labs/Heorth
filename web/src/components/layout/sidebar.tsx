@@ -27,6 +27,19 @@ interface NavItem {
   labelKey: NavLabelKey;
   icon: typeof LayoutDashboard;
   exact?: boolean;
+  /**
+   * Path range that counts as "on this item", when `to` is deeper than the
+   * section it represents. /household is a layout whose index only redirects, so
+   * the item links straight to a tab but must stay lit on all of them.
+   */
+  activePrefix?: string;
+}
+
+/** Exported for testing: is `pathname` within this item's active range? */
+export function isNavItemActive(item: NavItem, pathname: string): boolean {
+  if (item.exact) return pathname === item.to;
+  const base = item.activePrefix ?? item.to;
+  return pathname === base || pathname.startsWith(`${base}/`);
 }
 
 export const navItems: NavItem[] = [
@@ -39,7 +52,7 @@ export const navItems: NavItem[] = [
   { to: '/meals', labelKey: 'nav.meals', icon: UtensilsCrossed },
   { to: '/feoh', labelKey: 'nav.feoh', icon: Wallet },
   { to: '/library', labelKey: 'nav.library', icon: Library },
-  { to: '/household', labelKey: 'nav.household', icon: Home },
+  { to: '/household/members', labelKey: 'nav.household', icon: Home, activePrefix: '/household' },
   { to: '/hearth', labelKey: 'nav.hearth', icon: Tv },
 ];
 
@@ -54,8 +67,9 @@ export default function Sidebar() {
         <span className="font-serif text-xl">Heorth</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map(({ to, labelKey, icon: Icon, exact }) => {
-          const active = exact ? pathname === to : pathname.startsWith(to);
+        {navItems.map((item) => {
+          const { to, labelKey, icon: Icon } = item;
+          const active = isNavItemActive(item, pathname);
           return (
             <Link
               key={to}

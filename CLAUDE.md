@@ -19,8 +19,8 @@ architecture, API surface, and the Feoh satellite proxy.
   MUST point at a database whose **name ends in `_test`** — `tests/setup.ts`
   enforces this as an allowlist and refuses anything else, including the primary
   `heorth` database. Export it before `npm test`; the fallback is
-  `localhost:55432/heorth_test` (the shared dev cluster from the meta repo's
-  `deploy/` stack). External services
+  `localhost:5432/heorth_test` (the `heorth` role on the shared dev cluster from
+  the meta repo's `deploy/` stack). External services
   are faked in-process and installed via a `set*Runtime` seam — never real
   network calls.
 

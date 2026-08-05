@@ -6,7 +6,9 @@ import MobileNav from './mobile-nav';
 import { ToastProvider } from '@/components/ui/toast';
 import type { NavLabelKey } from './sidebar';
 
-const PAGE_TITLES: Record<string, NavLabelKey | 'nav.homeTitle'> = {
+type PageTitleKey = NavLabelKey | 'nav.homeTitle';
+
+const PAGE_TITLES: Record<string, PageTitleKey> = {
   '/': 'nav.homeTitle',
   '/calendar': 'nav.calendar',
   '/meals': 'nav.meals',
@@ -19,10 +21,23 @@ const PAGE_TITLES: Record<string, NavLabelKey | 'nav.homeTitle'> = {
   '/profile': 'nav.profile',
 };
 
+/**
+ * Resolve the header title for a path. Exact match first, then longest matching
+ * prefix — /household is a layout now, so /household/members must still resolve
+ * to "Household" instead of falling through to the app name.
+ */
+export function titleKeyFor(pathname: string): PageTitleKey | undefined {
+  const exact = PAGE_TITLES[pathname];
+  if (exact) return exact;
+  return Object.entries(PAGE_TITLES)
+    .filter(([path]) => path !== '/' && pathname.startsWith(`${path}/`))
+    .sort((a, b) => b[0].length - a[0].length)[0]?.[1];
+}
+
 export default function AppShell() {
   const { t } = useTranslation();
   const router = useRouter();
-  const titleKey = PAGE_TITLES[router.state.location.pathname];
+  const titleKey = titleKeyFor(router.state.location.pathname);
   const title = titleKey ? t(titleKey) : 'Heorth';
   return (
     <ToastProvider>

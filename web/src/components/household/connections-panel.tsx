@@ -20,12 +20,14 @@ interface Props {
 }
 
 /**
- * Admin and adult household-wide overview of Microsoft 365 connections and their
- * feed health, plus a manual "sync now" trigger. Reads the raw `connections`
- * array from `GET /m365/status` (the M365-specific wire type), joined against
- * the raw member list for display names — the neutral `ProviderConnection`
- * shape used on /profile does not apply here. Members without a connection are
- * deliberately not listed.
+ * Household-wide overview of Microsoft 365 connections and their feed health,
+ * plus a manual "sync now" trigger. Who may mount this panel is the caller's
+ * decision; `readOnly` hides the sync trigger for a viewer who may not trigger
+ * a sync (`POST /m365/sync` is admin-gated server-side). Reads the raw
+ * `connections` array from `GET /m365/status` (the M365-specific wire type),
+ * joined against the raw member list for display names — the neutral
+ * `ProviderConnection` shape used on /profile does not apply here. Members
+ * without a connection are deliberately not listed.
  */
 export default function ConnectionsPanel({ readOnly = false }: Props) {
   const { t } = useTranslation();

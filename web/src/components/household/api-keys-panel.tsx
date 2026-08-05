@@ -10,7 +10,16 @@ import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '@/hooks/use-api-ke
 import { useToast } from '@/components/ui/toast';
 import { useFormatters } from '@/hooks/use-formatters';
 
-export default function ApiKeysPanel() {
+interface Props {
+  /**
+   * Never set by the registry today — adults get full self-service on their OWN
+   * keys (the endpoint is self-scoped). Honoured anyway so the SettingsTab
+   * contract holds for any future contributor.
+   */
+  readOnly?: boolean;
+}
+
+export default function ApiKeysPanel({ readOnly = false }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { formatDate } = useFormatters();
@@ -52,7 +61,9 @@ export default function ApiKeysPanel() {
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-ash">{t('settings.apiKeys.mintPrefix')} <code className="text-xs">he_</code> {t('settings.apiKeys.mintSuffix')}</p>
-        <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> {t('settings.apiKeys.newKey')}</Button>
+        {!readOnly && (
+          <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> {t('settings.apiKeys.newKey')}</Button>
+        )}
       </div>
       {keys.length === 0 ? (
         <div className="text-sm text-ash py-4 text-center">{t('settings.apiKeys.none')}</div>
@@ -66,9 +77,11 @@ export default function ApiKeysPanel() {
                 <TableCell><code className="text-xs bg-linen px-1.5 py-0.5 rounded">{k.keyPrefix}…</code></TableCell>
                 <TableCell className="text-sm text-ash">{k.lastUsedAt ? formatDate(k.lastUsedAt) : t('settings.apiKeys.never')}</TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleRevoke(k.id, k.name)} disabled={revoke.isPending}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {!readOnly && (
+                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleRevoke(k.id, k.name)} disabled={revoke.isPending}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

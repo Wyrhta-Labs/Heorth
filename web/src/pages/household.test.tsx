@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import HouseholdPage from './household';
 
 const useWhoamiMock = vi.fn();
@@ -64,5 +64,17 @@ describe('HouseholdPage tab gating', () => {
     expect(screen.getByText('Anna')).toBeInTheDocument();
     // Read-only: no add-member action and no per-row edit/delete controls.
     expect(screen.queryByRole('button', { name: /add member/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the load error and retries when the members query fails', () => {
+    const refetch = vi.fn();
+    useWhoamiMock.mockReturnValue({ data: { data: { role: 'admin' } }, isError: false, refetch: vi.fn() });
+    useMembersMock.mockReturnValue({ data: undefined, isError: true, refetch });
+
+    render(<HouseholdPage />);
+
+    expect(screen.getByText('We couldn’t load your household.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(refetch).toHaveBeenCalled();
   });
 });

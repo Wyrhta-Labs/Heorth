@@ -1,7 +1,7 @@
 # Household settings shell — read-only adult view + contributed settings tabs
 
 Date: 2026-08-05
-Status: approved design, ready for planning
+Status: approved design, reviewed (Codex, independent), ready for planning
 
 ## Problem
 
@@ -44,6 +44,7 @@ consumers — that is what validates the interface before P3 uses it.
 - Any change to Feoh, the finance proxy, or the satellite seam.
 - Child-role access to anything it cannot already reach.
 - Any change to `@wyrhta/core`.
+- A dedicated response DTO for `/m365/status` connections — see §4, declined.
 
 ## Design
 
@@ -54,27 +55,50 @@ New module, mirroring the existing `PROVIDERS` registry in
 touches nothing else.
 
 ```ts
+export interface TabAccess {
+  visible: boolean;
+  readOnly: boolean;
+}
+
 export interface SettingsTab {
   /** URL segment and React key: 'members', 'currency', … */
   id: string;
   /** i18n key for the TabsTrigger label. */
   labelKey: string;
-  /** Roles that may open the tab at all. */
-  roles: Role[];
-  /** Of those roles, the ones that get the panel read-only. */
-  readOnlyFor?: Role[];
+  /**
+   * Who may open this tab, and whether they get it read-only. A predicate over
+   * the whole member — NOT a role list. See the note below on why.
+   */
+  access: (member: Member) => TabAccess;
   /** Wrap the panel in a titled Card, or render it bare. */
   card?: { titleKey: string };
   Panel: ComponentType<{ readOnly: boolean }>;
 }
 
-/** The four entries in the table below, in tab order. */
-export const SETTINGS_TABS: SettingsTab[];
+/** The common case: gate on role alone. */
+export function byRole(spec: { roles: Role[]; readOnlyFor?: Role[] }): SettingsTab['access'];
+
+export const SETTINGS_TABS = [ /* the four entries below, in tab order */ ]
+  as const satisfies readonly SettingsTab[];
+
+/** Runtime narrowing for the `$tab` route param, which is an arbitrary string. */
+export function isSettingsTabId(id: string): boolean;
 ```
 
-Initial entries. Only the **bold** cells change existing behaviour:
+**Why `access` is a predicate, not a `Role[]`.** Role is not the only access axis
+in this codebase: the maintenance admin is quarantined by **handle**, not role
+(`src/household/maintenance-admin.ts`), and `web/src/pages/profile.tsx:34`
+already hides provider-connection UI by comparing against
+`MAINTENANCE_ADMIN_HANDLE`. A `roles: Role[]` field cannot express "admin except
+the maintenance admin", so a future contributed tab that creates an ownership
+binding would have no way to say what it needs. One predicate replaces the two
+fields (`roles` + `readOnlyFor`) rather than adding a third, and `byRole()` keeps
+the ordinary entries as one-liners.
 
-| id | `roles` | `readOnlyFor` | `card` |
+Initial entries, all expressed via `byRole`. Only the **bold** cells change
+existing behaviour:
+
+| id | roles | readOnlyFor | card |
 |---|---|---|---|
 | `members` | admin, adult, child | adult, child | yes (`settings.tabs.members`) |
 | `keys` | admin, **adult** | — | yes (`settings.tabs.apiKeys`) |
@@ -88,12 +112,12 @@ Initial entries. Only the **bold** cells change existing behaviour:
 Two deliberate asymmetries, both resolved during design:
 
 - **`keys` is full self-service for adults, not read-only.** `GET /auth/keys` is
-  `requireJwt` and **self-scoped** — it lists the acting member's own keys, not
-  household data. Hiding the tab from adults meant an adult had no path to an
-  API key at all. A read-only view would have shown an adult their own keys while
-  forbidding create/revoke, which is a self-service feature half-disabled rather
-  than transparency. Adults get the tab with create/revoke enabled; children stay
-  excluded.
+  **self-scoped** — it lists the acting member's own keys, not household data.
+  Hiding the tab from adults meant an adult had no path to an API key at all. A
+  read-only view would have shown an adult their own keys while forbidding
+  create/revoke, which is a self-service feature half-disabled rather than
+  transparency. Adults get the tab with create/revoke enabled; children stay
+  excluded — and §4 makes that exclusion real on the server.
 - **`connections` is read-only for adults and needs a backend change** — see §4.
 
 ### 2. Routing — a real route per tab
@@ -103,27 +127,36 @@ Two deliberate asymmetries, both resolved during design:
 `/household/members`.
 
 One dynamic route rather than N routes generated from the registry, because
-generated routes would break TanStack Router's literal-path typing: with `$tab`,
-`<Link to="/household/$tab" params={{ tab: 'currency' }} />` stays type-safe, and
-a contributed tab needs no `app.tsx` edit at all.
+generated routes would break TanStack Router's literal-path typing. With `$tab`,
+the *route path* stays type-checked in `<Link to="/household/$tab"
+params={{ tab: 'currency' }} />` and a contributed tab needs no `app.tsx` edit at
+all. This buys nothing for the tab **id** itself: the param is an arbitrary
+string, so `isSettingsTabId()` narrows it at runtime — that check is the
+authority, not the types.
 
-- **`web/src/pages/household.tsx`** becomes the layout: role-filter
-  `SETTINGS_TABS`, render `TabsList`/`TabsTrigger` from the result, render
-  `<Outlet />`. Keeps the existing `ErrorState`/`retryOf` handling for the
-  `whoami` query.
+- **`web/src/pages/household.tsx`** becomes the layout: filter `SETTINGS_TABS` by
+  `access(member).visible`, render `TabsList`/`TabsTrigger` from the result,
+  render `<Outlet />`. Keeps the existing `ErrorState`/`retryOf` handling for the
+  `whoami` and members queries.
 - **`web/src/components/household/settings-tab-panel.tsx`** (new) is the `$tab`
   route component: look the `tab` param up in the registry, compute
-  `readOnly = tab.readOnlyFor?.includes(role) ?? false`, wrap in `Card` when
-  `card` is set, render `<tab.Panel readOnly={readOnly} />`.
-- **Unknown `tab` id, or one whose `roles` excludes the acting role** → navigate
-  to `/household/members` with `replace: true`. Same handling for both: a
-  forbidden tab must not be distinguishable from a nonexistent one, and
-  `members` is visible to every role so the fallback is always valid.
+  `const { readOnly } = tab.access(member)`, wrap in `Card` when `card` is set,
+  render `<tab.Panel readOnly={readOnly} />`.
+- **Authorization must not be evaluated before `whoami` resolves.** `role` is
+  derived from `whoamiQuery.data`; while that query is pending there is no
+  member, and treating "no member" as "not permitted" would bounce a deep link to
+  `/household/keys` back to `/household/members` before the user's real role
+  arrived. So: while `whoamiQuery.isPending`, render a loading shell and redirect
+  nothing. Only once `whoamiQuery.data` exists is `access()` consulted.
+- **Unknown `tab` id, or one whose `access().visible` is false** → navigate to
+  `/household/members` with `replace: true`. Same handling for both: a forbidden
+  tab must not be distinguishable from a nonexistent one, and `members` is
+  visible to every role so the fallback is always valid.
 - **Role gating lives in the component, not `beforeLoad`.** `whoami` is a React
   Query resource; a loader guard would need the query client threaded into the
-  route tree. The page already reads `whoami` via `useWhoami()` — keep it there.
-  The backend remains the actual authority: every gate below is mirrored by a
-  route-level role check on the API.
+  route tree. The page already reads it via `useWhoami()` — keep it there. The
+  registry's `access()` is **presentation only**; §4 is where the actual
+  authorization lives.
 - `TabsTrigger` keeps its `<button>`; the layout drives `Tabs`' controlled
   `value` from the route param and `onValueChange` → `navigate()`. Visuals are
   unchanged and `web/src/components/ui/tabs.tsx` is untouched. Accepted
@@ -150,19 +183,58 @@ Each panel takes `{ readOnly }` so the registry, not the panel, decides policy.
   `remove` handlers and `MembersTable` move here out of `household.tsx`, which
   drops from ~127 lines to a small layout.
 
-### 4. Backend — one change
+### 4. Backend — two changes
 
-`GET /api/v1/m365/status` (`src/m365/routes.ts`) currently returns the
-household-wide `connections` array only when `auth.role === 'admin'`. Extend that
-to `adult`. The array carries the account UPN and link status, never token
-material — the same reasoning already written in that handler for why `feeds[]`
-is household-visible. Children continue to receive only their own `connection`.
+**a. `GET /api/v1/m365/status` returns `connections` to adults.** Today
+`src/m365/routes.ts` returns the household-wide array only when
+`auth.role === 'admin'`; extend that to `adult`. Children continue to receive
+only their own `connection`.
+
+Precisely what an adult thereby gains: `toPublic()` (`src/m365/store.ts:12`)
+strips **only** `refreshTokenEncrypted`, so each entry carries `id`, `memberId`,
+`accountUpn`, `createdAt`, `updatedAt`, `scopes`, `status`,
+`lastRefreshSuccessAt`, `lastRefreshError`. No token material, and the same
+reasoning already written in that handler for why `feeds[]` is household-visible
+applies. The only field that is arguably more than "who is linked and is it
+healthy" is `scopes` — a static space-delimited string identical for every
+member, sourced from `DELEGATED_SCOPES`. A narrower route DTO
+(`{ memberId, accountUpn, status, lastRefreshSuccessAt, lastRefreshError }`) was
+considered and **declined for P1** as scope creep: admins already receive these
+fields today, and the web type narrows them at the client. Recorded here so the
+choice is deliberate rather than overlooked.
+
+The maintenance-admin quarantine is **not** implicated: it is a write gate
+(`assertNotMaintenanceAdmin`), and `src/m365/routes.ts:41-44` documents that role
+is not the quarantine anchor. Widening a read does not touch it.
+
+**b. `/auth/keys` gets a role check.** `GET`/`POST`/`DELETE` on
+`src/household/routes.ts:135,140,148` are guarded by `requireJwt`, which
+constrains the *auth method* (a JWT session, not an API key) and checks **no
+role**. A child can therefore mint and revoke their own API keys today, even
+though the UI has always hidden the tab. Add `requireRole('admin', 'adult')` to
+all three so the registry's exclusion of children is a real boundary rather than
+a presentation-only fiction.
 
 Nothing else needs touching: `GET /household` and `GET /household/options` are
-already any-role, `PATCH /household` is already `requireRole('admin')`, and
-`/auth/keys` is already self-scoped to the acting member.
+already any-role, and `PATCH /household` and `POST /m365/sync` are already
+`requireRole('admin')`.
 
-### 5. i18n
+### 5. Navigation and page title
+
+Both follow from `/household` no longer being a leaf, and both were missed on the
+first pass:
+
+- `web/src/components/layout/sidebar.tsx:42` links `to: '/household'`. Point it at
+  `/household/members` (or `/household/$tab` with `params`) so an ordinary nav
+  click does not eat a redirect. The mobile nav uses the same `NAV_ITEMS`, so one
+  edit covers both.
+- `web/src/components/layout/app-shell.tsx:24` resolves the header title with
+  `PAGE_TITLES[router.state.location.pathname]`, an exact-path lookup — so
+  `/household/members` would fall through to the literal `'Heorth'`. Make the
+  lookup prefix-aware for `/household/*` (falling back to the longest matching
+  prefix), keeping every other route's exact match unchanged.
+
+### 6. i18n
 
 New keys in both `en` and `de`:
 
@@ -170,36 +242,58 @@ New keys in both `en` and `de`:
 
 Existing tab-label keys are reused verbatim by the registry.
 
-### 6. Tests
+### 7. Tests
 
 **Backend** (`tests/`, real Postgres):
 
-- an adult session receives `connections` from `GET /m365/status`;
-- a child session does not.
+- an adult session receives `connections` from `GET /m365/status`; a child does
+  not;
+- a child gets 403 from `GET`, `POST` and `DELETE /auth/keys`; an adult still
+  succeeds on all three.
 
-**Web** (`web/src/pages/household.test.tsx`, extending the existing
-`setRole()` helper):
+**Web** — `web/src/pages/household.test.tsx` currently renders
+`<HouseholdPage />` directly (line 41). That cannot survive a layout that uses
+`Outlet`, the route param and `useNavigate`, so the file must be **converted to a
+memory-router harness**, following the existing local pattern in
+`web/src/components/pwa/update-banner.test.tsx:19-27` (`createRootRoute` +
+`createRoute` + `createMemoryHistory` + `RouterProvider`). Its `setRole()` helper
+is typed `'admin' | 'adult'` and needs `'child'`. This is the largest test change
+in P1 and should be its own step in the plan.
+
+Cases:
 
 - admin sees all four triggers; adult sees all four; child sees only Members;
-- adult on `settings`: name/timezone/locale are disabled, no Save button, hint
-  present;
-- adult on `keys`: create and revoke are available;
+- adult on `settings`: name/timezone/locale disabled, no Save button, hint shown;
+- adult on `keys`: create and revoke available;
 - adult on `connections`: no "Sync now";
 - `/household` redirects to `/household/members`;
 - a nonexistent `$tab` redirects to `/household/members`;
-- a `$tab` the role may not open (child → `keys`) redirects to
-  `/household/members`.
+- a `$tab` the member may not open (child → `keys`) redirects to
+  `/household/members`;
+- **while `whoami` is pending, a deep link to `/household/keys` is NOT
+  redirected** — the regression test for the race in §2.
 
-Panel-level suites (`household-settings.test.tsx`,
-`connections-panel.test.tsx`) get a `readOnly` case each.
+Panel-level suites (`household-settings.test.tsx`, `connections-panel.test.tsx`)
+get a `readOnly` case each.
 
 ## Risks
 
-- **Members-panel extraction is the largest diff** and is pure refactor. Its
-  existing test coverage in `household.test.tsx` must keep passing unchanged
-  apart from the routing wrapper.
-- **The registry's `readOnly` is presentation only.** It is not a security
-  boundary; the API role checks are. The spec states this explicitly so a future
-  contributed tab does not mistake the prop for enforcement.
-- **A contributed tab that forgets `roles`** would be invisible to everyone. The
-  field is required (not optional) in the interface for that reason.
+- **Members-panel extraction is the largest source diff** and is pure refactor.
+  Its behaviour is covered by `household.test.tsx`, which is being rewritten in
+  the same change — so the two must not be done in one step, or a regression
+  could hide behind the new harness. Convert the harness first with behaviour
+  unchanged, then extract.
+- **`access()` is presentation only.** It is not a security boundary; the API
+  role checks are. Stated in the interface doc comment so a contributed tab does
+  not mistake the predicate for enforcement.
+- **A contributed tab that forgets `access`** would not compile — the field is
+  required, not optional, for that reason.
+
+## Review
+
+Reviewed independently by Codex (read-only, spec-vs-code) on 2026-08-05.
+Accepted and folded in: the `/auth/keys` role gap (§4b), the `whoami` redirect
+race (§2), the `Role[]`-vs-predicate modelling of tab access (§1), the
+nav/page-title fallout (§5), the test-harness conversion (§7), and the precise
+field list behind "no token material" (§4a). Declined with reasoning: a
+dedicated `/m365/status` connection DTO (§4a).

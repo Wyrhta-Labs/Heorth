@@ -25,8 +25,9 @@ vi.mock('@/hooks/use-household', () => ({
   useUpdateHousehold: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-// Adults DO render this component now, read-only (see `settings-tabs.ts`). The
-// `readOnly` prop is presentation only — `PATCH /household` stays admin-gated.
+// `readOnly` is presentation only — `PATCH /household` stays admin-gated
+// server-side. Adults get this panel read-only through the settings-tab
+// registry, which a later task in this branch adds.
 describe('HouseholdSettings', () => {
   it('resyncs the form to newly refetched household data instead of keeping stale values', () => {
     useHouseholdMock.mockReturnValue({ data: { data: household({}) } });

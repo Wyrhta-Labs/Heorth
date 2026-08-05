@@ -14,7 +14,14 @@
 
 - Backend responses use `ok`/`err` from `@wyrhta/core/http`; guards come from `src/wiring.ts`.
 - `requireJwt` sets the `principal` context key (verified in `@wyrhta/core/dist/auth/guards.js`), so `requireRole(...)` composes after it.
-- Backend tests hit real Postgres. `DATABASE_URL` MUST end in `_test`; `tests/setup.ts` enforces it. Use `postgres://kith:kithpw@localhost:55432/heorth_test`.
+- Backend tests hit real Postgres. `DATABASE_URL` MUST end in `_test`; `tests/setup.ts` enforces it (it refuses the primary `heorth` database). Target `heorth_test` in the meta repo's `deploy/` dev cluster — container `wyrhta-dev-db-1`, host port **5432**, owner role `heorth`. Build the URL from the deploy stack's own secret; never hardcode or commit a password:
+
+  ```bash
+  PW=$(grep "^HEORTH_DB_PASSWORD=" ../deploy/.env | cut -d= -f2-)
+  export DATABASE_URL="postgres://heorth:${PW}@localhost:5432/heorth_test"
+  ```
+
+  Heorth's own `.env` names a `kith` user; that credential fails auth and is not the one for tests.
 - Backend test seeding is `seedTestHousehold()` from `tests/helpers.ts` — it returns `{ admin, adult, child }`, each `{ user, jwt }`. Auth headers via `authHeaders(jwt)`.
 - `t()` keys are **type-checked** against `web/src/i18n/locales/en.json` (see `web/src/i18n/i18next.d.ts`). A `string`-typed key will NOT compile — use `ParseKeys<'translation'>` from `i18next`.
 - Every new i18n key MUST be added to BOTH `en.json` and `de.json` — `web/src/i18n/catalog-parity.test.ts` fails on any key-set mismatch.
@@ -104,7 +111,7 @@ Add to `tests/household-routes.test.ts`, inside the existing `describe('househol
 - [ ] **Step 2: Run the test to verify it fails**
 
 ```bash
-export DATABASE_URL=postgres://kith:kithpw@localhost:55432/heorth_test
+# DATABASE_URL must already be exported — see Global Constraints
 npx vitest run tests/household-routes.test.ts -t 'key management is admin/adult only'
 ```
 
@@ -186,7 +193,7 @@ Add to `tests/m365-routes.test.ts` inside `describe('m365 routes (enabled)', ...
 - [ ] **Step 2: Run the test to verify it fails**
 
 ```bash
-export DATABASE_URL=postgres://kith:kithpw@localhost:55432/heorth_test
+# DATABASE_URL must already be exported — see Global Constraints
 npx vitest run tests/m365-routes.test.ts -t 'household-wide connections to an adult'
 ```
 
@@ -1537,7 +1544,7 @@ Expected: PASS and a clean typecheck.
 ```bash
 cd web && npm test
 cd .. && npm run typecheck && npm run build
-export DATABASE_URL=postgres://kith:kithpw@localhost:55432/heorth_test
+# DATABASE_URL must already be exported — see Global Constraints
 npm test
 ```
 

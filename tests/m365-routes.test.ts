@@ -108,6 +108,23 @@ describe('m365 routes (enabled)', () => {
     expect(body.data.connections).toHaveLength(1);
   });
 
+  it('GET /status gives the household-wide connections to an adult but not to a child', async () => {
+    setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+    const { adult, child } = await seedTestHousehold();
+    const state = await signConnectState(adult.user.id);
+    await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
+
+    const asAdult = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
+    const adultBody = await asAdult.json() as { data: { connections?: { accountUpn: string }[] } };
+    expect(adultBody.data.connections).toHaveLength(1);
+    expect(adultBody.data.connections![0]!.accountUpn).toBe('member@contoso.test');
+
+    const asChild = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(child.jwt) });
+    const childBody = await asChild.json() as { data: { connections?: unknown[]; connection: unknown | null } };
+    expect(childBody.data.connections).toBeUndefined();
+    expect(childBody.data.connection).toBeNull();
+  });
+
   it('GET /status exposes every feed status to a non-admin session (household-visible staleness, Finding 2)', async () => {
     const rt = runtimeForFakeGraph(createFakeGraph());
     setM365Runtime(rt);
@@ -130,12 +147,11 @@ describe('m365 routes (enabled)', () => {
     const adminBody = await adminRes.json() as { data: { feeds: { feedKey: string }[] } };
     expect(adminBody.data.feeds.map((f) => f.feedKey).sort()).toEqual(feedKeysSeen.sort());
 
-    // Connection stays member-scoped for the non-admin session: adult has no
-    // connection of their own here, so it must be null, not the child's or
-    // a household-wide list.
-    const body2 = body as { data: { connection: unknown } };
+    // Adult has no connection of their own here (connection is null), but they
+    // now see the household-wide connections list (which is empty in this test).
+    const body2 = body as { data: { connection: unknown; connections: unknown[] } };
     expect(body2.data.connection).toBeNull();
-    expect('connections' in body.data).toBe(false);
+    expect(Array.isArray(body2.data.connections)).toBe(true);
   });
 
   it('DELETE /connection disconnects the acting member', async () => {

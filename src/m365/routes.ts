@@ -31,8 +31,9 @@ function toPublicFeed(row: M365SyncStateRow) {
  *  GET    /connect     (auth)  → 302 to Microsoft consent (state binds the member)
  *  GET    /connect-url (auth)  → 200 JSON { url } twin of /connect (Task 8; see below)
  *  GET    /callback            → exchange code, store encrypted refresh token
- *  GET    /status      (auth)  → acting member's connection (admin ALSO sees
- *                                every connection under `connections`);
+ *  GET    /status      (auth)  → acting member's connection (admin AND adult
+ *                                ALSO see every connection under
+ *                                `connections`; children do not);
  *                                `feeds[]` is EVERY feed's sync status
  *                                regardless of role — no secrets in it, and the
  *                                Hearth View needs household-wide staleness even
@@ -110,7 +111,13 @@ m365Router.get('/status', requireAuth, async (c) => {
   // the wall can look current while another member's feed is silently dead.
   // Connection details (account UPN etc.) stay member-scoped for non-admins.
   const feeds = (await rt.store.listSyncState()).map(toPublicFeed);
-  if (auth.role === 'admin') {
+  // The household-wide list is visible to admins AND adults: it carries no token
+  // material (`toPublic` strips `refreshTokenEncrypted`) — only memberId,
+  // accountUpn, status, timestamps, granted `scopes` (static config, identical
+  // for every member) and the classified lastRefreshError. Same reasoning as
+  // `feeds[]` above: an adult co-parent must be able to see that another
+  // member's link is dead. Children stay scoped to their own connection.
+  if (auth.role === 'admin' || auth.role === 'adult') {
     const [connection, connections] = await Promise.all([
       rt.store.getConnection(auth.userId),
       rt.store.listConnections(),

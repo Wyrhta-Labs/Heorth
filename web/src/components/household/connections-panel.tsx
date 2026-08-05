@@ -14,15 +14,20 @@ import { triggerM365Sync } from '@/api/m365';
 import { useFormatters } from '@/hooks/use-formatters';
 import type { Member } from '@/lib/types';
 
+interface Props {
+  /** Presentation only — `POST /m365/sync` is admin-gated server-side. */
+  readOnly?: boolean;
+}
+
 /**
- * Admin-only household-wide overview of Microsoft 365 connections and their
+ * Admin and adult household-wide overview of Microsoft 365 connections and their
  * feed health, plus a manual "sync now" trigger. Reads the raw `connections`
  * array from `GET /m365/status` (the M365-specific wire type), joined against
  * the raw member list for display names — the neutral `ProviderConnection`
  * shape used on /profile does not apply here. Members without a connection are
  * deliberately not listed.
  */
-export default function ConnectionsPanel() {
+export default function ConnectionsPanel({ readOnly = false }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -54,11 +59,13 @@ export default function ConnectionsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={syncNow} disabled={syncing}>
-          <RefreshCw className="h-4 w-4 mr-1" /> {t('settings.connectionsPanel.syncNow')}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={syncNow} disabled={syncing}>
+            <RefreshCw className="h-4 w-4 mr-1" /> {t('settings.connectionsPanel.syncNow')}
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">{t('settings.connectionsPanel.title')}</CardTitle></CardHeader>

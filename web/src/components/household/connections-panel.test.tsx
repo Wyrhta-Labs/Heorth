@@ -39,12 +39,12 @@ afterEach(() => { cleanup(); syncNow.mockReset(); toast.mockReset(); });
 // after a manual sync), so it needs a QueryClientProvider ancestor — the
 // brief's test snippet predates that wiring and omitted it (same fix as
 // provider-card.test.tsx).
-function renderPanel() {
+function renderPanel(props: { readOnly?: boolean } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
   const view = render(
     <QueryClientProvider client={qc}>
-      <ConnectionsPanel />
+      <ConnectionsPanel {...props} />
     </QueryClientProvider>,
   );
   return { ...view, invalidateSpy };
@@ -93,5 +93,17 @@ describe('ConnectionsPanel', () => {
 
     resolve({ data: { results: [] } });
     await waitFor(() => expect(button).not.toBeDisabled());
+  });
+
+  it('hides the sync trigger when read-only', () => {
+    renderPanel({ readOnly: true });
+    expect(screen.queryByRole('button', { name: /sync now/i })).not.toBeInTheDocument();
+    // The read-only view still shows the data it exists to show.
+    expect(screen.getByText('anna@example.com')).toBeInTheDocument();
+  });
+
+  it('shows the sync trigger by default', () => {
+    renderPanel();
+    expect(screen.getByRole('button', { name: /sync now/i })).toBeInTheDocument();
   });
 });

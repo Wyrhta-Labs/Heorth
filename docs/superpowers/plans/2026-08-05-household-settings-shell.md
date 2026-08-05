@@ -304,9 +304,12 @@ Append inside the existing `describe('HouseholdSettings', ...)` block in `web/sr
 Also fix the now-false comment above that `describe` block — it currently reads "non-admins never render this component at all, so it no longer takes (or needs) a `canManage` prop." Replace it with:
 
 ```tsx
-// Adults DO render this component now, read-only (see `settings-tabs.ts`). The
-// `readOnly` prop is presentation only — `PATCH /household` stays admin-gated.
+// `readOnly` is presentation only — `PATCH /household` stays admin-gated
+// server-side. Adults get this panel read-only through the settings-tab
+// registry, which a later task in this branch adds.
 ```
+
+Phrase it exactly like that — tense-neutral. An earlier draft said "Adults DO render this component now (see `settings-tabs.ts`)", which is false at this commit: `household.tsx` still gates the mount on `canManage`, and `settings-tabs.ts` does not exist until Task 7.
 
 - [ ] **Step 3: Run the test to verify it fails**
 

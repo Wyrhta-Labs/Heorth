@@ -6,7 +6,7 @@
 
 **Architecture:** A pure-data registry (`web/src/lib/settings-tabs.ts`, mirroring the existing `PROVIDERS` registry) declares each tab's id, label, access predicate and panel component. `/household` becomes a TanStack Router layout with one dynamic child route `/household/$tab` plus an index route redirecting to `/household/members`. Two backend changes make the new UI gates real: `/auth/keys` gains a role check, and `GET /m365/status` returns the household-wide `connections` array to adults.
 
-**Tech Stack:** Node 22 + TypeScript, Hono, Drizzle, PostgreSQL (backend, Vitest against real Postgres); React 19 + TanStack Router + TanStack Query + i18next + Vitest/Testing Library (web).
+**Tech Stack:** Node 22 + TypeScript, Hono, Drizzle, PostgreSQL (backend, Vitest against real Postgres); React 18.3 + TanStack Router 1.114 + TanStack Query 5 + i18next 26 + Vitest/Testing Library (web).
 
 **Spec:** `docs/superpowers/specs/2026-08-05-household-settings-shell-design.md`
 
@@ -575,12 +575,38 @@ Pure refactor. The existing `web/src/pages/household.test.tsx` must pass **compl
 **Files:**
 - Create: `web/src/components/household/members-panel.tsx`
 - Modify: `web/src/pages/household.tsx`
-- Test: `web/src/pages/household.test.tsx` (must NOT be edited in this task)
+- Modify: `web/src/pages/household.test.tsx` (Step 1 ONLY — one added test; the three existing tests must not be touched)
 
 **Interfaces:**
 - Produces: `MembersPanel` — default export, props `{ readOnly?: boolean }`. Owns `useMembers`, `useCreateMember`, `useUpdateMember`, `useSetMemberRole`, `useDeleteMember`, the add/edit dialog, and its own `ErrorState` for a failed members query.
 
-- [ ] **Step 1: Create the panel**
+- [ ] **Step 1: First, cover the behaviour this task MOVES**
+
+The three existing page tests cover tab gating and the roster, but nothing covers the members-query **error path** — and that is precisely what moves: `household.tsx:27` currently does `retryOf(whoamiQuery, membersQuery)` at page level, and after extraction the members half lives in the panel. Without this test the move is unprotected.
+
+Add to `web/src/pages/household.test.tsx`, and extend its imports with `fireEvent`:
+
+```tsx
+  it('shows the load error and retries when the members query fails', () => {
+    const refetch = vi.fn();
+    useWhoamiMock.mockReturnValue({ data: { data: { role: 'admin' } }, isError: false, refetch: vi.fn() });
+    useMembersMock.mockReturnValue({ data: undefined, isError: true, refetch });
+
+    render(<HouseholdPage />);
+
+    expect(screen.getByText('We couldn’t load your household.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(refetch).toHaveBeenCalled();
+  });
+```
+
+Note the message uses a typographic apostrophe (`’`) — that is what `settings.loadError` contains in `en.json`. Run it and confirm it PASSES **before** the extraction (it documents current behaviour), then keep it passing after.
+
+```bash
+cd web && npx vitest run src/pages/household.test.tsx
+```
+
+- [ ] **Step 2: Create the panel**
 
 Create `web/src/components/household/members-panel.tsx` with the logic moved verbatim out of `household.tsx`:
 
@@ -685,7 +711,7 @@ export default function MembersPanel({ readOnly = false }: Props) {
 }
 ```
 
-- [ ] **Step 2: Slim down the page to use it**
+- [ ] **Step 3: Slim down the page to use it**
 
 Replace `web/src/pages/household.tsx` entirely. The tab structure stays exactly as it is today — only the members content moves:
 
@@ -750,18 +776,18 @@ export default function HouseholdPage() {
 }
 ```
 
-- [ ] **Step 3: Run the untouched page tests**
+- [ ] **Step 4: Run the page tests, unchanged since Step 1**
 
 ```bash
 cd web && npx vitest run src/pages/household.test.tsx && npx tsc --noEmit
 ```
 
-Expected: PASS — all three existing tests, with the test file unmodified. If any fail, the extraction changed behaviour; fix the panel, not the test.
+Expected: PASS — all four tests (the three originals plus the error-path test from Step 1), with no edit to the test file after Step 1. If any fail, the extraction changed behaviour; fix the panel, not the test.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add web/src/components/household/members-panel.tsx web/src/pages/household.tsx
+git add web/src/components/household/members-panel.tsx web/src/pages/household.tsx web/src/pages/household.test.tsx
 git commit -m "refactor(web): extract MembersPanel out of the household page"
 ```
 
@@ -1287,8 +1313,50 @@ describe('HouseholdPage routing', () => {
     expect(await screen.findByText('Loading…')).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/household/keys');
   });
+
+  // The test above only proves the LAYOUT holds the line: its `if (!member)`
+  // returns before <Outlet />, so SettingsTabPanel never mounts and a broken
+  // guard inside it would pass vacuously. This mounts the panel under a parent
+  // that always renders its Outlet, so the panel's own guard is what is tested.
+  it('SettingsTabPanel itself does not redirect while whoami is loading', async () => {
+    setWhoamiPending();
+    const rootRoute = createRootRoute({ component: () => <Outlet /> });
+    const householdRoute = createRoute({
+      getParentRoute: () => rootRoute, path: '/household', component: () => <Outlet />,
+    });
+    const tabRoute = createRoute({
+      getParentRoute: () => householdRoute, path: '$tab', component: SettingsTabPanel,
+    });
+    const routeTree = rootRoute.addChildren([householdRoute.addChildren([tabRoute])]);
+    const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: ['/household/keys'] }) });
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/household/keys');
+  });
+
+  // Same harness, but with a resolved role — proves the panel DOES redirect a
+  // forbidden tab once it knows the role, so the test above is not just
+  // asserting that the panel never redirects at all.
+  it('SettingsTabPanel redirects a forbidden tab once the role is known', async () => {
+    setRole('child');
+    const rootRoute = createRootRoute({ component: () => <Outlet /> });
+    const householdRoute = createRoute({
+      getParentRoute: () => rootRoute, path: '/household', component: () => <Outlet />,
+    });
+    const tabRoute = createRoute({
+      getParentRoute: () => householdRoute, path: '$tab', component: SettingsTabPanel,
+    });
+    const routeTree = rootRoute.addChildren([householdRoute.addChildren([tabRoute])]);
+    const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: ['/household/keys'] }) });
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/household/members'));
+  });
 });
 ```
+
+Extend this file's router import with `Outlet` for the two tests above.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -1376,9 +1444,28 @@ describe('titleKeyFor', () => {
   it('points the household nav item at a concrete tab so a click costs no redirect', () => {
     const household = navItems.find((item) => item.labelKey === 'nav.household');
     expect(household?.to).toBe('/household/members');
+    // …but keeps /household as its active range, or the item would go dim on
+    // every tab except Members. See `activePrefix` in sidebar.tsx.
+    expect(household?.activePrefix).toBe('/household');
+  });
+
+  it('treats every household tab as active for the household nav item', () => {
+    const household = navItems.find((item) => item.labelKey === 'nav.household')!;
+    expect(isNavItemActive(household, '/household/members')).toBe(true);
+    expect(isNavItemActive(household, '/household/settings')).toBe(true);
+    expect(isNavItemActive(household, '/household')).toBe(true);
+    expect(isNavItemActive(household, '/householding')).toBe(false);
+  });
+
+  it('still matches non-prefixed items exactly as before', () => {
+    const home = navItems.find((item) => item.labelKey === 'nav.thisWeek')!;
+    expect(isNavItemActive(home, '/')).toBe(true);
+    expect(isNavItemActive(home, '/calendar')).toBe(false);
   });
 });
 ```
+
+Import `isNavItemActive` from `./sidebar` alongside `navItems`.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -1397,14 +1484,45 @@ In `app-shell.tsx`, use the helper in the component:
   const title = titleKey ? t(titleKey) : 'Heorth';
 ```
 
-In `sidebar.tsx:42`, change the nav target:
+In `sidebar.tsx`, the nav target changes AND the active check must be widened. `sidebar.tsx:58` currently reads `const active = exact ? pathname === to : pathname.startsWith(to)` — with `to` pointing at `/household/members`, `/household/settings` would no longer match and the item would go dim on every tab but Members. Add an `activePrefix` escape hatch and extract the predicate so it can be tested:
 
 ```tsx
-  // Points at the default tab, not the /household layout: the layout's index
-  // route only redirects here, so linking it directly saves every click a hop.
-  // `exact` stays unset, so the item still highlights on any /household/* path.
-  { to: '/household/members', labelKey: 'nav.household', icon: Home },
+interface NavItem {
+  to: string;
+  labelKey: NavLabelKey;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  /**
+   * Path range that counts as "on this item", when `to` is deeper than the
+   * section it represents. /household is a layout whose index only redirects, so
+   * the item links straight to a tab but must stay lit on all of them.
+   */
+  activePrefix?: string;
+}
+
+/** Exported for testing: is `pathname` within this item's active range? */
+export function isNavItemActive(item: NavItem, pathname: string): boolean {
+  if (item.exact) return pathname === item.to;
+  const base = item.activePrefix ?? item.to;
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
 ```
+
+Note this also tightens the old behaviour: `startsWith(to)` matched `/householding` for `to: '/household'`; the `===` / `${base}/` form does not. Then the nav entry:
+
+```tsx
+  { to: '/household/members', labelKey: 'nav.household', icon: Home, activePrefix: '/household' },
+```
+
+And in the `navItems.map(...)` body, replace the inline check:
+
+```tsx
+        {navItems.map((item) => {
+          const { to, labelKey, icon: Icon } = item;
+          const active = isNavItemActive(item, pathname);
+```
+
+`mobile-nav.tsx` also consumes `navItems`, but its "More" sheet renders plain links with no active state (`mobile-nav.tsx:63-70`), so it needs no change — verify this rather than assuming it.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -1449,4 +1567,16 @@ After Task 9, run the app (`/run-local` skill or `npm run dev` in both roots) an
 
 - **`isSettingsTabId()` is not implemented.** `findSettingsTab()` returning `undefined` is the same check and the lookup is needed anyway. One function, not two scans.
 - **The members tab has no `card` entry.** Today's members tab is `<Card><CardContent className="p-2">` with no header; a registry `card` would add a title it never had. `MembersPanel` keeps its own Card so the appearance is byte-identical.
-- **Task order inverts the spec's risk note.** The spec suggested converting the test harness before extracting `MembersPanel`; this plan extracts first, verified by the *untouched* existing tests. That is a stronger regression net than extracting against a harness rewritten in the same change.
+- **Task order inverts the spec's risk note.** The spec suggested converting the test harness before extracting `MembersPanel`; this plan extracts first, verified by the existing tests plus one added error-path test (Task 6 Step 1) — the three original tests are never edited in that task. That is a stronger regression net than extracting against a harness rewritten in the same change.
+- **`sidebar.tsx` gains an `activePrefix` field and an exported `isNavItemActive`.** Not in the spec, which mentioned only retargeting the link. Retargeting alone would break active highlighting on every household tab except Members, so the predicate change is required, not optional.
+
+## Review
+
+The plan was reviewed independently by Codex (read-only, plan-vs-spec-vs-code) on 2026-08-05 and corrected accordingly:
+
+- **Accepted (MEDIUM):** the sidebar active-state break described above — the original plan's prose wrongly claimed the item "still highlights on any /household/* path".
+- **Accepted (LOW):** the `whoami`-pending test was vacuous, because the layout returns before `<Outlet />` so `SettingsTabPanel` never mounted. Task 8 now also mounts the panel under an always-rendering parent, plus a positive counterpart proving it *does* redirect once the role is known.
+- **Accepted (LOW):** Task 6's regression net was thinner than claimed — the members-query error path moves into the panel and nothing covered it. Now covered before the move.
+- **Fixed:** the header said React 19; the project is on React 18.3.
+
+Separately verified by prototyping the registry's exact type structure under `npx tsc --noEmit` (exit 0): `as const satisfies readonly SettingsTab[]`, `ParseKeys<'translation'>` with every literal key used, and `ComponentType<{ readOnly: boolean }>` accepting panels declared with `readOnly?: boolean`. Codex independently confirmed the TanStack Router 1.114 call shapes (`path: '$tab'`, both `useParams` overloads, `Navigate`, `redirect({ to, params })`) and that Task 5's `getAllByRole('button')` assertion holds because closed dialogs render `null`.

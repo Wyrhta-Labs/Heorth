@@ -15,6 +15,8 @@ import TasksPage from '@/pages/tasks';
 import MealsPage from '@/pages/meals';
 import FeohPage from '@/pages/feoh';
 import HouseholdPage from '@/pages/household';
+import SettingsTabPanel from '@/components/household/settings-tab-panel';
+import { DEFAULT_SETTINGS_TAB } from '@/lib/settings-tabs';
 import LibraryPage from '@/pages/library';
 import TodayPage from '@/pages/today';
 import ShoppingPage from '@/pages/shopping';
@@ -75,6 +77,20 @@ const tasksRoute = createRoute({ getParentRoute: () => authRoute, path: '/tasks'
 const mealsRoute = createRoute({ getParentRoute: () => authRoute, path: '/meals', component: MealsPage });
 const feohRoute = createRoute({ getParentRoute: () => authRoute, path: '/feoh', component: FeohPage });
 const householdRoute = createRoute({ getParentRoute: () => authRoute, path: '/household', component: HouseholdPage });
+// /household is a layout, not a leaf: it renders the tab strip plus the active
+// tab's route. The index redirects so the URL always names a tab.
+const householdIndexRoute = createRoute({
+  getParentRoute: () => householdRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/household/$tab', params: { tab: DEFAULT_SETTINGS_TAB } });
+  },
+});
+const householdTabRoute = createRoute({
+  getParentRoute: () => householdRoute,
+  path: '$tab',
+  component: SettingsTabPanel,
+});
 const libraryRoute = createRoute({ getParentRoute: () => authRoute, path: '/library', component: LibraryPage });
 const todayRoute = createRoute({ getParentRoute: () => authRoute, path: '/today', component: TodayPage });
 const shoppingRoute = createRoute({ getParentRoute: () => authRoute, path: '/shopping', component: ShoppingPage });
@@ -85,8 +101,9 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   hearthRoute,
   authRoute.addChildren([
-    dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute, householdRoute, libraryRoute,
-    todayRoute, shoppingRoute, captureRoute, profileRoute,
+    dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute,
+    householdRoute.addChildren([householdIndexRoute, householdTabRoute]),
+    libraryRoute, todayRoute, shoppingRoute, captureRoute, profileRoute,
   ]),
 ]);
 

@@ -8,6 +8,11 @@ import { useHousehold, useHouseholdOptions, useUpdateHousehold } from '@/hooks/u
 
 const SELECT_CLASS = 'h-9 w-full rounded-md border border-tan bg-card px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50';
 
+interface Props {
+  /** Presentation only — `PATCH /household` is admin-gated server-side. */
+  readOnly?: boolean;
+}
+
 /** Group `Europe/Berlin` under an `Europe` optgroup; zones without a region (`UTC`) come first. */
 function groupZones(zones: string[]): { region: string; zones: string[] }[] {
   const groups = new Map<string, string[]>();
@@ -20,7 +25,7 @@ function groupZones(zones: string[]): { region: string; zones: string[] }[] {
   return [...groups].map(([region, list]) => ({ region, zones: list }));
 }
 
-export default function HouseholdSettings() {
+export default function HouseholdSettings({ readOnly = false }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { data } = useHousehold();
@@ -74,9 +79,9 @@ export default function HouseholdSettings() {
   return (
     <div className="space-y-4 max-w-md">
       <div className="space-y-1"><Label htmlFor="hhname">{t('settings.household.name')}</Label>
-        <Input id="hhname" value={name} onChange={(e) => setName(e.target.value)} /></div>
+        <Input id="hhname" value={name} onChange={(e) => setName(e.target.value)} disabled={readOnly} /></div>
       <div className="space-y-1"><Label htmlFor="tz">{t('settings.household.timezone')}</Label>
-        <select id="tz" className={SELECT_CLASS} value={timezone}
+        <select id="tz" className={SELECT_CLASS} value={timezone} disabled={readOnly}
           onChange={(e) => setTimezone(e.target.value)}>
           {zoneGroups.map((g) => (g.region
             ? <optgroup key={g.region} label={g.region}>{g.zones.map((z) => <option key={z} value={z}>{z}</option>)}</optgroup>
@@ -84,11 +89,13 @@ export default function HouseholdSettings() {
           ))}
         </select></div>
       <div className="space-y-1"><Label htmlFor="locale">{t('settings.household.locale')}</Label>
-        <select id="locale" className={SELECT_CLASS} value={locale}
+        <select id="locale" className={SELECT_CLASS} value={locale} disabled={readOnly}
           onChange={(e) => setLocale(e.target.value)}>
           {localeOptions.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
         </select></div>
-      <Button onClick={save} disabled={update.isPending}>{t('common.save')}</Button>
+      {readOnly
+        ? <p className="text-sm text-ash">{t('settings.household.readOnlyHint')}</p>
+        : <Button onClick={save} disabled={update.isPending}>{t('common.save')}</Button>}
     </div>
   );
 }

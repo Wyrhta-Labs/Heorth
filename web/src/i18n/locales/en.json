@@ -295,6 +295,7 @@
       "name": "Name",
       "timezone": "Timezone",
       "locale": "Locale",
+      "readOnlyHint": "Only admins can change these.",
       "updated": "Household updated",
       "updateFailed": "Could not update household"
     },

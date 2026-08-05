@@ -25,9 +25,8 @@ vi.mock('@/hooks/use-household', () => ({
   useUpdateHousehold: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-// HouseholdSettings is only ever mounted from household.tsx inside
-// `{canManage && <TabsContent value="settings">...}` — non-admins never render
-// this component at all, so it no longer takes (or needs) a `canManage` prop.
+// Adults DO render this component now, read-only (see `settings-tabs.ts`). The
+// `readOnly` prop is presentation only — `PATCH /household` stays admin-gated.
 describe('HouseholdSettings', () => {
   it('resyncs the form to newly refetched household data instead of keeping stale values', () => {
     useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
@@ -76,6 +75,25 @@ describe('HouseholdSettings', () => {
 
     expect(screen.getByLabelText('Timezone')).toHaveValue('Mars/Olympus');
     expect(screen.getByLabelText('Locale')).toHaveValue('xx-XX');
+  });
+
+  it('renders read-only: fields disabled, no save button, hint shown', () => {
+    useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
+    render(<HouseholdSettings readOnly />);
+
+    expect(screen.getByLabelText('Name')).toBeDisabled();
+    expect(screen.getByLabelText('Timezone')).toBeDisabled();
+    expect(screen.getByLabelText('Locale')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.getByText('Only admins can change these.')).toBeInTheDocument();
+  });
+
+  it('stays editable by default', () => {
+    useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
+    render(<HouseholdSettings />);
+
+    expect(screen.getByLabelText('Name')).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
 
   afterEach(() => {

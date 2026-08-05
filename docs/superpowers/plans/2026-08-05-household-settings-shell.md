@@ -448,7 +448,18 @@ Gate the sync row:
       )}
 ```
 
-Also update the component's doc comment: it currently says "Admin-only household-wide overview" — change "Admin-only" to "Admin and adult".
+Also reframe the component's opening doc sentence. It currently says "Admin-only household-wide overview", which this task makes stale — but do NOT replace it with "Admin and adult", because that is false until Task 8 wires the registry up. Describe the component's contract instead, which is true at every commit:
+
+```tsx
+/**
+ * Household-wide overview of Microsoft 365 connections and their feed health,
+ * plus a manual "sync now" trigger. Who may mount this panel is the caller's
+ * decision; `readOnly` hides the sync trigger for a viewer who may not trigger
+ * a sync (`POST /m365/sync` is admin-gated server-side). Reads the raw
+ * …
+```
+
+Keep the comment's remaining sentences unchanged.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

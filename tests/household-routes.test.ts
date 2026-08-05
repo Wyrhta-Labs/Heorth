@@ -119,6 +119,38 @@ describe('household & members routes', () => {
     });
     expect(withKey.status).toBe(401);
   });
+
+  it('key management is admin/adult only; a child gets 403', async () => {
+    const { adult, child } = await seedTestHousehold();
+
+    const childList = await app.request('/api/v1/auth/keys', { headers: authHeaders(child.jwt) });
+    expect(childList.status).toBe(403);
+
+    const childCreate = await app.request('/api/v1/auth/keys', {
+      method: 'POST', headers: authHeaders(child.jwt), body: JSON.stringify({ name: 'kid-agent' }),
+    });
+    expect(childCreate.status).toBe(403);
+
+    const childRevoke = await app.request('/api/v1/auth/keys/00000000-0000-0000-0000-000000000000', {
+      method: 'DELETE', headers: authHeaders(child.jwt),
+    });
+    expect(childRevoke.status).toBe(403);
+
+    // An adult keeps full self-service: create, list, revoke.
+    const created = await app.request('/api/v1/auth/keys', {
+      method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ name: 'adult-agent' }),
+    });
+    expect(created.status).toBe(201);
+    const { data } = await created.json() as { data: { id: string } };
+
+    const adultList = await app.request('/api/v1/auth/keys', { headers: authHeaders(adult.jwt) });
+    expect(adultList.status).toBe(200);
+
+    const revoked = await app.request(`/api/v1/auth/keys/${data.id}`, {
+      method: 'DELETE', headers: authHeaders(adult.jwt),
+    });
+    expect(revoked.status).toBe(200);
+  });
 });
 
 describe('maintenance admin protection', () => {

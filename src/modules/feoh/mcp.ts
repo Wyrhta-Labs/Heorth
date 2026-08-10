@@ -75,7 +75,7 @@ export const feohTools: McpTool[] = [
   {
     name: 'feoh.get_month_summary',
     description: 'Return spend per envelope vs budget for a month (YYYY-MM).',
-    inputSchema: { month: z.string().regex(/^\d{4}-\d{2}$/) },
+    inputSchema: { month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) },
     async handler(_ctx, input) {
       return result(await service.getMonthSummary((input as { month: string }).month));
     },

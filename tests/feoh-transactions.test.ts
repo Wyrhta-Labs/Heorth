@@ -1,5 +1,4 @@
-// TODO(Task 5): unskip when the feoh module mounts. Ported from Feoh's
-// tests/feoh-transactions.test.ts, adapted to Heorth's member semantics:
+// Ported from Feoh's tests/feoh-transactions.test.ts, adapted to Heorth's member semantics:
 // no `parties` boundary — `createdBy` is the acting household member's id
 // (auth-derived by the route, not part of the request body) and expense
 // splits carry `memberId` instead of `partyId`. The Feoh copy's "parties

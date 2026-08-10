@@ -20,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     empty, or `false` leaves the module a no-op — `/api/v1/feoh/*` falls
     through to the `/api` catch-all 404 and no `feoh.*` MCP tools register.
     `true` mounts the routes and tools. Toggling it never touches data.
-  - **`GET /api/v1/features`** — a small, unauthenticated capability endpoint
-    the web UI polls to decide whether to render the finance nav/pages
-    (`{ finance: boolean }`), replacing any satellite-reachability probe.
+  - **`GET /api/v1/features`** — a small, authenticated (any role) capability
+    endpoint the web UI fetches once after login to decide whether to render
+    the finance nav/pages (`{ finance: boolean }`), replacing any
+    satellite-reachability probe.
   - **Finance tables, fresh start.** Envelopes, accounts, double-entry
     transactions, and recurring bills land via a fresh migration
     (`0013_feoh_merge.sql`) with `memberId` foreign keys pointing directly at

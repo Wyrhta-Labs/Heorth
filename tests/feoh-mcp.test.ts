@@ -31,6 +31,16 @@ describe('feoh MCP tools (unit-level, direct handler invocation)', () => {
     expect(summary.totals.spent).toBe(60);
   });
 
+  it('rejects feoh.get_month_summary input with an out-of-range month (13)', async () => {
+    const { adult } = await seedTestHousehold();
+
+    await expect(
+      invokeTool(feohTools, 'feoh.get_month_summary',
+        { userId: adult.user.id, role: 'adult' },
+        { month: '2026-13' }),
+    ).rejects.toThrow();
+  });
+
   it('records the acting member as createdBy, derived from the principal (not the input)', async () => {
     const { adult } = await seedTestHousehold();
     const account = await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });

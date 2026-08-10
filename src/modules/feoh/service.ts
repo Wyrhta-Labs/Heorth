@@ -1,6 +1,6 @@
 import { db } from '../../db/index.js';
 import { accounts, envelopes, transactions, postings, expenseSplits, recurringBills, type Account, type Envelope, type Transaction, type RecurringBill } from './schema.js';
-import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, lt, desc, sql } from 'drizzle-orm';
 import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput, CreateBillInput } from './validators.js';
 import { toCsv, parseCsv, sanitizeCsvText } from './csv.js';
 
@@ -142,7 +142,7 @@ export async function getMonthSummary(month: string) {
     })
     .from(postings)
     .innerJoin(transactions, eq(postings.transactionId, transactions.id))
-    .where(and(gte(transactions.date, from), lte(transactions.date, next), sql`${transactions.date} < ${next}`))
+    .where(and(gte(transactions.date, from), lt(transactions.date, next)))
     .groupBy(postings.envelopeId);
 
   const spentByEnvelope = new Map(spendRows.map((r) => [r.envelopeId, Number(r.spent)]));

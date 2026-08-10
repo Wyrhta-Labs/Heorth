@@ -1,11 +1,9 @@
 # Heorth
 
 The flagship self-hosted household system in the Wyrhta Labs stack: household
-membership, calendar, meal planning, and a media/book library, built with
-Node.js 22 + TypeScript, Hono, Drizzle ORM, PostgreSQL 18, Zod, and Vitest.
-Finance is not in-process — it is proxied to the independent **Feoh**
-satellite service (its own repo and database); see
-[Finance (Feoh satellite)](#finance-feoh-satellite) below.
+membership, calendar, meal planning, finance (envelopes/accounts/double-entry
+transactions, ADR 0007), and a media/book library, built with Node.js 22 +
+TypeScript, Hono, Drizzle ORM, PostgreSQL 18, Zod, and Vitest.
 
 ## Quick start
 
@@ -23,15 +21,14 @@ CORS_ORIGIN=*
 DB_POOL_MAX=10
 POSTGRES_PASSWORD=<password>
 
-# Feoh satellite — required, both production and test
-FEOH_BASE_URL=http://localhost:4001
-FEOH_API_KEY=fe_change-me
+# Finance module (ADR 0007) — optional kill switch, default off.
+FEOH_ENABLED=false
 ```
 
-`FEOH_BASE_URL`/`FEOH_API_KEY` point at a running Feoh instance and the
-service API key Feoh issued for Heorth (`POST /api/v1/auth/keys` on Feoh).
-Both are required at startup — `src/config/env.ts` validates the full set
-with Zod and exits the process if anything is missing or malformed.
+`FEOH_ENABLED` gates the built-in finance module: `true` mounts
+`/api/v1/feoh/*` and its MCP tools; absent/empty/`false` leaves it a
+no-op (routes 404, no MCP tools, UI hides it via `GET /api/v1/features`).
+Toggling never touches data.
 
 ```bash
 npm install
@@ -45,10 +42,8 @@ Other scripts (`package.json`): `build` / `build:web` (compile), `start`
 (run compiled output), `typecheck`, `db:generate` / `db:migrate` / `db:push`
 / `db:studio` (Drizzle, run via `tsx`), `docker:down`, `docker:reset`.
 
-On boot, `bootstrap()` (`src/index.ts`) runs migrations, seeds the household
-+ admin user (both idempotent), and best-effort syncs the member roster into
-Feoh — a Feoh that's down at boot is logged and skipped, not fatal; the
-finance proxy re-syncs lazily on first use (see below).
+On boot, `bootstrap()` (`src/index.ts`) runs migrations and seeds the
+household + admin user (both idempotent).
 
 ## API surface
 
@@ -62,41 +57,38 @@ lists `ALL_MODULES`):
 | `/api/v1/recipes`, `/api/v1/meals` | `src/modules/meals/` | Recipes, weekly meal plan, shopping list |
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |
 | `/api/v1/tasks` | `src/modules/tasks/` | Household tasks backed by Microsoft To Do — list/complete/create + per-member list allowlist (writes need M365 enabled) |
-| `/api/v1/feoh/*` | `src/satellites/feoh/` | Transparent proxy to the Feoh satellite (see below) — not a `HeorthModule`, mounted directly in `src/app.ts` |
+| `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills (ADR 0007) — a `HeorthModule`, gated behind `FEOH_ENABLED` (see [Finance](#finance) below) |
 | `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
 
 `/mcp` (mounted in `src/index.ts`) exposes one MCP-over-HTTP server
 (`@wyrhta/core`'s scaffold) assembling every module's tool registry plus a
 `household.*` set, authenticated the same way as REST (`he_` API key or JWT).
-Feoh's own finance MCP tools live on **Feoh's** `/mcp`, not Heorth's — they
-were removed from Heorth's registry when finance was extracted (see
-`CHANGELOG.md`).
+Finance MCP tools (`feoh.*`) are on Heorth's own `/mcp` once `FEOH_ENABLED=true`
+(see `src/modules/feoh/mcp.ts`).
 
 The React web UI (`web/`) is served as static files from `web/dist` for any
 unmatched non-API route.
 
-## Finance (Feoh satellite)
+## Finance
 
-Finance used to be an in-process module; it is now the independent **Feoh**
-service, with Heorth mounting a transparent request proxy at the same
-`/api/v1/feoh/*` paths (`src/satellites/feoh/`):
+Finance (envelopes, accounts, double-entry transactions, recurring bills) is
+a built-in `HeorthModule` (`src/modules/feoh/`, ADR 0007) — it was briefly
+extracted to an independent Feoh satellite service and was merged back
+in-process. It is gated behind the `FEOH_ENABLED` kill switch:
 
-- `client.ts` / `satellite-client.ts` — thin HTTP client, service-API-key
-  authenticated.
-- `roster.ts` — maintains the Heorth-member ↔ Feoh-party id mapping
-  (`FeohRoster`); syncs once at boot, lazily re-syncs (deduped across
-  concurrent misses) on a cache miss, and is best-effort re-upserted right
-  after a member's `displayName` changes (`household/service.ts#updateMember`
-  — the one choke-point for member profile edits). Outside of those three
-  paths, a renamed member's Feoh party can go stale until one of them fires —
-  a known, accepted limitation, not a bug.
-- `proxy.ts` — the router: forwards requests/responses verbatim except for
-  the member-boundary fields (`createdBy`, split `memberId`/`partyId`).
-  A Feoh 4xx/5xx passes through with its own envelope and status; an
-  unreachable Feoh becomes Heorth's `503 SERVICE_UNAVAILABLE`; a roster
-  mapping still missing after a successful re-sync becomes a
-  `500 ROSTER_MAPPING_MISSING` (a different condition from "Feoh is down" —
-  see the docstring in `proxy.ts`).
+- Disabled (default): the module registers nothing — `/api/v1/feoh/*` falls
+  through to the `/api` catch-all 404, no MCP tools are added, and
+  `GET /api/v1/features` reports `{ finance: false }` for the web UI.
+- Enabled: routes mount at `/api/v1/feoh/*`, `feoh.*` MCP tools register, and
+  `GET /api/v1/features` reports `{ finance: true }`.
+- Toggling the switch never touches data — only whether the module's
+  `register()` mounts anything.
+
+Writes (accounts/envelopes/transactions/bills/import) require `admin` or
+`adult` role (children can't edit finances) and are rejected for a
+maintenance-admin acting principal (`src/household/maintenance-admin.ts`).
+`transactions.createdBy` and expense-split `memberId` reference Heorth's
+`users` table directly — there is no separate parties/roster boundary.
 
 ## Microsoft 365 (optional integration)
 
@@ -309,10 +301,10 @@ npm test
 ```
 
 `tests/setup.ts` also defaults `JWT_SECRET`/`HOUSEHOLD_NAME`/`ADMIN_EMAIL`/
-`ADMIN_PASSWORD`/`FEOH_BASE_URL`/`FEOH_API_KEY` if unset, so only the
-database connection needs to be supplied. Feoh-satellite tests
-(`tests/feoh-proxy.test.ts`) never make a real network call — they install
-an in-process fake Feoh (`tests/fake-feoh.ts`) via `setFeohRuntime`.
+`ADMIN_PASSWORD` if unset, so only the database connection needs to be
+supplied. Suites exercising the finance module set `FEOH_ENABLED=true`
+before dynamically importing `src/app.js`, since `src/config/env.ts` reads
+`FEOH_ENABLED` once at module load (see `tests/feoh-accounts.test.ts`).
 `tests/setup.ts` also blanks the `M365_*` group so the integration is disabled
 in the suite regardless of a local `.env`; M365 tests that need it enabled
 install an in-process fake Graph (`tests/fake-graph.ts`) via `setM365Runtime`.

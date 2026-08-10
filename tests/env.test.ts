@@ -12,8 +12,6 @@ describe('env schema', () => {
     HOUSEHOLD_NAME: 'Our Home',
     ADMIN_EMAIL: 'admin@example.com',
     ADMIN_PASSWORD: 'secret',
-    FEOH_BASE_URL: 'http://feoh.test',
-    FEOH_API_KEY: 'fe_service-key',
   };
 
   it('accepts a valid environment', () => {
@@ -36,17 +34,6 @@ describe('env schema', () => {
     const parsed = buildEnvSchema().safeParse({ ...base, ADMIN_EMAIL: 'not-an-email' });
     expect(parsed.success).toBe(false);
   });
-
-  it('requires FEOH_BASE_URL and FEOH_API_KEY', () => {
-    const { FEOH_BASE_URL, FEOH_API_KEY, ...rest } = base;
-    expect(buildEnvSchema().safeParse(rest).success).toBe(false);
-    expect(buildEnvSchema().safeParse({ ...rest, FEOH_BASE_URL, FEOH_API_KEY }).success).toBe(true);
-  });
-
-  it('rejects a non-URL FEOH_BASE_URL', () => {
-    const parsed = buildEnvSchema().safeParse({ ...base, FEOH_BASE_URL: 'not-a-url' });
-    expect(parsed.success).toBe(false);
-  });
 });
 
 describe('library env vars', () => {
@@ -56,8 +43,6 @@ describe('library env vars', () => {
     HOUSEHOLD_NAME: 'Home',
     ADMIN_EMAIL: 'a@b.com',
     ADMIN_PASSWORD: 'pw',
-    FEOH_BASE_URL: 'http://feoh.test',
-    FEOH_API_KEY: 'fe_service-key',
   };
 
   it('accepts optional Trakt + encryption vars', () => {

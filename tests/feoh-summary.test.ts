@@ -1,13 +1,13 @@
-// TODO(Task 5): unskip when the feoh module mounts. Ported from Feoh's
-// tests/feoh-summary.test.ts, adapted to Heorth's member semantics: the
-// household member's id (from seedTestHousehold) stands in for Feoh's
-// `createTestParty`, and `recordTransaction` takes it as the second
-// (createdBy) parameter instead of the input body.
+// Ported from Feoh's tests/feoh-summary.test.ts, adapted to Heorth's member
+// semantics: the household member's id (from seedTestHousehold) stands in
+// for Feoh's `createTestParty`, and `recordTransaction` takes it as the
+// second (createdBy) parameter instead of the input body. This test calls
+// the service directly (no HTTP routes), so it needs no FEOH_ENABLED gate.
 import { describe, it, expect } from 'vitest';
 import { seedTestHousehold } from './helpers.js';
 import * as service from '../src/modules/feoh/service.js';
 
-describe.skip('feoh month summary', () => {
+describe('feoh month summary', () => {
   it('aggregates spend per envelope vs budget within the month', async () => {
     const { adult } = await seedTestHousehold();
     const account = await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });

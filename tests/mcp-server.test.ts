@@ -10,7 +10,8 @@ describe('assembled MCP server', () => {
   it('exposes namespaced tools from every module', () => {
     const names = collectMcpTools(ALL_MODULES).all().map((t) => t.name);
     // Cross-module reachability: at least one tool from each namespace is present.
-    // (feoh.* tools moved to the Feoh satellite's own /mcp — no longer here.)
+    // feoh.* is empty here: FEOH_ENABLED is unset in this file's config, and its
+    // tools are a stub pending the MCP task (Task 6) regardless (src/modules/feoh/mcp.ts).
     expect(names).toContain('household.whoami');
     expect(names).toContain('calendar.list_events');
     expect(names).toContain('meals.list_recipes');

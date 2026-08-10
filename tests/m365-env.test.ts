@@ -8,8 +8,6 @@ describe('m365 env group', () => {
     HOUSEHOLD_NAME: 'Home',
     ADMIN_EMAIL: 'a@b.com',
     ADMIN_PASSWORD: 'pw',
-    FEOH_BASE_URL: 'http://feoh.test',
-    FEOH_API_KEY: 'fe_service-key',
   };
 
   const fullM365 = {

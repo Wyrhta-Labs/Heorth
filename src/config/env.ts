@@ -32,11 +32,6 @@ export function buildEnvSchema() {
     JWT_TTL_SECONDS: z.coerce.number().int().positive().default(604800),
     CORS_ORIGIN: z.string().default('*'),
     DB_POOL_MAX: z.coerce.number().int().positive().default(10),
-    // Feoh satellite service — Heorth proxies its finance routes to this
-    // independent service and authenticates with one service API key. Both are
-    // required (production and test alike); the test env points them at a stub.
-    FEOH_BASE_URL: z.string().url(),
-    FEOH_API_KEY: z.string().min(1),
     TRAKT_CLIENT_ID: z.string().min(1).optional(),
     TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
     // Feoh built-in finance module (ADR 0007). Optional kill switch, default
@@ -98,8 +93,6 @@ export const config = {
   jwtTtlSeconds: parsed.data.JWT_TTL_SECONDS,
   corsOrigin: parsed.data.CORS_ORIGIN,
   dbPoolMax: parsed.data.DB_POOL_MAX,
-  feohBaseUrl: parsed.data.FEOH_BASE_URL,
-  feohApiKey: parsed.data.FEOH_API_KEY,
   traktClientId: parsed.data.TRAKT_CLIENT_ID,
   traktClientSecret: parsed.data.TRAKT_CLIENT_SECRET,
   feohEnabled: parsed.data.FEOH_ENABLED === 'true',

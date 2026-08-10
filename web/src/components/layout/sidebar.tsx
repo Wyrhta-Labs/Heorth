@@ -5,7 +5,7 @@ import {
   Sun, ShoppingCart, PlusCircle, Tv,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFeatures } from '@/hooks/use-features';
+import { useFinanceEnabled } from '@/hooks/use-finance-enabled';
 
 /** Literal catalog-key union so `t(item.labelKey)` type-checks against the
  * real translation resources instead of accepting an arbitrary string. */
@@ -43,6 +43,14 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
   return pathname === base || pathname.startsWith(`${base}/`);
 }
 
+/**
+ * Shared nav-visibility rule for both the sidebar and the mobile "More" sheet:
+ * the only item currently gated is Feoh, on the runtime finance flag.
+ */
+export function filterNavItems(items: NavItem[], financeEnabled: boolean): NavItem[] {
+  return items.filter((item) => item.labelKey !== 'nav.feoh' || financeEnabled);
+}
+
 export const navItems: NavItem[] = [
   { to: '/', labelKey: 'nav.thisWeek', icon: LayoutDashboard, exact: true },
   { to: '/today', labelKey: 'nav.today', icon: Sun },
@@ -61,11 +69,8 @@ export default function Sidebar() {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = router.state.location.pathname;
-  // A failed/errored features fetch must behave as all-off — `data` stays
-  // `undefined` on error, so defaulting to `false` here covers both cases.
-  const featuresQuery = useFeatures();
-  const financeEnabled = featuresQuery.data?.data.finance ?? false;
-  const visibleItems = navItems.filter((item) => item.labelKey !== 'nav.feoh' || financeEnabled);
+  const financeEnabled = useFinanceEnabled();
+  const visibleItems = filterNavItems(navItems, financeEnabled);
   return (
     <aside className="hidden md:flex flex-col w-60 min-h-screen bg-ink text-parchment">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-white/10">

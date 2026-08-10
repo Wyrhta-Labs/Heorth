@@ -14,16 +14,13 @@ import CsvPanel from '@/components/feoh/csv-panel';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useSummary, useEnvelopes, useAccounts, useBills, useRecordTransaction, useDeleteBill } from '@/hooks/use-feoh';
-import { useFeatures } from '@/hooks/use-features';
+import { useFinanceEnabled } from '@/hooks/use-finance-enabled';
 import { ApiError } from '@/api/client';
 
 export default function FeohPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  // A failed/errored features fetch must behave as all-off — `data` stays
-  // `undefined` on error, so defaulting to `false` here covers both cases.
-  const featuresQuery = useFeatures();
-  const financeEnabled = featuresQuery.data?.data.finance ?? false;
+  const financeEnabled = useFinanceEnabled();
   const month = format(new Date(), 'yyyy-MM');
   const summaryQuery = useSummary(month);
   const envQuery = useEnvelopes();
@@ -55,7 +52,7 @@ export default function FeohPage() {
   if (!financeEnabled) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Card className="max-w-md text-center">
+        <Card className="max-w-md text-center" role="status" aria-live="polite">
           <CardHeader>
             <CardTitle className="text-base">{t('feoh.unavailableTitle')}</CardTitle>
           </CardHeader>

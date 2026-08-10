@@ -35,8 +35,8 @@ function extractApiKey(req: Request): string | undefined {
 /**
  * Assemble the single per-instance MCP server from every module's contributed
  * tool registry, wired to the `he_` API-key auth adapter. Tools stay namespaced
- * per module (household.*, calendar.*, meals.*, library.*). Finance tools live
- * on the Feoh satellite's own MCP endpoint, not here.
+ * per module (household.*, calendar.*, meals.*, library.*, feoh.* once
+ * FEOH_ENABLED is set — see src/modules/feoh/mcp.ts).
  *
  * Core's `createMcpServer` returns an SDK `McpServer` (not a Web `fetch` handler),
  * and its `AuthAdapter` resolves a single caller with no per-call argument, so a

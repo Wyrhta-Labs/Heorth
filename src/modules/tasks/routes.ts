@@ -24,8 +24,8 @@ tasksRouter.use('*', requireAuth);
  *    re-consent / is absent, or the shared/requested list is unavailable.
  *  - 502 (upstream Graph said 5xx, `graph_5xx`) / 503 (`network_error` — Graph
  *    unreachable): transient upstream failures, distinguished the same way
- *    feoh/proxy.ts (unreachable → 503) and library/routes.ts (upstream failure
- *    → 502) already split them, so the signal isn't flattened into a generic 500.
+ *    library/routes.ts (upstream failure → 502) already splits failure classes,
+ *    so the signal isn't flattened into a generic 500.
  *  - 500: everything else — the integration is off (`provider_unavailable`), a
  *    non-5xx Graph error, or an unclassified failure.
  */

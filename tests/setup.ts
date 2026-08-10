@@ -6,7 +6,7 @@ import { beforeAll, beforeEach } from 'vitest';
 // The .env auto-loader (src/config/env.ts) only fills DATABASE_URL if it is still
 // unset by then, so an unexported DATABASE_URL gets the test default below rather
 // than the .env dev value.
-process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:55432/heorth_test';
+process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:5432/heorth_test';
 process.env['JWT_SECRET'] ??= 'test-secret-test-secret-test-secret-123';
 process.env['HOUSEHOLD_NAME'] ??= 'Test Household';
 process.env['ADMIN_EMAIL'] ??= 'admin@test.local';

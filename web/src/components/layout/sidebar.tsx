@@ -5,6 +5,7 @@ import {
   Sun, ShoppingCart, PlusCircle, Tv,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFeatures } from '@/hooks/use-features';
 
 /** Literal catalog-key union so `t(item.labelKey)` type-checks against the
  * real translation resources instead of accepting an arbitrary string. */
@@ -60,6 +61,11 @@ export default function Sidebar() {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = router.state.location.pathname;
+  // A failed/errored features fetch must behave as all-off — `data` stays
+  // `undefined` on error, so defaulting to `false` here covers both cases.
+  const featuresQuery = useFeatures();
+  const financeEnabled = featuresQuery.data?.data.finance ?? false;
+  const visibleItems = navItems.filter((item) => item.labelKey !== 'nav.feoh' || financeEnabled);
   return (
     <aside className="hidden md:flex flex-col w-60 min-h-screen bg-ink text-parchment">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-white/10">
@@ -67,7 +73,7 @@ export default function Sidebar() {
         <span className="font-serif text-xl">Heorth</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const { to, labelKey, icon: Icon } = item;
           const active = isNavItemActive(item, pathname);
           return (

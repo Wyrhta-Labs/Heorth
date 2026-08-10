@@ -229,6 +229,8 @@
     "transactionRecorded": "Transaction recorded",
     "unbalanced": "Postings do not balance",
     "recordFailed": "Failed to record transaction",
+    "unavailableTitle": "Feature not enabled",
+    "unavailableBody": "Finance is not enabled on this server.",
     "left": "{{amount}} left",
     "over": "{{amount}} over",
     "thisMonth": "This month",

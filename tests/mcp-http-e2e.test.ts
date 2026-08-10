@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildMcpServer } from '../src/mcp/server.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 import { identity } from '../src/wiring.js';
-import { seedTestHousehold } from './helpers.js';
+import { seedTestHousehold, collectMcpTools } from './helpers.js';
 
 /**
  * End-to-end MCP-over-HTTP handshake: drive the assembled `/mcp` transport with
@@ -12,7 +12,7 @@ import { seedTestHousehold } from './helpers.js';
  * HTTP POST; the SDK answers each independently.
  */
 
-const server = buildMcpServer(ALL_MODULES);
+const server = buildMcpServer(collectMcpTools(ALL_MODULES));
 
 /** Parse a Streamable-HTTP SSE response body into its single JSON-RPC message. */
 function parseSse(body: string): any {

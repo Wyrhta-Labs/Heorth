@@ -26,7 +26,7 @@ async function freshApp() {
 
 async function freshMcpTools() {
   vi.resetModules();
-  const { collectMcpTools } = await import('../src/app.js');
+  const { collectMcpTools } = await import('./helpers.js');
   const { ALL_MODULES } = await import('../src/modules/index.js');
   return collectMcpTools(ALL_MODULES).all();
 }

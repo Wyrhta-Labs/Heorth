@@ -1,8 +1,7 @@
 import { createMcpServer } from '@wyrhta/core/mcp';
 import type { AuthAdapter, McpPrincipal } from '@wyrhta/core/mcp';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { collectMcpTools } from '../app.js';
-import type { HeorthModule } from '../modules/registry.js';
+import type { McpRegistry } from '../modules/registry.js';
 import { identity } from '../wiring.js';
 import { createApiKeyAuthAdapter } from './auth-adapter.js';
 
@@ -43,8 +42,8 @@ function extractApiKey(req: Request): string | undefined {
  * stateless MCP server + Web Standard Streamable HTTP transport is built fresh for
  * each incoming request, bound to that request's `Authorization: Bearer he_...` key.
  */
-export function buildMcpServer(modules: HeorthModule[]): { fetch(req: Request): Promise<Response> } {
-  const tools = collectMcpTools(modules).all();
+export function buildMcpServer(mcp: McpRegistry): { fetch(req: Request): Promise<Response> } {
+  const tools = mcp.all();
   const resolve = createApiKeyAuthAdapter(identity);
 
   return {

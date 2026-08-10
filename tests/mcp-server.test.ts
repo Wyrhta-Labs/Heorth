@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { collectMcpTools, createApp } from '../src/app.js';
+import { createApp } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 import { buildMcpServer } from '../src/mcp/server.js';
 import { createApiKeyAuthAdapter } from '../src/mcp/auth-adapter.js';
 import { identity } from '../src/wiring.js';
-import { seedTestHousehold, invokeTool } from './helpers.js';
+import { seedTestHousehold, invokeTool, collectMcpTools } from './helpers.js';
 
 describe('assembled MCP server', () => {
   it('exposes namespaced tools from every module', () => {
@@ -21,7 +21,7 @@ describe('assembled MCP server', () => {
   });
 
   it('builds a server with a working fetch transport', () => {
-    const server = buildMcpServer(ALL_MODULES);
+    const server = buildMcpServer(collectMcpTools(ALL_MODULES));
     expect(typeof server.fetch).toBe('function');
   });
 

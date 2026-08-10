@@ -2,6 +2,8 @@ import { sign } from 'hono/jwt';
 import { z } from 'zod';
 import { config } from '../src/config/env.js';
 import { identity, householdCore } from '../src/wiring.js';
+import { createApp } from '../src/app.js';
+import { McpRegistry, type HeorthModule } from '../src/modules/registry.js';
 import type { McpTool } from '@wyrhta/core/mcp';
 import type { Role } from '@wyrhta/core/identity';
 
@@ -45,6 +47,18 @@ export async function seedTestHousehold(): Promise<{
 
 export function authHeaders(jwt: string): Record<string, string> {
   return { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' };
+}
+
+/**
+ * Build the MCP tool registry the same way `bootstrap()` does in `src/index.ts`
+ * (single registration pass via `createApp`), for tests that need the assembled
+ * registry without standing up the HTTP server. Replaces the old `collectMcpTools`
+ * helper removed from `src/app.ts` — modules must register exactly once.
+ */
+export function collectMcpTools(modules: HeorthModule[]): McpRegistry {
+  const mcp = new McpRegistry();
+  createApp(modules, mcp);
+  return mcp;
 }
 
 /**

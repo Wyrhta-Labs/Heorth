@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ALL_MODULES } from '../src/modules/index.js';
-import { collectMcpTools } from '../src/app.js';
+import { collectMcpTools } from './helpers.js';
 
 describe('module convention', () => {
   it('every module exposes a name and a register function', () => {

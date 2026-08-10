@@ -37,7 +37,7 @@ export const heorthErrorHandler: ErrorHandler = (error, c) => {
   return errorHandler(error, c);
 };
 
-export function createApp(modules: HeorthModule[]): Hono {
+export function createApp(modules: HeorthModule[], mcp: McpRegistry = new McpRegistry()): Hono {
   const app = new Hono();
 
   app.use('*', trimTrailingSlash());
@@ -50,7 +50,6 @@ export function createApp(modules: HeorthModule[]): Hono {
   app.route('/', healthRouter);
   app.route('/api/v1/features', featuresRouter);
 
-  const mcp = new McpRegistry();
   for (const mod of modules) {
     mod.register(app, mcp);
   }
@@ -65,14 +64,4 @@ export function createApp(modules: HeorthModule[]): Hono {
   app.onError(heorthErrorHandler);
 
   return app;
-}
-
-/** Build the MCP tool registry from the same modules used for REST. */
-export function collectMcpTools(modules: HeorthModule[]): McpRegistry {
-  const mcp = new McpRegistry();
-  const throwaway = new Hono();
-  for (const mod of modules) {
-    mod.register(throwaway, mcp);
-  }
-  return mcp;
 }

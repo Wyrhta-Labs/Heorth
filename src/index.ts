@@ -5,6 +5,7 @@ import { db } from './db/index.js';
 import { config } from './config/env.js';
 import { createApp } from './app.js';
 import { ALL_MODULES } from './modules/index.js';
+import { McpRegistry } from './modules/registry.js';
 import { buildMcpServer } from './mcp/server.js';
 import { startM365Scheduler } from './m365/scheduler.js';
 import { repairMaintenanceAdmin } from './household/maintenance-admin.js';
@@ -25,8 +26,9 @@ export async function bootstrap(): Promise<{
     adminPassword: config.adminPassword,
   });
 
-  const app = createApp(ALL_MODULES);
-  const mcpServer = buildMcpServer(ALL_MODULES);
+  const mcp = new McpRegistry();
+  const app = createApp(ALL_MODULES, mcp);
+  const mcpServer = buildMcpServer(mcp);
   return { app, mcpServer };
 }
 

@@ -11,7 +11,6 @@ import { config } from './config/env.js';
 import { healthRouter } from './routes/health.js';
 import { featuresRouter } from './routes/features.js';
 import { McpRegistry, type HeorthModule } from './modules/registry.js';
-import { createFeohProxyRouter } from './satellites/feoh/proxy.js';
 import { MaintenanceAdminError } from './household/maintenance-admin.js';
 
 declare module 'hono' {
@@ -55,10 +54,6 @@ export function createApp(modules: HeorthModule[]): Hono {
   for (const mod of modules) {
     mod.register(app, mcp);
   }
-
-  // Feoh is no longer an in-process module — its finance domain lives in the
-  // Feoh satellite service. Heorth mounts a transparent proxy at the same paths.
-  app.route('/api/v1/feoh', createFeohProxyRouter());
 
   app.all('/api/*', (c) =>
     c.json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404)

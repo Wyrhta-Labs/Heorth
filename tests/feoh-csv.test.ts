@@ -1,14 +1,14 @@
-// TODO(Task 5): unskip when the feoh module mounts. Ported from Feoh's
-// tests/feoh-csv.test.ts, adapted to Heorth's member semantics: the
-// household member's id (from seedTestHousehold) stands in for Feoh's
-// `createTestParty`, and `importTransactionsCsv`/`recordTransaction` take
-// it as the createdBy parameter instead of the input body.
+// Ported from Feoh's tests/feoh-csv.test.ts, adapted to Heorth's member
+// semantics: the household member's id (from seedTestHousehold) stands in
+// for Feoh's `createTestParty`, and `importTransactionsCsv`/`recordTransaction`
+// take it as the createdBy parameter instead of the input body. These tests
+// call the service directly (no HTTP routes), so they need no FEOH_ENABLED gate.
 import { describe, it, expect } from 'vitest';
 import { seedTestHousehold } from './helpers.js';
 import * as service from '../src/modules/feoh/service.js';
 import { parseCsv } from '../src/modules/feoh/csv.js';
 
-describe.skip('feoh CSV & ledger', () => {
+describe('feoh CSV & ledger', () => {
   it('round-trips transactions through CSV import then export', async () => {
     const { adult } = await seedTestHousehold();
     await service.createAccount({ name: 'Checking', kind: 'asset', openingBalance: 0 });

@@ -1,20 +1,24 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createApp } from '../src/app.js';
-import { ALL_MODULES } from '../src/modules/index.js';
-import { householdCore } from '../src/wiring.js';
-import { setFeohRuntime } from '../src/satellites/feoh/runtime.js';
+import { describe, it, expect, afterAll, vi } from 'vitest';
 import { seedTestHousehold, authHeaders } from './helpers.js';
-import { createFakeFeoh, runtimeForFake } from './fake-feoh.js';
+
+// Finance is now a built-in module gated behind FEOH_ENABLED (ADR 0007) rather
+// than a satellite proxy. helpers.js's own static import chain already loaded
+// src/config/env.js (with FEOH_ENABLED unset) before this file's own body
+// runs, so vi.resetModules() forces the dynamic imports below to re-evaluate
+// config against the current env. Mirrors the M365 suite's env-gated-config
+// precedent (see tests/m365-routes.test.ts).
+process.env['FEOH_ENABLED'] = 'true';
+vi.resetModules();
+const { createApp } = await import('../src/app.js');
+const { ALL_MODULES } = await import('../src/modules/index.js');
 
 const app = createApp(ALL_MODULES);
 
-describe('integration smoke (all modules, one app)', () => {
-  beforeEach(() => {
-    // Finance now lives in the Feoh satellite; the proxy talks to an in-process fake.
-    setFeohRuntime(runtimeForFake(createFakeFeoh(), () => householdCore.listMembers()));
-  });
-  afterEach(() => setFeohRuntime(null));
+// singleFork shares process.env across test files — restore the ambient
+// default (unset/disabled) so later files aren't affected by this one.
+afterAll(() => { delete process.env['FEOH_ENABLED']; });
 
+describe('integration smoke (all modules, one app)', () => {
   it('an adult can move through calendar, meals and feoh; a child is blocked from finance writes', async () => {
     const { adult, child } = await seedTestHousehold();
 

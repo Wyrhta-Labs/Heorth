@@ -33,6 +33,7 @@ export const QUERY_KEYS = {
   taskLists: ['tasks', 'lists'] as const,
   taskAllowlist: ['tasks', 'allowlist'] as const,
   m365Status: ['m365', 'status'] as const,
+  features: ['features'] as const,
 } as const;
 
 /** Member avatar palette (ember / taupe / sage / sky) — hex per the brand guide. */

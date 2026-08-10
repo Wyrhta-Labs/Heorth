@@ -229,6 +229,8 @@
     "transactionRecorded": "Buchung erfasst",
     "unbalanced": "Buchungszeilen gleichen sich nicht aus",
     "recordFailed": "Buchung konnte nicht erfasst werden",
+    "unavailableTitle": "Funktion nicht aktiviert",
+    "unavailableBody": "Finanzen sind auf diesem Server nicht aktiviert.",
     "left": "{{amount}} übrig",
     "over": "{{amount}} über Budget",
     "thisMonth": "Diesen Monat",

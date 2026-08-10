@@ -4,6 +4,9 @@ import { createRootRoute, createRoute, createRouter, createMemoryHistory, Router
 import MobileNav from './mobile-nav';
 
 const useFeaturesMock = vi.fn();
+// Mock the underlying `useFeatures` fetch only — `useFinanceEnabled` (a
+// separate module) is left real, so its `?? false` fetch-failure fallback is
+// what's actually exercised here, not a re-stubbed shortcut.
 vi.mock('@/hooks/use-features', () => ({
   useFeatures: () => useFeaturesMock(),
 }));

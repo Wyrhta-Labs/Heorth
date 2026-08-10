@@ -9,6 +9,7 @@ import { requestId, securityHeaders, errorHandler } from '@wyrhta/core/http';
 import type { Role } from '@wyrhta/core/identity';
 import { config } from './config/env.js';
 import { healthRouter } from './routes/health.js';
+import { featuresRouter } from './routes/features.js';
 import { McpRegistry, type HeorthModule } from './modules/registry.js';
 import { createFeohProxyRouter } from './satellites/feoh/proxy.js';
 import { MaintenanceAdminError } from './household/maintenance-admin.js';
@@ -48,6 +49,7 @@ export function createApp(modules: HeorthModule[]): Hono {
   app.use('/api/*', bodyLimit({ maxSize: 1024 * 1024 }));
 
   app.route('/', healthRouter);
+  app.route('/api/v1/features', featuresRouter);
 
   const mcp = new McpRegistry();
   for (const mod of modules) {

@@ -3,7 +3,7 @@
 The flagship self-hosted household system. Node.js 22 + TypeScript, Hono,
 Drizzle ORM, PostgreSQL 18, Zod, Vitest. Consumes `@wyrhta/core` as a pinned
 GitHub-tag dependency (not a workspace link). See `README.md` for the full
-architecture, API surface, and the Feoh satellite proxy.
+architecture and API surface.
 
 ## Conventions
 
@@ -45,7 +45,8 @@ directly.
   rotated on refresh. **Never log or return token material.**
 - **Runtime seam.** Resolve dependencies through `getM365Runtime()` (singleton,
   built from `config.m365`). Tests install a fake-Graph-backed runtime via
-  `setM365Runtime()` — mirror the Feoh pattern; do not call Graph in tests.
+  `setM365Runtime()` — this `get*Runtime`/`set*Runtime` seam is the reference
+  pattern for faking any external dependency; do not call Graph in tests.
 - **Sync state is generic.** `m365_sync_state` is keyed by a `feedKey` string
   built via `src/m365/feed-keys.ts` (`calendar:member:<id>`, `calendar:family`,
   `todo:member:<id>:<listId>`). Tasks 2.2/2.3 record delta tokens + failures

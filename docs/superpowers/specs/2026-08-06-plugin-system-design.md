@@ -1,5 +1,7 @@
 # Plugin system (host side) — design
 
+> **SUPERSEDED 2026-08-10** by the Feoh merge (meta repo docs/plans/feoh-merge.md, ADR 0007) — the plugin host was never implemented; Feoh ships as a built-in env-gated module instead.
+
 **Date:** 2026-08-06
 **Status:** approved, not implemented
 **Scope:** spec 1 of 3. This spec covers the plugin contract and Heorth's plugin

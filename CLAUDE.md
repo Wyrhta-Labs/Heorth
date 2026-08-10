@@ -23,6 +23,12 @@ architecture and API surface.
   the meta repo's `deploy/` stack). External services
   are faked in-process and installed via a `set*Runtime` seam — never real
   network calls.
+- **Feoh finance module** (`src/modules/feoh/`, ADR 0007) is env-gated via
+  `FEOH_ENABLED` (default off — unset/empty/`false` leaves it a no-op: no
+  routes, no MCP tools). Tests toggle it with `vi.resetModules()` plus a fresh
+  dynamic `import()` of `src/app.js`/`src/modules/index.js` after mutating
+  `process.env.FEOH_ENABLED` (see `tests/feoh-gating.test.ts`), the same
+  env-gated-config pattern the M365 suite uses.
 
 ## Microsoft 365 area (`src/m365/`) — Phase 2
 

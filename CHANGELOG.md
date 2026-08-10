@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-11
+
+### Added
+
+- **Feoh merged back as a built-in optional feature** (ADR 0007, meta repo
+  `docs/plans/feoh-merge.md`) — the finance satellite (its own repo, database,
+  and container, reached through an HTTP proxy) is retired; finance is now a
+  `HeorthModule` living in-process at `src/modules/feoh/`, mounted like any
+  other module.
+  - **`FEOH_ENABLED` kill switch** (`src/config/env.ts`, default off): unset,
+    empty, or `false` leaves the module a no-op — `/api/v1/feoh/*` falls
+    through to the `/api` catch-all 404 and no `feoh.*` MCP tools register.
+    `true` mounts the routes and tools. Toggling it never touches data.
+  - **`GET /api/v1/features`** — a small, unauthenticated capability endpoint
+    the web UI polls to decide whether to render the finance nav/pages
+    (`{ finance: boolean }`), replacing any satellite-reachability probe.
+  - **Finance tables, fresh start.** Envelopes, accounts, double-entry
+    transactions, and recurring bills land via a fresh migration
+    (`0013_feoh_merge.sql`) with `memberId` foreign keys pointing directly at
+    Heorth's own `members` table — no `partyId` indirection, no roster mirror.
+    The satellite's database is **not migrated**; this is a clean slate, not a
+    data migration.
+  - **Guards moved from the proxy into the module.** The write-role guard
+    (`admin`/`adult`, children excluded) and the maintenance-admin write
+    rejection now live directly in `src/modules/feoh/routes.ts` and
+    `src/modules/feoh/mcp.ts` instead of being layered onto a forwarding proxy.
+  - **MCP tools register exactly once.** `collectMcpTools` (the ad hoc
+    dedup/registration helper) is gone from `src`; `createApp(modules, mcp?)`
+    now takes the MCP registry as an explicit second argument, and every
+    module (including `feoh`) registers its tools through the same path a
+    single time.
+  - **Web gating.** The finance nav entry (desktop sidebar and mobile nav) and
+    the finance page are gated on `GET /api/v1/features` via a shared
+    `useFinanceEnabled` hook, so a disabled backend hides the feature in the
+    UI rather than leaving a nav item that 404s.
+  - `src/satellites/`, the satellite HTTP client/proxy/roster, and the
+    `FEOH_BASE_URL` / `FEOH_API_KEY` env vars are removed entirely.
+
 ## [0.4.0] - 2026-07-29
 
 ### Changed

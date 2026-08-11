@@ -52,6 +52,20 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
                       const attr = resolveAttribution(o, membersById);
                       const owner = attr.kind === 'family' ? 'family' : attr.memberId;
                       const dim = owner ? staleByOwner[owner]?.stale : false;
+                      // All-day events read as a filled pill (title on a tint of the
+                      // attribution colour); timed events keep the dot + title row.
+                      if (o.allDay) {
+                        return (
+                          <div
+                            key={`${o.id}-${o.occurrenceStart}`}
+                            data-allday
+                            className={`truncate rounded-full px-1.5 text-sm text-ink ${dim ? 'opacity-40' : ''}`}
+                            style={{ backgroundColor: `${attr.color}33` }}
+                          >
+                            {o.title}
+                          </div>
+                        );
+                      }
                       return (
                         <div key={`${o.id}-${o.occurrenceStart}`} className={`flex items-center gap-1 truncate text-sm ${dim ? 'opacity-40' : ''}`}>
                           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: attr.color }} aria-hidden />

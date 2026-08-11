@@ -29,6 +29,19 @@ architecture and API surface.
   dynamic `import()` of `src/app.js`/`src/modules/index.js` after mutating
   `process.env.FEOH_ENABLED` (see `tests/feoh-gating.test.ts`), the same
   env-gated-config pattern the M365 suite uses.
+- **KithLedger reminders module** (`src/modules/kith/`) is env-gated via the
+  `KITH_BASE_URL` + `KITH_API_KEY` group — optional AS A GROUP like `M365_*`
+  (both present → enabled; both absent → no-op, routes 404, `kithledger: false`
+  in `GET /api/v1/features`; partial presence is a startup error). It is a
+  **stateless live proxy** (no DB, no MCP tools): `GET /api/v1/kith/reminders
+  ?from&to` calls KithLedger's `GET /api/v1/reminders` with the service API key
+  through `KithClient` (`client.ts`, the resurrected satellite-client transport),
+  windows on the effective due (`snoozedUntil` when snoozed) Heorth-side (the
+  upstream API has no lower-bound filter), and maps upstream failure to
+  502 `KITH_UNAVAILABLE`. Dependencies resolve through `getKithRuntime()` /
+  `setKithRuntime()` — tests install a fake KithLedger (`tests/fake-kith.ts`);
+  gating toggles follow the feoh/M365 `vi.resetModules()` pattern
+  (`tests/kith-gating.test.ts`).
 
 ## Microsoft 365 area (`src/m365/`) — Phase 2
 

@@ -10,4 +10,7 @@ import { config } from '../config/env.js';
  */
 export const featuresRouter = new Hono();
 featuresRouter.use('*', requireAuth);
-featuresRouter.get('/', (c) => ok(c, { finance: config.feohEnabled }));
+featuresRouter.get('/', (c) => ok(c, {
+  finance: config.feohEnabled,
+  kithledger: config.kith !== null,
+}));

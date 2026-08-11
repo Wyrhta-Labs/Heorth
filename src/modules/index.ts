@@ -6,6 +6,7 @@ import { libraryModule } from './library/index.js';
 import { tasksModule } from './tasks/index.js';
 import { m365Module } from '../m365/index.js';
 import { feohModule } from './feoh/index.js';
+import { kithModule } from './kith/index.js';
 
 export const ALL_MODULES: HeorthModule[] = [
   householdModule,
@@ -18,4 +19,6 @@ export const ALL_MODULES: HeorthModule[] = [
   m365Module,
   // Finance (ADR 0007) is a no-op when FEOH_ENABLED is not 'true' — see src/modules/feoh.
   feohModule,
+  // KithLedger reminders proxy is a no-op when the KITH_* env group is absent — see src/modules/kith.
+  kithModule,
 ];

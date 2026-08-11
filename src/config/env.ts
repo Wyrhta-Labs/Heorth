@@ -56,6 +56,12 @@ export function buildEnvSchema() {
     // nothing group above (a tuning knob, not a credential): default 300s, floored
     // at 60s by the scheduler. Absent when the integration is disabled anyway.
     M365_SYNC_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
+    // KithLedger integration. Optional AS A GROUP, same contract as M365_*:
+    // both present → the kith module mounts and proxies upcoming reminders;
+    // both absent → zero impact (routes fall through to the catch-all 404);
+    // partial presence is a startup error (see superRefine).
+    KITH_BASE_URL: emptyToUndefined(z.string().url()),
+    KITH_API_KEY: emptyToUndefined(z.string().min(1)),
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
@@ -69,6 +75,18 @@ export function buildEnvSchema() {
         path: ['M365'],
         message:
           `M365 integration is partially configured — set all of [${m365Keys.join(', ')}] ` +
+          `or none. Missing: ${missing.join(', ')}.`,
+      });
+    }
+    const kithKeys = ['KITH_BASE_URL', 'KITH_API_KEY'] as const;
+    const kithPresent = kithKeys.filter((k) => env[k] !== undefined && env[k] !== '');
+    if (kithPresent.length > 0 && kithPresent.length < kithKeys.length) {
+      const missing = kithKeys.filter((k) => env[k] === undefined || env[k] === '');
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['KITH'],
+        message:
+          `KithLedger integration is partially configured — set all of [${kithKeys.join(', ')}] ` +
           `or none. Missing: ${missing.join(', ')}.`,
       });
     }
@@ -114,7 +132,20 @@ export const config = {
           sharedTodoList: parsed.data.M365_SHARED_TODO_LIST!,
         }
       : null,
+  // Resolved KithLedger config, or null when the integration is disabled
+  // (env absent). All-or-nothing like m365 above: KITH_BASE_URL present
+  // implies KITH_API_KEY is present too.
+  kith:
+    parsed.data.KITH_BASE_URL
+      ? {
+          baseUrl: parsed.data.KITH_BASE_URL,
+          apiKey: parsed.data.KITH_API_KEY!,
+        }
+      : null,
 } as const;
 
 /** The resolved Microsoft 365 config shape (present only when enabled). */
 export type M365Config = NonNullable<typeof config.m365>;
+
+/** The resolved KithLedger config shape (present only when enabled). */
+export type KithConfig = NonNullable<typeof config.kith>;

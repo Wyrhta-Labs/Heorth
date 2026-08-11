@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import i18n from '@/i18n';
 
 // Stub all data hooks so the page renders deterministically without a network.
@@ -42,7 +42,14 @@ describe('HearthPage in German', () => {
     render(<HearthPage />);
     expect(screen.getByRole('button', { name: 'Woche' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Monat' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Anzeige' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Anzeige' }));
+    expect(screen.getByRole('dialog', { name: 'Anzeige-Einstellungen' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Erinnerungen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aufgaben' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mahlzeiten & Abendessen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sync-Status' })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Schließen'));
     expect(screen.getByLabelText('Weiter')).toBeInTheDocument();
     expect(screen.getByText('Heute Abend')).toBeInTheDocument();
     expect(screen.getByText('Heute fällig')).toBeInTheDocument();

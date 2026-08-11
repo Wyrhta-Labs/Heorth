@@ -8,7 +8,10 @@ vi.mock('@/hooks/use-calendar', () => ({
   useEvents: () => emptyQuery,
   useCreateEvent: () => ({ mutateAsync: createEventSpy, isPending: false }),
 }));
-const useTasksSpy = vi.fn((_params: { due_from: string; due_to: string }, _opts?: unknown) => emptyQuery);
+type TaskQueryStub = { data?: { data: Task[] }; isError: boolean; dataUpdatedAt: number };
+const useTasksSpy = vi.fn(
+  (_params: { due_from: string; due_to: string }, _opts?: unknown): TaskQueryStub => emptyQuery,
+);
 vi.mock('@/hooks/use-tasks', () => ({
   useTasks: (...args: Parameters<typeof useTasksSpy>) => useTasksSpy(...args),
   useCompleteTask: () => ({ mutateAsync: vi.fn() }),
@@ -20,7 +23,8 @@ vi.mock('@/hooks/use-meals', () => ({
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@/hooks/use-household', () => ({ useHouseholdMembers: () => emptyQuery }));
-vi.mock('@/hooks/use-m365', () => ({ useM365FeedStatus: () => ({ data: [] }) }));
+const useM365FeedStatusMock = vi.fn(() => ({ data: [] as unknown[] }));
+vi.mock('@/hooks/use-m365', () => ({ useM365FeedStatus: () => useM365FeedStatusMock() }));
 const useFeaturesMock = vi.fn();
 vi.mock('@/hooks/use-features', () => ({ useFeatures: () => useFeaturesMock() }));
 type KithQueryStub = { data?: { data: KithReminder[] }; isError: boolean; dataUpdatedAt: number };
@@ -32,7 +36,7 @@ vi.mock('@/hooks/use-kith', () => ({
 }));
 
 import HearthPage from './hearth';
-import type { KithReminder } from '@/lib/types';
+import type { KithReminder, Task } from '@/lib/types';
 
 const reminder = (over: Partial<KithReminder> & { id: string; dueAt: string }): KithReminder => ({
   createdAt: '', updatedAt: '', personId: 'p1', title: 'Reminder', notes: null,
@@ -40,12 +44,21 @@ const reminder = (over: Partial<KithReminder> & { id: string; dueAt: string }): 
   ...over,
 });
 
+const task = (over: Partial<Task> & { id: string; title: string; dueAt: string }): Task => ({
+  source: 'todo', feedKey: 'todo:member:m1:L1', externalId: 'e1', memberId: 'm1',
+  listId: 'L1', listName: null, notes: null, completedAt: null, status: 'open',
+  createdAt: '', updatedAt: '', syncedAt: '',
+  ...over,
+} as Task);
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-07-24T12:00:00Z'));
   localStorage.clear();
   useFeaturesMock.mockReturnValue({ data: { data: { finance: false, kithledger: false } }, isError: false });
   useKithRemindersMock.mockReturnValue(emptyQuery);
+  useTasksSpy.mockReturnValue(emptyQuery);
+  useM365FeedStatusMock.mockReturnValue({ data: [] });
 });
 afterEach(() => { vi.useRealTimers(); cleanup(); });
 
@@ -133,18 +146,99 @@ describe('HearthPage add-event overlay', () => {
   });
 });
 
-describe('HearthPage KithLedger reminders', () => {
-  const kithOn = { data: { data: { finance: false, kithledger: true } }, isError: false };
+/** Open the display modal via the header button. */
+const openDisplayModal = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+  return screen.getByRole('dialog', { name: 'Display settings' });
+};
 
-  it('hides the toggle entirely when the kithledger feature is off', () => {
+describe('HearthPage display settings modal', () => {
+  it('shows the Display button even when kithledger is off, and omits the reminders row', () => {
     render(<HearthPage />);
+    openDisplayModal();
     expect(screen.queryByRole('button', { name: 'Reminders' })).toBeNull();
-    // And the query is disabled — the feature being off must not poll.
+    expect(screen.getByRole('button', { name: 'Tasks' })).toBeInTheDocument();
+    // Feature off → the kith query stays disabled regardless of prefs.
     const [, opts] = useKithRemindersMock.mock.calls.at(-1)!;
     expect(opts?.enabled).toBe(false);
   });
 
-  it('shows the toggle (default ON) and renders reminder chips when the feature is on', () => {
+  it('closes via X, backdrop, and Escape — but not via taps inside the dialog', () => {
+    render(<HearthPage />);
+    const dialog = openDisplayModal();
+    fireEvent.click(dialog);
+    expect(screen.getByRole('dialog', { name: 'Display settings' })).toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Display settings' })).toBeNull();
+
+    openDisplayModal();
+    fireEvent.click(screen.getByTestId('display-prefs-backdrop'));
+    expect(screen.queryByRole('dialog', { name: 'Display settings' })).toBeNull();
+
+    openDisplayModal();
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByRole('dialog', { name: 'Display settings' })).toBeNull();
+  });
+
+  it('suppresses the idle dim while the modal is open', () => {
+    const { container } = render(<HearthPage />);
+    openDisplayModal();
+    act(() => { vi.advanceTimersByTime(10 * 60_000); });
+    expect(screen.getByRole('dialog', { name: 'Display settings' })).toBeInTheDocument();
+    // The modal backdrop also uses bg-ink/40 — the dim layer is the only one
+    // that is pointer-events-none, so select on both classes.
+    expect(container.querySelector('.pointer-events-none.bg-ink\\/40')).toBeNull();
+  });
+
+  it('tasks toggle hides task chips and removes the due-today panel, and persists', () => {
+    useTasksSpy.mockReturnValue({
+      data: { data: [task({ id: 't1', title: 'Bins out', dueAt: '2026-07-24T18:00:00Z' })] },
+      isError: false, dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z'),
+    });
+    render(<HearthPage />);
+    expect(screen.getByText('Bins out')).toBeInTheDocument();
+    expect(screen.getByText('Due today')).toBeInTheDocument();
+
+    openDisplayModal();
+    fireEvent.click(screen.getByRole('button', { name: 'Tasks' }));
+
+    expect(screen.queryByText('Bins out')).toBeNull();
+    expect(screen.queryByText('Due today')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('heorth:hearth:display')!).tasks).toBe(false);
+  });
+
+  it('meals toggle removes the tonight panel', () => {
+    render(<HearthPage />);
+    expect(screen.getByText('Tonight')).toBeInTheDocument();
+    openDisplayModal();
+    fireEvent.click(screen.getByRole('button', { name: 'Meals & supper' }));
+    expect(screen.queryByText('Tonight')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('heorth:hearth:display')!).meals).toBe(false);
+  });
+
+  it('footer toggle hides stale notes but keeps the "as of" stamp', () => {
+    // A feed that last synced far in the past → a stale note renders.
+    useM365FeedStatusMock.mockReturnValue({
+      data: [{
+        feedKey: 'calendar:family', lastSuccessAt: '2026-07-23T00:00:00Z',
+        lastError: null, consecutiveFailures: 5, updatedAt: '2026-07-24T12:00:00Z',
+      }],
+    });
+    render(<HearthPage />);
+    expect(screen.getByText(/last synced/)).toBeInTheDocument();
+
+    openDisplayModal();
+    fireEvent.click(screen.getByRole('button', { name: 'Sync status' }));
+
+    expect(screen.queryByText(/last synced/)).toBeNull();
+    expect(screen.getByText(/as of \d{2}:\d{2}/)).toBeInTheDocument();
+  });
+});
+
+describe('HearthPage KithLedger reminders', () => {
+  const kithOn = { data: { data: { finance: false, kithledger: true } }, isError: false };
+
+  it('renders reminder chips when the feature is on (default prefs)', () => {
     useFeaturesMock.mockReturnValue(kithOn);
     useKithRemindersMock.mockReturnValue({
       data: {
@@ -157,8 +251,6 @@ describe('HearthPage KithLedger reminders', () => {
       dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z'),
     });
     const { container } = render(<HearthPage />);
-    const toggle = screen.getByRole('button', { name: 'Reminders' });
-    expect(toggle).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Call Nan')).toBeInTheDocument();
     expect(screen.getByText('Sam’s birthday')).toBeInTheDocument();
     // Generic reminders carry a time; birthdays are date-level (no time).
@@ -166,7 +258,6 @@ describe('HearthPage KithLedger reminders', () => {
     expect(generic.textContent).toMatch(/\d{2}:\d{2}/);
     const birthday = container.querySelector('[data-hearth-reminder="r2"]')!;
     expect(birthday.textContent).not.toMatch(/\d{2}:\d{2}/);
-    // Read-only: reminder chips are not buttons.
     expect(generic.tagName).toBe('DIV');
   });
 
@@ -180,7 +271,7 @@ describe('HearthPage KithLedger reminders', () => {
     expect(opts?.enabled).toBe(true);
   });
 
-  it('toggling off hides the chips, disables the query, and persists', () => {
+  it('toggling the reminders row off hides chips, disables the query, and persists', () => {
     useFeaturesMock.mockReturnValue(kithOn);
     useKithRemindersMock.mockReturnValue({
       data: { data: [reminder({ id: 'r1', dueAt: '2026-07-24T09:00:00Z', title: 'Call Nan' })] },
@@ -190,20 +281,19 @@ describe('HearthPage KithLedger reminders', () => {
     render(<HearthPage />);
     expect(screen.getByText('Call Nan')).toBeInTheDocument();
 
+    openDisplayModal();
     fireEvent.click(screen.getByRole('button', { name: 'Reminders' }));
 
     expect(screen.queryByText('Call Nan')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Reminders' })).toHaveAttribute('aria-pressed', 'false');
-    expect(localStorage.getItem('heorth:hearth:show-kith-reminders')).toBe('false');
+    expect(JSON.parse(localStorage.getItem('heorth:hearth:display')!).kithReminders).toBe(false);
     const [, opts] = useKithRemindersMock.mock.calls.at(-1)!;
     expect(opts?.enabled).toBe(false);
   });
 
-  it('starts OFF when the persisted preference says so', () => {
+  it('starts with reminders OFF when the legacy persisted preference says so', () => {
     localStorage.setItem('heorth:hearth:show-kith-reminders', 'false');
     useFeaturesMock.mockReturnValue(kithOn);
     render(<HearthPage />);
-    expect(screen.getByRole('button', { name: 'Reminders' })).toHaveAttribute('aria-pressed', 'false');
     const [, opts] = useKithRemindersMock.mock.calls.at(-1)!;
     expect(opts?.enabled).toBe(false);
   });

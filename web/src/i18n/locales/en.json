@@ -59,7 +59,6 @@
       "more_other": "+{{count}} more"
     },
     "week": { "mealFallback": "Meal" },
-    "kith": { "toggle": "Reminders" },
     "display": {
       "button": "Display",
       "title": "Display settings",

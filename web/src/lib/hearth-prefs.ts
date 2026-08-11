@@ -4,6 +4,8 @@
 // be unavailable (private browsing, quota) or hold corrupt JSON — both degrade
 // to the default rather than throwing.
 
+// Legacy/migration-only: the old single-toggle key, superseded by DISPLAY_KEY
+// below. Kept only so loadHearthDisplayPrefs() can migrate it forward once.
 const SHOW_KITH_REMINDERS_KEY = 'heorth:hearth:show-kith-reminders';
 
 function readJson<T>(key: string): T | null {
@@ -21,16 +23,6 @@ function writeJson(key: string, value: unknown): void {
   } catch {
     // Storage full/unavailable — the toggle still works for the session.
   }
-}
-
-/** Whether KithLedger reminders show on the wall. Default ON (missing/corrupt → true). */
-export function loadShowKithReminders(): boolean {
-  const v = readJson<unknown>(SHOW_KITH_REMINDERS_KEY);
-  return typeof v === 'boolean' ? v : true;
-}
-
-export function saveShowKithReminders(show: boolean): void {
-  writeJson(SHOW_KITH_REMINDERS_KEY, show);
 }
 
 const DISPLAY_KEY = 'heorth:hearth:display';

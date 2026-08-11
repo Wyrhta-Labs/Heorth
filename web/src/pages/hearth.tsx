@@ -3,7 +3,7 @@ import { keepPreviousData } from '@tanstack/react-query';
 import {
   addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format,
 } from 'date-fns';
-import { Bell, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ToastProvider, useToast } from '@/components/ui/toast';
@@ -13,6 +13,7 @@ import HearthMonth from '@/components/hearth/hearth-month';
 import NowNextStrip from '@/components/hearth/now-next-strip';
 import RecipeOverlay from '@/components/hearth/recipe-overlay';
 import AddEventOverlay from '@/components/hearth/add-event-overlay';
+import DisplayPrefsModal from '@/components/hearth/display-prefs-modal';
 import { useIdle } from '@/components/hearth/use-idle';
 import { useEvents } from '@/hooks/use-calendar';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
@@ -22,7 +23,7 @@ import { useM365FeedStatus } from '@/hooks/use-m365';
 import { useFeatures } from '@/hooks/use-features';
 import { useKithReminders } from '@/hooks/use-kith';
 import { useFormatters } from '@/hooks/use-formatters';
-import { loadShowKithReminders, saveShowKithReminders } from '@/lib/hearth-prefs';
+import { loadHearthDisplayPrefs, saveHearthDisplayPrefs } from '@/lib/hearth-prefs';
 import {
   composeDay, computeMealSwap, deriveStaleness, tasksForDay, formatAge,
   type DayComposition, type MealOp,
@@ -45,7 +46,8 @@ function HearthInner() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [openRecipeId, setOpenRecipeId] = useState<string | null>(null);
   const [addEventDate, setAddEventDate] = useState<string | null>(null);
-  const [showKithReminders, setShowKithReminders] = useState(() => loadShowKithReminders());
+  const [displayPrefs, setDisplayPrefs] = useState(() => loadHearthDisplayPrefs());
+  const [displayOpen, setDisplayOpen] = useState(false);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const [nowMs, setNowMs] = useState(() => Date.now());
   const idle = useIdle();
@@ -83,21 +85,25 @@ function HearthInner() {
   const kithEnabled = featuresQuery.data?.data.kithledger ?? false;
   const kithQuery = useKithReminders(
     { from: fromIso, to: toIso },
-    { enabled: kithEnabled && showKithReminders, refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData },
+    { enabled: kithEnabled && displayPrefs.kithReminders, refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData },
   );
   const complete = useCompleteTask();
   const upsertMeal = useUpsertPlanEntry();
   const deleteMeal = useDeletePlanEntry();
 
   const occurrences = (eventsQuery.data?.data ?? []) as EventOccurrence[];
-  const tasks = tasksQuery.data?.data ?? [];
-  const entries = planQuery.data?.data ?? [];
+  const allTasks = tasksQuery.data?.data ?? [];
+  const allEntries = planQuery.data?.data ?? [];
+  // Display prefs: hidden elements see empty lists; the queries keep polling
+  // so re-enabling is instant.
+  const tasks = displayPrefs.tasks ? allTasks : [];
+  const entries = displayPrefs.meals ? allEntries : [];
   const recipes = recipesQuery.data?.data ?? [];
   const members = membersQuery.data?.data ?? [];
   const feeds = statusQuery.data ?? [];
   // Degrade silently: if KithLedger is unreachable (502 KITH_UNAVAILABLE) the
   // wall keeps rendering everything else and simply omits the reminders.
-  const reminders: KithReminder[] = kithEnabled && showKithReminders
+  const reminders: KithReminder[] = kithEnabled && displayPrefs.kithReminders
     ? ((kithQuery.data?.data ?? []) as KithReminder[])
     : [];
 
@@ -188,24 +194,15 @@ function HearthInner() {
         </div>
         <div className="flex flex-col items-end gap-3">
           <div className="flex items-center gap-2">
-            {/* KithLedger reminders on/off — only offered when the integration
-                is configured server-side. Persisted so the wall remembers. */}
-            {kithEnabled && (
-              <button
-                onClick={() => {
-                  setShowKithReminders((prev) => {
-                    const next = !prev;
-                    saveShowKithReminders(next);
-                    return next;
-                  });
-                }}
-                aria-pressed={showKithReminders}
-                className={`inline-flex items-center gap-2 rounded-xl border border-tan px-5 py-3 text-lg ${showKithReminders ? 'bg-ember text-white' : 'bg-card text-ash'}`}
-              >
-                <Bell className="h-5 w-5" aria-hidden />
-                {t('hearth.kith.toggle')}
-              </button>
-            )}
+            {/* Wallboard display settings (which elements the wall shows). */}
+            <button
+              onClick={() => setDisplayOpen(true)}
+              aria-haspopup="dialog"
+              className="inline-flex items-center gap-2 rounded-xl border border-tan bg-card px-5 py-3 text-lg text-ash"
+            >
+              <SlidersHorizontal className="h-5 w-5" aria-hidden />
+              {t('hearth.display.button')}
+            </button>
             <div className="inline-flex rounded-xl border border-tan bg-card p-1">
               {(['week', 'month'] as const).map((v) => (
                 <button
@@ -245,6 +242,8 @@ function HearthInner() {
             nowMs={nowMs}
             membersById={membersById}
             recipesById={recipesById}
+            showSupper={displayPrefs.meals}
+            showTasks={displayPrefs.tasks}
           />
         </div>
       )}
@@ -285,7 +284,7 @@ function HearthInner() {
         <span className="shrink-0">
           {reconnecting ? t('hearth.footer.reconnecting') : ''}{t('hearth.footer.asOf', { time: format(new Date(updatedAt), 'HH:mm') })}
         </span>
-        {staleNotes.length > 0 && (
+        {displayPrefs.staleFooter && staleNotes.length > 0 && (
           <span className="truncate text-right">{staleNotes.join('   ·   ')}</span>
         )}
       </footer>
@@ -296,8 +295,24 @@ function HearthInner() {
       {/* Add-event overlay (tap a day) */}
       {addEventDate && <AddEventOverlay date={addEventDate} onClose={() => setAddEventDate(null)} />}
 
+      {/* Display settings modal */}
+      {displayOpen && (
+        <DisplayPrefsModal
+          prefs={displayPrefs}
+          showKithRow={kithEnabled}
+          onChange={(patch) => {
+            setDisplayPrefs((prev) => {
+              const next = { ...prev, ...patch };
+              saveHearthDisplayPrefs(next);
+              return next;
+            });
+          }}
+          onClose={() => setDisplayOpen(false)}
+        />
+      )}
+
       {/* Idle dim (screen-burn friendly) — any touch clears it via useIdle */}
-      {idle && !openRecipe && !addEventDate && (
+      {idle && !openRecipe && !addEventDate && !displayOpen && (
         <div className="pointer-events-none fixed inset-0 z-40 bg-ink/40 transition-opacity duration-1000" aria-hidden />
       )}
     </div>

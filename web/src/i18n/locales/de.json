@@ -59,6 +59,12 @@
       "more_other": "+{{count}} weitere"
     },
     "week": { "mealFallback": "Essen" },
+    "addEvent": {
+      "title": "Termin hinzufügen",
+      "close": "Schließen",
+      "created": "Termin hinzugefügt",
+      "createFailed": "Der Termin konnte nicht gespeichert werden — bitte erneut versuchen."
+    },
     "recipe": {
       "serves": "Für {{count}} Personen",
       "ingredients": "Zutaten",

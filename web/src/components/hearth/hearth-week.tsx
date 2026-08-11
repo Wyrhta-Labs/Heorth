@@ -15,6 +15,8 @@ interface Props {
   onOpenRecipe: (recipeId: string) => void;
   /** Persist a supper swap/move between two days. */
   onSwapMeal: (fromIso: string, toIso: string) => void;
+  /** A day surface was tapped — open the add-event overlay for that day. */
+  onAddEvent: (iso: string) => void;
 }
 
 interface Ghost { label: string; x: number; y: number }
@@ -27,7 +29,7 @@ interface Ghost { label: string; x: number; y: number }
  * itself lives in lib/hearth.ts (computeMealSwap) and is unit-tested.
  */
 export default function HearthWeek(props: Props) {
-  const { days, todayIso, membersById, recipesById, staleByOwner, completingIds, onCompleteTask, onOpenRecipe, onSwapMeal } = props;
+  const { days, todayIso, membersById, recipesById, staleByOwner, completingIds, onCompleteTask, onOpenRecipe, onSwapMeal, onAddEvent } = props;
   const { t } = useTranslation();
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -37,6 +39,10 @@ export default function HearthWeek(props: Props) {
   // Holds the current drag's teardown (listener removal + state clear) so
   // unmount can run it too, without duplicating the pointerup/pointercancel logic.
   const teardownRef = useRef<(() => void) | null>(null);
+  // A finished supper drag whose pointerup lands inside the source column also
+  // produces a click on that column; swallow exactly that one so a drop never
+  // doubles as a "tap the day → add event". Cleared on the next tick.
+  const suppressTapRef = useRef(false);
 
   const dayUnderPoint = (x: number, y: number): string | null => {
     const el = document.elementFromPoint(x, y)?.closest('[data-hearth-day]');
@@ -65,6 +71,8 @@ export default function HearthWeek(props: Props) {
     // (never commits — a cancel means the gesture was taken over, e.g. a touch
     // scroll or palm rejection on the wall's touch panel, not a real drop).
     const teardown = (commit: boolean) => {
+      suppressTapRef.current = true;
+      setTimeout(() => { suppressTapRef.current = false; }, 0);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', cancel);
@@ -90,6 +98,11 @@ export default function HearthWeek(props: Props) {
   // window listeners so nothing leaks past this component's lifetime.
   useEffect(() => () => teardownRef.current?.(), []);
 
+  const onDayTap = useCallback((iso: string) => {
+    if (suppressTapRef.current) return; // the click was the tail of a drag
+    onAddEvent(iso);
+  }, [onAddEvent]);
+
   return (
     <>
       <div className="grid min-h-0 flex-1 grid-cols-7 gap-3">
@@ -105,6 +118,7 @@ export default function HearthWeek(props: Props) {
             onCompleteTask={onCompleteTask}
             onOpenRecipe={onOpenRecipe}
             onSupperPickup={onSupperPickup}
+            onDayTap={onDayTap}
             isDragSource={dragFrom === comp.iso}
             isDropTarget={Boolean(dragFrom) && dropTarget === comp.iso && dropTarget !== dragFrom}
             dragActive={Boolean(dragFrom)}

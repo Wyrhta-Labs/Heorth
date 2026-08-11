@@ -15,10 +15,12 @@ interface Props {
   membersById: Record<string, Member>;
   recipesById: Record<string, Recipe>;
   staleByOwner: Record<string, StalenessInfo>;
+  /** A day cell was tapped — open the add-event overlay for that day. */
+  onAddEvent?: (iso: string) => void;
 }
 
-/** A calm, glanceable month: coloured event lines + a supper marker per day. Read-only. */
-export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, membersById, recipesById, staleByOwner }: Props) {
+/** A calm, glanceable month: coloured event lines + a supper marker per day. Tap a day to add an event. */
+export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, membersById, recipesById, staleByOwner, onAddEvent }: Props) {
   const { t } = useTranslation();
   const { locale } = useFormatters();
   const grid = monthGrid(year, month0, locale);
@@ -39,6 +41,8 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
               return (
                 <div
                   key={iso}
+                  data-hearth-month-day={iso}
+                  onClick={onAddEvent ? () => onAddEvent(iso) : undefined}
                   className={[
                     'flex min-h-0 flex-col overflow-hidden rounded-xl border p-2',
                     isToday ? 'border-ember bg-card' : inMonth ? 'border-tan bg-card/60' : 'border-tan/40 bg-card/30',

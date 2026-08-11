@@ -59,6 +59,12 @@
       "more_other": "+{{count}} more"
     },
     "week": { "mealFallback": "Meal" },
+    "addEvent": {
+      "title": "Add event",
+      "close": "Close",
+      "created": "Event added",
+      "createFailed": "Could not add the event — try again."
+    },
     "recipe": {
       "serves": "Serves {{count}}",
       "ingredients": "Ingredients",

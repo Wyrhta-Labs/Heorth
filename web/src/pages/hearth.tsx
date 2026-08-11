@@ -12,6 +12,7 @@ import HearthWeek from '@/components/hearth/hearth-week';
 import HearthMonth from '@/components/hearth/hearth-month';
 import NowNextStrip from '@/components/hearth/now-next-strip';
 import RecipeOverlay from '@/components/hearth/recipe-overlay';
+import AddEventOverlay from '@/components/hearth/add-event-overlay';
 import { useIdle } from '@/components/hearth/use-idle';
 import { useEvents } from '@/hooks/use-calendar';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
@@ -40,6 +41,7 @@ function HearthInner() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [openRecipeId, setOpenRecipeId] = useState<string | null>(null);
+  const [addEventDate, setAddEventDate] = useState<string | null>(null);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const [nowMs, setNowMs] = useState(() => Date.now());
   const idle = useIdle();
@@ -224,6 +226,7 @@ function HearthInner() {
           onCompleteTask={onCompleteTask}
           onOpenRecipe={setOpenRecipeId}
           onSwapMeal={onSwapMeal}
+          onAddEvent={setAddEventDate}
         />
       ) : (
         <HearthMonth
@@ -236,6 +239,7 @@ function HearthInner() {
           membersById={membersById}
           recipesById={recipesById}
           staleByOwner={staleByOwner}
+          onAddEvent={setAddEventDate}
         />
       )}
 
@@ -252,8 +256,11 @@ function HearthInner() {
       {/* Recipe reading overlay */}
       {openRecipe && <RecipeOverlay recipe={openRecipe} onClose={() => setOpenRecipeId(null)} />}
 
+      {/* Add-event overlay (tap a day) */}
+      {addEventDate && <AddEventOverlay date={addEventDate} onClose={() => setAddEventDate(null)} />}
+
       {/* Idle dim (screen-burn friendly) — any touch clears it via useIdle */}
-      {idle && !openRecipe && (
+      {idle && !openRecipe && !addEventDate && (
         <div className="pointer-events-none fixed inset-0 z-40 bg-ink/40 transition-opacity duration-1000" aria-hidden />
       )}
     </div>

@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 
 // Stub all data hooks so the page renders deterministically without a network.
 const emptyQuery = { data: { data: [] }, isError: false, dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z') };
-vi.mock('@/hooks/use-calendar', () => ({ useEvents: () => emptyQuery }));
+const createEventSpy = vi.fn();
+vi.mock('@/hooks/use-calendar', () => ({
+  useEvents: () => emptyQuery,
+  useCreateEvent: () => ({ mutateAsync: createEventSpy, isPending: false }),
+}));
 const useTasksSpy = vi.fn((_params: { due_from: string; due_to: string }, _opts?: unknown) => emptyQuery);
 vi.mock('@/hooks/use-tasks', () => ({
   useTasks: (...args: Parameters<typeof useTasksSpy>) => useTasksSpy(...args),
@@ -61,5 +65,48 @@ describe('HearthPage view + paging', () => {
   it('shows the freshness "as of" stamp', () => {
     render(<HearthPage />);
     expect(screen.getByText(/as of \d{2}:\d{2}/)).toBeInTheDocument();
+  });
+});
+
+describe('HearthPage add-event overlay', () => {
+  it('opens the overlay pre-filled with the tapped week day', () => {
+    const { container } = render(<HearthPage />);
+
+    fireEvent.click(container.querySelector('[data-hearth-day="2026-07-20"]')!);
+
+    expect(screen.getByRole('dialog', { name: 'Add event' })).toBeInTheDocument();
+    // 2026-07-20 is not "today" (frozen at 2026-07-24) → default morning slot.
+    expect(screen.getByLabelText('Start *')).toHaveValue('2026-07-20T09:00');
+  });
+
+  it('suppresses the idle dim while the overlay is open', () => {
+    const { container } = render(<HearthPage />);
+    fireEvent.click(container.querySelector('[data-hearth-day="2026-07-20"]')!);
+    // Let useIdle's inactivity timer fire while the form is open: the dim
+    // layer must stay away so it never shades a half-filled form.
+    act(() => { vi.advanceTimersByTime(10 * 60_000); });
+    expect(screen.getByRole('dialog', { name: 'Add event' })).toBeInTheDocument();
+    expect(container.querySelector('.bg-ink\\/40')).toBeNull();
+  });
+
+  it('closes only via the big X — not via Escape', () => {
+    const { container } = render(<HearthPage />);
+    fireEvent.click(container.querySelector('[data-hearth-day="2026-07-20"]')!);
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'Add event' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByRole('dialog', { name: 'Add event' })).toBeNull();
+  });
+
+  it('opens the overlay from a month cell tap', () => {
+    const { container } = render(<HearthPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Month' }));
+
+    fireEvent.click(container.querySelector('[data-hearth-month-day="2026-07-08"]')!);
+
+    expect(screen.getByRole('dialog', { name: 'Add event' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Start *')).toHaveValue('2026-07-08T09:00');
   });
 });

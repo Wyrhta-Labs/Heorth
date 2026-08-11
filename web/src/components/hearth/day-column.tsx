@@ -15,6 +15,8 @@ interface Props {
   onCompleteTask: (t: Task) => void;
   onOpenRecipe: (recipeId: string) => void;
   onSupperPickup: (iso: string, e: React.PointerEvent) => void;
+  /** Tap on the day's empty surface (not on a button) — opens the add-event overlay. */
+  onDayTap: (iso: string) => void;
   isDragSource: boolean;
   isDropTarget: boolean;
   dragActive: boolean;
@@ -26,7 +28,7 @@ function ownerStale(owner: string | null | undefined, stale: Record<string, Stal
 
 export default function DayColumn({
   comp, isToday, membersById, recipesById, staleByOwner, completingIds,
-  onCompleteTask, onOpenRecipe, onSupperPickup, isDragSource, isDropTarget, dragActive,
+  onCompleteTask, onOpenRecipe, onSupperPickup, onDayTap, isDragSource, isDropTarget, dragActive,
 }: Props) {
   const { t } = useTranslation();
   const { dayLabel } = useFormatters();
@@ -39,6 +41,13 @@ export default function DayColumn({
   return (
     <div
       data-hearth-day={comp.iso}
+      // Day-level tap → add an event. Buttons inside the column (supper grip,
+      // recipe title, task rows) keep their own actions: a click that bubbles
+      // up from any button is not a day tap.
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        onDayTap(comp.iso);
+      }}
       className={[
         'flex min-h-0 flex-col rounded-2xl border p-3 transition-colors',
         isToday ? 'border-ember bg-card' : 'border-tan bg-card/60',

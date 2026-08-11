@@ -43,14 +43,31 @@ export function localToIso(local: string): string {
   return new Date(local).toISOString();
 }
 
+/**
+ * Default start/end (datetime-local strings) for a new event on a given local
+ * day (yyyy-MM-dd): the next full hour when the day is today, otherwise a
+ * morning slot; one hour long. Used by callers that pre-pick a date (e.g. the
+ * Hearth wall's tap-a-day overlay).
+ */
+function dateDefaults(date?: string): { start: string; end: string } {
+  if (!date) return { start: '', end: '' };
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const todayLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const startHour = date === todayLocal ? Math.min(now.getHours() + 1, 22) : 9;
+  return { start: `${date}T${pad(startHour)}:00`, end: `${date}T${pad(startHour + 1)}:00` };
+}
+
 interface Props {
   event?: Event;
+  /** Pre-fill start/end on this local day (yyyy-MM-dd) when creating. Ignored if `event` is set. */
+  initialDate?: string;
   onSubmit: (values: EventFormValues) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
-export default function EventForm({ event, onSubmit, onCancel, isLoading }: Props) {
+export default function EventForm({ event, initialDate, onSubmit, onCancel, isLoading }: Props) {
   const { t } = useTranslation();
   const schema = useMemo(() => buildSchema(t), [t]);
   const { data: membersData } = useHouseholdMembers();
@@ -59,8 +76,8 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading }: Prop
     resolver: zodResolver(schema),
     defaultValues: {
       title: event?.title ?? '',
-      startAt: toLocalInput(event?.startAt),
-      endAt: toLocalInput(event?.endAt),
+      startAt: event ? toLocalInput(event.startAt) : dateDefaults(initialDate).start,
+      endAt: event ? toLocalInput(event.endAt) : dateDefaults(initialDate).end,
       allDay: event?.allDay ?? false,
       location: event?.location ?? '',
       notes: event?.notes ?? '',

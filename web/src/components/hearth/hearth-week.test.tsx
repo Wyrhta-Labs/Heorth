@@ -43,6 +43,7 @@ const base = {
   completingIds: new Set<string>(),
   onCompleteTask: vi.fn(),
   onOpenRecipe: vi.fn(),
+  onAddEvent: vi.fn(),
 };
 
 describe('HearthWeek all-day events', () => {
@@ -82,6 +83,49 @@ describe('HearthWeek all-day events', () => {
     const allDay = occurrence({ id: 'ad', title: 'Ferien', allDay: true, occurrenceStart: '2026-07-20T00:00:00' });
     render(<HearthWeek {...base} days={[day('2026-07-20', null, [allDay])]} onSwapMeal={vi.fn()} />);
     expect(screen.getByText('Ganztägig')).toBeInTheDocument();
+  });
+});
+
+describe('HearthWeek day tap → add event', () => {
+  it('calls onAddEvent with the day when the day surface is tapped', () => {
+    const onAddEvent = vi.fn();
+    const { container } = render(
+      <HearthWeek {...base} days={days} onSwapMeal={vi.fn()} onAddEvent={onAddEvent} />,
+    );
+
+    fireEvent.click(container.querySelector('[data-hearth-day="2026-07-21"]')!);
+
+    expect(onAddEvent).toHaveBeenCalledTimes(1);
+    expect(onAddEvent).toHaveBeenCalledWith('2026-07-21');
+  });
+
+  it('does not treat taps on interactive children (e.g. the supper grip) as a day tap', () => {
+    const onAddEvent = vi.fn();
+    render(<HearthWeek {...base} days={days} onSwapMeal={vi.fn()} onAddEvent={onAddEvent} />);
+
+    fireEvent.click(screen.getAllByLabelText('Move meal')[0]!);
+
+    expect(onAddEvent).not.toHaveBeenCalled();
+  });
+
+  it('does not open the overlay from the click that trails a completed supper drag', () => {
+    const onAddEvent = vi.fn();
+    const onSwapMeal = vi.fn();
+    const { container } = render(
+      <HearthWeek {...base} days={days} onSwapMeal={onSwapMeal} onAddEvent={onAddEvent} />,
+    );
+    const grips = screen.getAllByLabelText('Move meal');
+    hitTest('2026-07-21');
+
+    fireEvent.pointerDown(grips[0]!, { clientX: 10, clientY: 10 });
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 300, clientY: 10 }));
+    fireEvent(window, new MouseEvent('pointerup', {}));
+    // Browsers synthesise a click right after pointerup; if the drop landed
+    // inside a day column that click bubbles to the day surface.
+    fireEvent.click(container.querySelector('[data-hearth-day="2026-07-21"]')!);
+
+    expect(onSwapMeal).toHaveBeenCalledWith('2026-07-20', '2026-07-21');
+    expect(onAddEvent).not.toHaveBeenCalled();
   });
 });
 

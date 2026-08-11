@@ -34,6 +34,7 @@ export const QUERY_KEYS = {
   taskAllowlist: ['tasks', 'allowlist'] as const,
   m365Status: ['m365', 'status'] as const,
   features: ['features'] as const,
+  kithReminders: ['kith', 'reminders'] as const,
 } as const;
 
 /** Member avatar palette (ember / taupe / sage / sky) — hex per the brand guide. */

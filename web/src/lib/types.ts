@@ -195,6 +195,25 @@ export interface ApiKeyCreated {
   createdAt: string;
 }
 
+// ---- KithLedger reminders (read-only proxy, src/modules/kith) ----
+export type KithReminderKind = 'generic' | 'birthday';
+export type KithReminderStatus = 'pending' | 'snoozed';
+
+export interface KithReminder {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  personId: string;
+  dueAt: string;
+  title: string;
+  notes: string | null;
+  status: KithReminderStatus;
+  snoozedUntil: string | null;
+  recurrence: string | null;
+  kind: KithReminderKind;
+  leadDays: number;
+}
+
 // ---- Envelopes (HTTP response) ----
 export interface ListMeta { total: number; limit?: number; offset?: number; }
 export interface ListResponse<T> { data: T[]; meta: ListMeta; }

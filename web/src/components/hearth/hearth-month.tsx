@@ -1,9 +1,13 @@
 import { format } from 'date-fns';
+import { Bell, Cake } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useFormatters } from '@/hooks/use-formatters';
 import { monthGrid } from '@/lib/calendar-grid';
-import { composeDay, resolveAttribution, type StalenessInfo } from '@/lib/hearth';
-import type { EventOccurrence, MealPlanEntry, Member, Recipe, Task } from '@/lib/types';
+import { composeDay, remindersForDay, resolveAttribution, type StalenessInfo } from '@/lib/hearth';
+import type { EventOccurrence, KithReminder, MealPlanEntry, Member, Recipe, Task } from '@/lib/types';
+
+/** Reminders per month cell are capped separately from events (cells must not overflow). */
+const MONTH_REMINDER_CAP = 2;
 
 interface Props {
   year: number;
@@ -12,6 +16,8 @@ interface Props {
   occurrences: EventOccurrence[];
   entries: MealPlanEntry[];
   tasks: Task[];
+  /** KithLedger reminders for the visible range (empty/omitted → nothing renders). */
+  reminders?: KithReminder[];
   membersById: Record<string, Member>;
   recipesById: Record<string, Recipe>;
   staleByOwner: Record<string, StalenessInfo>;
@@ -20,7 +26,7 @@ interface Props {
 }
 
 /** A calm, glanceable month: coloured event lines + a supper marker per day. Tap a day to add an event. */
-export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, membersById, recipesById, staleByOwner, onAddEvent }: Props) {
+export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, reminders = [], membersById, recipesById, staleByOwner, onAddEvent }: Props) {
   const { t } = useTranslation();
   const { locale } = useFormatters();
   const grid = monthGrid(year, month0, locale);
@@ -38,6 +44,7 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
               const isToday = iso === todayIso;
               const comp = composeDay(iso, occurrences, entries, tasks, todayIso);
               const supper = comp.supper?.recipeId ? recipesById[comp.supper.recipeId]?.title : comp.supper?.freeText;
+              const dayReminders = remindersForDay(reminders, iso);
               return (
                 <div
                   key={iso}
@@ -78,6 +85,19 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
                       );
                     })}
                     {comp.events.length > 3 && <div className="text-xs text-ash/70">{t('hearth.day.more', { count: comp.events.length - 3 })}</div>}
+                    {/* KithLedger reminders: icon + title row, visibly not an
+                        event (no colour dot, no pill), capped on its own. */}
+                    {dayReminders.slice(0, MONTH_REMINDER_CAP).map((r) => (
+                      <div key={r.id} data-hearth-reminder={r.id} className="flex items-center gap-1 truncate text-sm text-ash">
+                        {r.kind === 'birthday'
+                          ? <Cake className="h-3.5 w-3.5 shrink-0 text-ember" aria-hidden />
+                          : <Bell className="h-3.5 w-3.5 shrink-0 text-ember" aria-hidden />}
+                        <span className="truncate">{r.title}</span>
+                      </div>
+                    ))}
+                    {dayReminders.length > MONTH_REMINDER_CAP && (
+                      <div className="text-xs text-ash/70">{t('hearth.day.more', { count: dayReminders.length - MONTH_REMINDER_CAP })}</div>
+                    )}
                   </div>
                   {supper && (
                     <div className="mt-1 truncate text-sm text-ember" title={supper}>🍽 {supper}</div>

@@ -21,10 +21,32 @@ vi.mock('@/hooks/use-meals', () => ({
 }));
 vi.mock('@/hooks/use-household', () => ({ useHouseholdMembers: () => emptyQuery }));
 vi.mock('@/hooks/use-m365', () => ({ useM365FeedStatus: () => ({ data: [] }) }));
+const useFeaturesMock = vi.fn();
+vi.mock('@/hooks/use-features', () => ({ useFeatures: () => useFeaturesMock() }));
+type KithQueryStub = { data?: { data: KithReminder[] }; isError: boolean; dataUpdatedAt: number };
+const useKithRemindersMock = vi.fn(
+  (_params: { from: string; to: string }, _opts?: { enabled?: boolean }): KithQueryStub => emptyQuery,
+);
+vi.mock('@/hooks/use-kith', () => ({
+  useKithReminders: (...args: Parameters<typeof useKithRemindersMock>) => useKithRemindersMock(...args),
+}));
 
 import HearthPage from './hearth';
+import type { KithReminder } from '@/lib/types';
 
-beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-07-24T12:00:00Z')); });
+const reminder = (over: Partial<KithReminder> & { id: string; dueAt: string }): KithReminder => ({
+  createdAt: '', updatedAt: '', personId: 'p1', title: 'Reminder', notes: null,
+  status: 'pending', snoozedUntil: null, recurrence: null, kind: 'generic', leadDays: 0,
+  ...over,
+});
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-07-24T12:00:00Z'));
+  localStorage.clear();
+  useFeaturesMock.mockReturnValue({ data: { data: { finance: false, kithledger: false } }, isError: false });
+  useKithRemindersMock.mockReturnValue(emptyQuery);
+});
 afterEach(() => { vi.useRealTimers(); cleanup(); });
 
 describe('HearthPage view + paging', () => {
@@ -108,5 +130,89 @@ describe('HearthPage add-event overlay', () => {
 
     expect(screen.getByRole('dialog', { name: 'Add event' })).toBeInTheDocument();
     expect(screen.getByLabelText('Start *')).toHaveValue('2026-07-08T09:00');
+  });
+});
+
+describe('HearthPage KithLedger reminders', () => {
+  const kithOn = { data: { data: { finance: false, kithledger: true } }, isError: false };
+
+  it('hides the toggle entirely when the kithledger feature is off', () => {
+    render(<HearthPage />);
+    expect(screen.queryByRole('button', { name: 'Reminders' })).toBeNull();
+    // And the query is disabled — the feature being off must not poll.
+    const [, opts] = useKithRemindersMock.mock.calls.at(-1)!;
+    expect(opts?.enabled).toBe(false);
+  });
+
+  it('shows the toggle (default ON) and renders reminder chips when the feature is on', () => {
+    useFeaturesMock.mockReturnValue(kithOn);
+    useKithRemindersMock.mockReturnValue({
+      data: {
+        data: [
+          reminder({ id: 'r1', dueAt: '2026-07-24T09:00:00Z', title: 'Call Nan', kind: 'generic' }),
+          reminder({ id: 'r2', dueAt: '2026-07-22T00:00:00Z', title: 'Sam’s birthday', kind: 'birthday' }),
+        ],
+      },
+      isError: false,
+      dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z'),
+    });
+    const { container } = render(<HearthPage />);
+    const toggle = screen.getByRole('button', { name: 'Reminders' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Call Nan')).toBeInTheDocument();
+    expect(screen.getByText('Sam’s birthday')).toBeInTheDocument();
+    // Generic reminders carry a time; birthdays are date-level (no time).
+    const generic = container.querySelector('[data-hearth-reminder="r1"]')!;
+    expect(generic.textContent).toMatch(/\d{2}:\d{2}/);
+    const birthday = container.querySelector('[data-hearth-reminder="r2"]')!;
+    expect(birthday.textContent).not.toMatch(/\d{2}:\d{2}/);
+    // Read-only: reminder chips are not buttons.
+    expect(generic.tagName).toBe('DIV');
+  });
+
+  it('requests reminders for the visible range with full ISO instants', () => {
+    useFeaturesMock.mockReturnValue(kithOn);
+    render(<HearthPage />);
+    const [params, opts] = useKithRemindersMock.mock.calls.at(-1)!;
+    const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+    expect(params.from).toMatch(instant);
+    expect(params.to).toMatch(instant);
+    expect(opts?.enabled).toBe(true);
+  });
+
+  it('toggling off hides the chips, disables the query, and persists', () => {
+    useFeaturesMock.mockReturnValue(kithOn);
+    useKithRemindersMock.mockReturnValue({
+      data: { data: [reminder({ id: 'r1', dueAt: '2026-07-24T09:00:00Z', title: 'Call Nan' })] },
+      isError: false,
+      dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z'),
+    });
+    render(<HearthPage />);
+    expect(screen.getByText('Call Nan')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reminders' }));
+
+    expect(screen.queryByText('Call Nan')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Reminders' })).toHaveAttribute('aria-pressed', 'false');
+    expect(localStorage.getItem('heorth:hearth:show-kith-reminders')).toBe('false');
+    const [, opts] = useKithRemindersMock.mock.calls.at(-1)!;
+    expect(opts?.enabled).toBe(false);
+  });
+
+  it('starts OFF when the persisted preference says so', () => {
+    localStorage.setItem('heorth:hearth:show-kith-reminders', 'false');
+    useFeaturesMock.mockReturnValue(kithOn);
+    render(<HearthPage />);
+    expect(screen.getByRole('button', { name: 'Reminders' })).toHaveAttribute('aria-pressed', 'false');
+    const [, opts] = useKithRemindersMock.mock.calls.at(-1)!;
+    expect(opts?.enabled).toBe(false);
+  });
+
+  it('keeps the wall rendering when the reminders query errors (KITH_UNAVAILABLE)', () => {
+    useFeaturesMock.mockReturnValue(kithOn);
+    useKithRemindersMock.mockReturnValue({ data: undefined, isError: true, dataUpdatedAt: 0 });
+    const { container } = render(<HearthPage />);
+    expect(container.querySelectorAll('[data-hearth-day]')).toHaveLength(7);
+    expect(container.querySelectorAll('[data-hearth-reminder]')).toHaveLength(0);
   });
 });

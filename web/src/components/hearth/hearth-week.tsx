@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DayColumn from './day-column';
-import type { DayComposition, StalenessInfo } from '@/lib/hearth';
-import type { Member, Recipe, Task } from '@/lib/types';
+import { remindersForDay, type DayComposition, type StalenessInfo } from '@/lib/hearth';
+import type { KithReminder, Member, Recipe, Task } from '@/lib/types';
 
 interface Props {
   days: DayComposition[];
+  /** KithLedger reminders for the visible range (empty/omitted → nothing renders). */
+  reminders?: KithReminder[];
   todayIso: string;
   membersById: Record<string, Member>;
   recipesById: Record<string, Recipe>;
@@ -29,7 +31,7 @@ interface Ghost { label: string; x: number; y: number }
  * itself lives in lib/hearth.ts (computeMealSwap) and is unit-tested.
  */
 export default function HearthWeek(props: Props) {
-  const { days, todayIso, membersById, recipesById, staleByOwner, completingIds, onCompleteTask, onOpenRecipe, onSwapMeal, onAddEvent } = props;
+  const { days, reminders = [], todayIso, membersById, recipesById, staleByOwner, completingIds, onCompleteTask, onOpenRecipe, onSwapMeal, onAddEvent } = props;
   const { t } = useTranslation();
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -110,6 +112,7 @@ export default function HearthWeek(props: Props) {
           <DayColumn
             key={comp.iso}
             comp={comp}
+            reminders={remindersForDay(reminders, comp.iso)}
             isToday={comp.iso === todayIso}
             membersById={membersById}
             recipesById={recipesById}

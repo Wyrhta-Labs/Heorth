@@ -18,6 +18,11 @@ vi.mock('@/hooks/use-meals', () => ({
 }));
 vi.mock('@/hooks/use-household', () => ({ useHouseholdMembers: () => emptyQuery }));
 vi.mock('@/hooks/use-m365', () => ({ useM365FeedStatus: () => ({ data: [] }) }));
+// KithLedger enabled so the wall's reminders toggle renders (and is asserted in German).
+vi.mock('@/hooks/use-features', () => ({
+  useFeatures: () => ({ data: { data: { finance: false, kithledger: true } }, isError: false }),
+}));
+vi.mock('@/hooks/use-kith', () => ({ useKithReminders: () => emptyQuery }));
 
 import HearthPage from './hearth';
 
@@ -37,6 +42,7 @@ describe('HearthPage in German', () => {
     render(<HearthPage />);
     expect(screen.getByRole('button', { name: 'Woche' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Monat' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Erinnerungen' })).toBeInTheDocument();
     expect(screen.getByLabelText('Weiter')).toBeInTheDocument();
     expect(screen.getByText('Heute Abend')).toBeInTheDocument();
     expect(screen.getByText('Heute fällig')).toBeInTheDocument();

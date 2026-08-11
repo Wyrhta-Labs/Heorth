@@ -59,6 +59,7 @@
       "more_other": "+{{count}} weitere"
     },
     "week": { "mealFallback": "Essen" },
+    "kith": { "toggle": "Erinnerungen" },
     "addEvent": {
       "title": "Termin hinzufügen",
       "close": "Schließen",

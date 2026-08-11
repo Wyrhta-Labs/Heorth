@@ -1,12 +1,15 @@
-import { GripVertical, UtensilsCrossed } from 'lucide-react';
+import { Bell, Cake, GripVertical, UtensilsCrossed } from 'lucide-react';
+import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import EventChip from './event-chip';
 import { useFormatters } from '@/hooks/use-formatters';
-import { resolveAttribution, type DayComposition, type StalenessInfo } from '@/lib/hearth';
-import type { Member, Recipe, Task } from '@/lib/types';
+import { effectiveDueAt, resolveAttribution, type DayComposition, type StalenessInfo } from '@/lib/hearth';
+import type { KithReminder, Member, Recipe, Task } from '@/lib/types';
 
 interface Props {
   comp: DayComposition;
+  /** KithLedger reminders effectively due this day (read-only chips, no tap action). */
+  reminders?: KithReminder[];
   isToday: boolean;
   membersById: Record<string, Member>;
   recipesById: Record<string, Recipe>;
@@ -27,7 +30,7 @@ function ownerStale(owner: string | null | undefined, stale: Record<string, Stal
 }
 
 export default function DayColumn({
-  comp, isToday, membersById, recipesById, staleByOwner, completingIds,
+  comp, reminders = [], isToday, membersById, recipesById, staleByOwner, completingIds,
   onCompleteTask, onOpenRecipe, onSupperPickup, onDayTap, isDragSource, isDropTarget, dragActive,
 }: Props) {
   const { t } = useTranslation();
@@ -80,6 +83,30 @@ export default function DayColumn({
             );
           })}
         </div>
+
+        {/* KithLedger reminders — read-only, deliberately NOT event-styled:
+            dashed outline + icon so they read as "a nudge", not an appointment.
+            Plain divs (no tap action); a tap falls through as a day tap. */}
+        {reminders.length > 0 && (
+          <div className="space-y-1.5">
+            {reminders.map((r) => (
+              <div
+                key={r.id}
+                data-hearth-reminder={r.id}
+                className="flex items-center gap-2 rounded-lg border border-dashed border-ember/50 bg-parchment px-2.5 py-1.5"
+              >
+                {r.kind === 'birthday'
+                  ? <Cake className="h-4 w-4 shrink-0 text-ember" aria-hidden />
+                  : <Bell className="h-4 w-4 shrink-0 text-ember" aria-hidden />}
+                <span className="min-w-0 flex-1 truncate text-base text-ink">{r.title}</span>
+                {/* Birthdays are date-level — a clock time would be noise. */}
+                {r.kind !== 'birthday' && (
+                  <span className="shrink-0 text-sm text-ash">{format(new Date(effectiveDueAt(r)), 'HH:mm')}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Supper (the day's planned meal) — the one draggable element */}
         <div

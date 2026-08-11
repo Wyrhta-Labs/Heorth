@@ -6,7 +6,7 @@
 import { format } from 'date-fns';
 import type { TFunction } from 'i18next';
 import { MEMBER_COLORS } from './constants';
-import { isMirroredEvent, type EventOccurrence, type MealPlanEntry, type Member, type Task } from './types';
+import { isMirroredEvent, type EventOccurrence, type KithReminder, type MealPlanEntry, type Member, type Task } from './types';
 
 // ---------------------------------------------------------------------------
 // Family / household colour policy (delegated to Task 2.5 by the brief).
@@ -161,6 +161,27 @@ export function composeDay(
     supper: entries.find((e) => e.date === iso && e.slot === 'supper') ?? null,
     tasks: tasksForDay(tasks, iso, todayIso, completingIds, cap),
   };
+}
+
+// ---------------------------------------------------------------------------
+// KithLedger reminders — read-only extras on the wall
+// ---------------------------------------------------------------------------
+
+/**
+ * The instant a reminder is actually due: a snoozed reminder moved to its
+ * `snoozedUntil`, everything else sits on `dueAt`. Mirrors the server's
+ * windowing convention (src/modules/kith) so day bucketing agrees with what
+ * the range query returned.
+ */
+export function effectiveDueAt(r: KithReminder): string {
+  return r.status === 'snoozed' && r.snoozedUntil ? r.snoozedUntil : r.dueAt;
+}
+
+/** Reminders effectively due on local day `iso`, soonest first. Same local-day bucketing as events/tasks (`isoOf`). */
+export function remindersForDay(reminders: KithReminder[], iso: string): KithReminder[] {
+  return reminders
+    .filter((r) => isoOf(effectiveDueAt(r)) === iso)
+    .sort((a, b) => effectiveDueAt(a).localeCompare(effectiveDueAt(b)));
 }
 
 // ---------------------------------------------------------------------------

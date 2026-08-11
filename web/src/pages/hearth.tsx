@@ -3,7 +3,7 @@ import { keepPreviousData } from '@tanstack/react-query';
 import {
   addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { Bell, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ToastProvider, useToast } from '@/components/ui/toast';
@@ -19,12 +19,15 @@ import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
 import { useWeekPlan, useRecipes, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
 import { useHouseholdMembers } from '@/hooks/use-household';
 import { useM365FeedStatus } from '@/hooks/use-m365';
+import { useFeatures } from '@/hooks/use-features';
+import { useKithReminders } from '@/hooks/use-kith';
 import { useFormatters } from '@/hooks/use-formatters';
+import { loadShowKithReminders, saveShowKithReminders } from '@/lib/hearth-prefs';
 import {
   composeDay, computeMealSwap, deriveStaleness, tasksForDay, formatAge,
   type DayComposition, type MealOp,
 } from '@/lib/hearth';
-import type { EventOccurrence, Member, Recipe, Task } from '@/lib/types';
+import type { EventOccurrence, KithReminder, Member, Recipe, Task } from '@/lib/types';
 
 // Polling cadences for the always-on wall. Tasks poll fastest so a completion
 // (here or from a phone via To Do sync) strikes through within a cycle.
@@ -42,6 +45,7 @@ function HearthInner() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [openRecipeId, setOpenRecipeId] = useState<string | null>(null);
   const [addEventDate, setAddEventDate] = useState<string | null>(null);
+  const [showKithReminders, setShowKithReminders] = useState(() => loadShowKithReminders());
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const [nowMs, setNowMs] = useState(() => Date.now());
   const idle = useIdle();
@@ -73,6 +77,14 @@ function HearthInner() {
   const recipesQuery = useRecipes();
   const membersQuery = useHouseholdMembers();
   const statusQuery = useM365FeedStatus();
+  // KithLedger reminders: only when the integration is configured server-side
+  // AND the wall toggle is on — otherwise the query never fires (no 404 loop).
+  const featuresQuery = useFeatures();
+  const kithEnabled = featuresQuery.data?.data.kithledger ?? false;
+  const kithQuery = useKithReminders(
+    { from: fromIso, to: toIso },
+    { enabled: kithEnabled && showKithReminders, refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData },
+  );
   const complete = useCompleteTask();
   const upsertMeal = useUpsertPlanEntry();
   const deleteMeal = useDeletePlanEntry();
@@ -83,6 +95,11 @@ function HearthInner() {
   const recipes = recipesQuery.data?.data ?? [];
   const members = membersQuery.data?.data ?? [];
   const feeds = statusQuery.data ?? [];
+  // Degrade silently: if KithLedger is unreachable (502 KITH_UNAVAILABLE) the
+  // wall keeps rendering everything else and simply omits the reminders.
+  const reminders: KithReminder[] = kithEnabled && showKithReminders
+    ? ((kithQuery.data?.data ?? []) as KithReminder[])
+    : [];
 
   const membersById = useMemo(() => Object.fromEntries(members.map((m: Member) => [m.id, m])), [members]);
   const recipesById = useMemo(() => Object.fromEntries(recipes.map((r: Recipe) => [r.id, r])), [recipes]);
@@ -171,6 +188,24 @@ function HearthInner() {
         </div>
         <div className="flex flex-col items-end gap-3">
           <div className="flex items-center gap-2">
+            {/* KithLedger reminders on/off — only offered when the integration
+                is configured server-side. Persisted so the wall remembers. */}
+            {kithEnabled && (
+              <button
+                onClick={() => {
+                  setShowKithReminders((prev) => {
+                    const next = !prev;
+                    saveShowKithReminders(next);
+                    return next;
+                  });
+                }}
+                aria-pressed={showKithReminders}
+                className={`inline-flex items-center gap-2 rounded-xl border border-tan px-5 py-3 text-lg ${showKithReminders ? 'bg-ember text-white' : 'bg-card text-ash'}`}
+              >
+                <Bell className="h-5 w-5" aria-hidden />
+                {t('hearth.kith.toggle')}
+              </button>
+            )}
             <div className="inline-flex rounded-xl border border-tan bg-card p-1">
               {(['week', 'month'] as const).map((v) => (
                 <button
@@ -218,6 +253,7 @@ function HearthInner() {
       {view === 'week' ? (
         <HearthWeek
           days={days}
+          reminders={reminders}
           todayIso={todayIso}
           membersById={membersById}
           recipesById={recipesById}
@@ -236,6 +272,7 @@ function HearthInner() {
           occurrences={occurrences}
           entries={entries}
           tasks={tasks}
+          reminders={reminders}
           membersById={membersById}
           recipesById={recipesById}
           staleByOwner={staleByOwner}

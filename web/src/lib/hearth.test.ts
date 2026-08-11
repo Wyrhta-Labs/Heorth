@@ -7,12 +7,12 @@ process.env.TZ = 'Europe/Berlin';
 import { describe, it, expect } from 'vitest';
 import i18n from '@/i18n';
 import {
-  composeDay, computeMealSwap, deriveStaleness, eventsForDay, formatAge,
-  ownerOfFeed, pickNowNext, resolveAttribution, tasksForDay,
+  composeDay, computeMealSwap, deriveStaleness, effectiveDueAt, eventsForDay, formatAge,
+  ownerOfFeed, pickNowNext, remindersForDay, resolveAttribution, tasksForDay,
   HOUSEHOLD_COLOR, type FeedStatus,
 } from './hearth';
 import { MEMBER_COLORS } from './constants';
-import type { EventOccurrence, MealPlanEntry, Member, Task } from './types';
+import type { EventOccurrence, KithReminder, MealPlanEntry, Member, Task } from './types';
 
 // ---- fixtures -------------------------------------------------------------
 const member = (id: string, color: Member['avatarColor']): Member => ({
@@ -97,6 +97,43 @@ describe('day composition', () => {
     expect(comp.events).toHaveLength(3);
     expect(comp.supper?.id).toBe('m1'); // supper only, not lunch
     expect(comp.tasks.open).toHaveLength(1);
+  });
+});
+
+// ---- KithLedger reminders ---------------------------------------------------
+function reminder(partial: Partial<KithReminder> & { id: string; dueAt: string }): KithReminder {
+  return {
+    id: partial.id, createdAt: '', updatedAt: '', personId: partial.personId ?? 'p1',
+    dueAt: partial.dueAt, title: partial.title ?? 'Reminder', notes: null,
+    status: partial.status ?? 'pending', snoozedUntil: partial.snoozedUntil ?? null,
+    recurrence: null, kind: partial.kind ?? 'generic', leadDays: partial.leadDays ?? 0,
+  };
+}
+
+describe('remindersForDay', () => {
+  it('uses the effective due: snoozedUntil when snoozed, else dueAt', () => {
+    expect(effectiveDueAt(reminder({ id: 'a', dueAt: '2026-07-24T09:00:00Z' }))).toBe('2026-07-24T09:00:00Z');
+    expect(effectiveDueAt(reminder({ id: 'b', dueAt: '2026-07-20T09:00:00Z', status: 'snoozed', snoozedUntil: '2026-07-24T09:00:00Z' }))).toBe('2026-07-24T09:00:00Z');
+    // Snoozed without a snoozedUntil degrades to dueAt rather than crashing.
+    expect(effectiveDueAt(reminder({ id: 'c', dueAt: '2026-07-20T09:00:00Z', status: 'snoozed' }))).toBe('2026-07-20T09:00:00Z');
+  });
+
+  it('buckets by effective due into local days, soonest first', () => {
+    const rs = [
+      reminder({ id: 'late', dueAt: '2026-07-24T15:00:00Z' }),
+      reminder({ id: 'early', dueAt: '2026-07-24T07:00:00Z' }),
+      reminder({ id: 'moved', dueAt: '2026-07-20T09:00:00Z', status: 'snoozed', snoozedUntil: '2026-07-24T10:00:00Z' }),
+      reminder({ id: 'other', dueAt: '2026-07-25T09:00:00Z' }),
+    ];
+    expect(remindersForDay(rs, '2026-07-24').map((r) => r.id)).toEqual(['early', 'moved', 'late']);
+    expect(remindersForDay(rs, '2026-07-25').map((r) => r.id)).toEqual(['other']);
+  });
+
+  it('buckets by the LOCAL day, not the UTC date (Europe/Berlin)', () => {
+    // 22:30Z on the 24th is 00:30 local on the 25th in July (UTC+2).
+    const rs = [reminder({ id: 'x', dueAt: '2026-07-24T22:30:00Z' })];
+    expect(remindersForDay(rs, '2026-07-24')).toHaveLength(0);
+    expect(remindersForDay(rs, '2026-07-25').map((r) => r.id)).toEqual(['x']);
   });
 });
 

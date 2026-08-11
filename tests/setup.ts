@@ -3,19 +3,20 @@ import { beforeAll, beforeEach } from 'vitest';
 // Set required env BEFORE importing modules that read process.env at load time.
 // The src imports at the bottom are dynamic (`await import`) precisely so these
 // assignments land first — a static import would be hoisted above them.
-// The .env auto-loader (src/config/env.ts) only fills DATABASE_URL if it is still
-// unset by then, so an unexported DATABASE_URL gets the test default below rather
-// than the .env dev value.
+// The .env auto-loader (src/config/env.ts) is a no-op under Vitest, so the
+// suite sees ONLY what this file (and individual tests) put into process.env —
+// an unexported DATABASE_URL gets the test default below, never the .env dev
+// value, and gating vars a test deletes stay deleted across vi.resetModules().
 process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:5432/heorth_test';
 process.env['JWT_SECRET'] ??= 'test-secret-test-secret-test-secret-123';
 process.env['HOUSEHOLD_NAME'] ??= 'Test Household';
 process.env['ADMIN_EMAIL'] ??= 'admin@test.local';
 process.env['ADMIN_PASSWORD'] ??= 'test-admin-password';
-// Force the M365 integration DISABLED for the suite regardless of a local `.env`
-// (whose real dev credentials the auto-loader would otherwise inject). Set to
-// '' — the env schema treats blank as absent — so config.m365 is null and no
-// real-tenant credentials or calls ever enter the test process. Enabled-path
-// tests inject a fake-Graph runtime via setM365Runtime instead.
+// Force the M365 integration DISABLED for the suite regardless of what the
+// spawning shell exported. Set to '' — the env schema treats blank as absent —
+// so config.m365 is null and no real-tenant credentials or calls ever enter
+// the test process. Enabled-path tests inject a fake-Graph runtime via
+// setM365Runtime instead.
 for (const k of [
   'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
   'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX', 'M365_SHARED_TODO_LIST',

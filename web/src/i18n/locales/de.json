@@ -60,6 +60,17 @@
     },
     "week": { "mealFallback": "Essen" },
     "kith": { "toggle": "Erinnerungen" },
+    "display": {
+      "button": "Anzeige",
+      "title": "Anzeige-Einstellungen",
+      "close": "Schließen",
+      "rows": {
+        "reminders": "Erinnerungen",
+        "tasks": "Aufgaben",
+        "meals": "Mahlzeiten & Abendessen",
+        "footer": "Sync-Status"
+      }
+    },
     "addEvent": {
       "title": "Termin hinzufügen",
       "close": "Schließen",

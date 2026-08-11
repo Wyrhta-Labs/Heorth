@@ -60,6 +60,17 @@
     },
     "week": { "mealFallback": "Meal" },
     "kith": { "toggle": "Reminders" },
+    "display": {
+      "button": "Display",
+      "title": "Display settings",
+      "close": "Close",
+      "rows": {
+        "reminders": "Reminders",
+        "tasks": "Tasks",
+        "meals": "Meals & supper",
+        "footer": "Sync status"
+      }
+    },
     "addEvent": {
       "title": "Add event",
       "close": "Close",

@@ -7,7 +7,7 @@
 // is no parties table to validate against. Added here: a child-role
 // principal gets the write gate's tool-error, and the registry assembled by
 // `createApp` carries exactly the six `feoh.*` tools.
-import { describe, it, expect, vi, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { seedTestHousehold, invokeTool } from './helpers.js';
 import { feohTools } from '../src/modules/feoh/mcp.js';
 import * as service from '../src/modules/feoh/service.js';
@@ -152,21 +152,12 @@ describe('feoh MCP tools do not include feoh.list_parties', () => {
   });
 });
 
-describe('the assembled MCP registry (createApp), FEOH_ENABLED=true', () => {
-  // singleFork shares process.env across test files — restore the ambient
-  // default (unset/disabled) so later files aren't affected by this one.
-  afterAll(() => { delete process.env['FEOH_ENABLED']; });
-
-  it('contains the six feoh.* tools when enabled', async () => {
-    process.env['FEOH_ENABLED'] = 'true';
-    // config.feohEnabled is parsed from process.env at module load — force a
-    // fresh module graph so the flip above is honored (mirrors
-    // feoh-gating.test.ts's freshMcpTools()).
-    vi.resetModules();
-    const { collectMcpTools: freshCollectMcpTools } = await import('./helpers.js');
+describe('the assembled MCP registry (createApp)', () => {
+  it('contains the six feoh.* tools (always registered)', async () => {
+    const { collectMcpTools } = await import('./helpers.js');
     const { ALL_MODULES } = await import('../src/modules/index.js');
 
-    const tools = freshCollectMcpTools(ALL_MODULES).all();
+    const tools = collectMcpTools(ALL_MODULES).all();
     const feohToolNames = tools.filter((t) => t.name.startsWith('feoh.')).map((t) => t.name);
     expect(feohToolNames.length).toBe(6);
     expect(feohToolNames).not.toContain('feoh.list_parties');

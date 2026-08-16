@@ -17,7 +17,7 @@ export const ALL_MODULES: HeorthModule[] = [
   tasksModule,
   // M365 is a no-op when its env is absent (integration disabled) — see src/m365.
   m365Module,
-  // Finance (ADR 0007) is a no-op when FEOH_ENABLED is not 'true' — see src/modules/feoh.
+  // Finance (ADR 0007) is always on — see src/modules/feoh.
   feohModule,
   // KithLedger reminders proxy is a no-op when the KITH_* env group is absent — see src/modules/kith.
   kithModule,

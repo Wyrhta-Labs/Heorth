@@ -1,22 +1,10 @@
-import { describe, it, expect, afterAll, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { seedTestHousehold, authHeaders } from './helpers.js';
+import { createApp } from '../src/app.js';
+import { ALL_MODULES } from '../src/modules/index.js';
 
-// Finance is now a built-in module gated behind FEOH_ENABLED (ADR 0007) rather
-// than a satellite proxy. helpers.js's own static import chain already loaded
-// src/config/env.js (with FEOH_ENABLED unset) before this file's own body
-// runs, so vi.resetModules() forces the dynamic imports below to re-evaluate
-// config against the current env. Mirrors the M365 suite's env-gated-config
-// precedent (see tests/m365-routes.test.ts).
-process.env['FEOH_ENABLED'] = 'true';
-vi.resetModules();
-const { createApp } = await import('../src/app.js');
-const { ALL_MODULES } = await import('../src/modules/index.js');
-
+// Finance is a built-in module (ADR 0007), always on, rather than a satellite proxy.
 const app = createApp(ALL_MODULES);
-
-// singleFork shares process.env across test files — restore the ambient
-// default (unset/disabled) so later files aren't affected by this one.
-afterAll(() => { delete process.env['FEOH_ENABLED']; });
 
 describe('integration smoke (all modules, one app)', () => {
   it('an adult can move through calendar, meals and feoh; a child is blocked from finance writes', async () => {

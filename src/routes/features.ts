@@ -11,6 +11,6 @@ import { config } from '../config/env.js';
 export const featuresRouter = new Hono();
 featuresRouter.use('*', requireAuth);
 featuresRouter.get('/', (c) => ok(c, {
-  finance: config.feohEnabled,
+  finance: true, // feoh is always on (gate removed 2026-08-16)
   kithledger: config.kith !== null,
 }));

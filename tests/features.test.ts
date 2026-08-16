@@ -10,11 +10,11 @@ describe('features', () => {
     expect(res.status).toBe(401);
   });
 
-  it('reports finance disabled when FEOH_ENABLED is not set', async () => {
+  it('reports finance always enabled', async () => {
     const { child } = await seedTestHousehold();
     const res = await app.request('/api/v1/features', { headers: authHeaders(child.jwt) });
     expect(res.status).toBe(200);
     const body = await res.json() as { data: { finance: boolean } };
-    expect(body.data.finance).toBe(false);
+    expect(body.data.finance).toBe(true);
   });
 });

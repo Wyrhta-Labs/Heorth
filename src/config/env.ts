@@ -42,10 +42,6 @@ export function buildEnvSchema() {
     DB_POOL_MAX: z.coerce.number().int().positive().default(10),
     TRAKT_CLIENT_ID: z.string().min(1).optional(),
     TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
-    // Feoh built-in finance module (ADR 0007). Optional kill switch, default
-    // off: absent/empty/'false' → module registers as a no-op (routes 404,
-    // no MCP tools, UI hidden). Toggling never touches data.
-    FEOH_ENABLED: emptyToUndefined(z.enum(['true', 'false'])),
     LIBRARY_ENCRYPTION_KEY: z.string().min(1).optional(),
     // Microsoft 365 integration (Phase 2). Optional AS A GROUP: either all six
     // present (integration enabled) or all absent (integration disabled). Partial
@@ -121,7 +117,6 @@ export const config = {
   dbPoolMax: parsed.data.DB_POOL_MAX,
   traktClientId: parsed.data.TRAKT_CLIENT_ID,
   traktClientSecret: parsed.data.TRAKT_CLIENT_SECRET,
-  feohEnabled: parsed.data.FEOH_ENABLED === 'true',
   libraryEncryptionKey: parsed.data.LIBRARY_ENCRYPTION_KEY,
   // Mirror poll interval (seconds). Independent optional tuning knob; the
   // scheduler floors it at 60s and only runs when the integration is enabled.

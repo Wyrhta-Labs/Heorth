@@ -2,14 +2,14 @@
 // semantics: the household member's id (from seedTestHousehold) stands in
 // for Feoh's `createTestParty`, and `recordTransaction` takes it as the
 // second (createdBy) parameter instead of the input body. This test calls
-// the service directly (no HTTP routes), so it needs no FEOH_ENABLED gate.
-import { describe, it, expect, vi, afterAll } from 'vitest';
+// the service directly (no HTTP routes).
+import { describe, it, expect } from 'vitest';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 import * as service from '../src/modules/feoh/service.js';
+import { createApp } from '../src/app.js';
+import { ALL_MODULES } from '../src/modules/index.js';
 
-// singleFork shares process.env across test files — restore the ambient
-// default (unset/disabled) so later files aren't affected by this one.
-afterAll(() => { delete process.env['FEOH_ENABLED']; });
+const app = createApp(ALL_MODULES);
 
 describe('feoh month summary', () => {
   it('aggregates spend per envelope vs budget within the month', async () => {
@@ -38,11 +38,6 @@ describe('feoh month summary', () => {
   });
 
   it('rejects an out-of-range month (13) with a 400 VALIDATION_ERROR, not a Postgres 500', async () => {
-    process.env['FEOH_ENABLED'] = 'true';
-    vi.resetModules();
-    const { createApp } = await import('../src/app.js');
-    const { ALL_MODULES } = await import('../src/modules/index.js');
-    const app = createApp(ALL_MODULES);
     const { adult } = await seedTestHousehold();
 
     const res = await app.request('/api/v1/feoh/summary?month=2026-13', { headers: authHeaders(adult.jwt) });

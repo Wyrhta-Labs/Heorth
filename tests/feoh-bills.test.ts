@@ -1,25 +1,13 @@
 // Ported from Feoh's tests/feoh-bills.test.ts, adapted to Heorth's
 // household-member auth (seedTestHousehold/authHeaders) in place of Feoh's
-// single-user adminJwt. FEOH_ENABLED is set before the dynamic import of
-// src/app.js so config.feohEnabled is true when the module registers —
-// mirrors the M365 suite's env-gated-config precedent (see integration-smoke.test.ts).
-import { describe, it, expect, afterAll, vi } from 'vitest';
+// single-user adminJwt.
+import { describe, it, expect } from 'vitest';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 import * as service from '../src/modules/feoh/service.js';
-
-process.env['FEOH_ENABLED'] = 'true';
-// helpers.js's own static import chain already loaded src/config/env.js (with
-// FEOH_ENABLED unset) before the assignment above ran — vi.resetModules()
-// forces the dynamic imports below to re-evaluate it against the current env.
-vi.resetModules();
-const { createApp } = await import('../src/app.js');
-const { ALL_MODULES } = await import('../src/modules/index.js');
+import { createApp } from '../src/app.js';
+import { ALL_MODULES } from '../src/modules/index.js';
 
 const app = createApp(ALL_MODULES);
-
-// singleFork shares process.env across test files — restore the ambient
-// default (unset/disabled) so later files aren't affected by this one.
-afterAll(() => { delete process.env['FEOH_ENABLED']; });
 
 describe('feoh recurring bills', () => {
   it('creates and lists a recurring bill', async () => {

@@ -10,12 +10,11 @@ describe('assembled MCP server', () => {
   it('exposes namespaced tools from every module', () => {
     const names = collectMcpTools(ALL_MODULES).all().map((t) => t.name);
     // Cross-module reachability: at least one tool from each namespace is present.
-    // feoh.* is empty here: FEOH_ENABLED is unset in this file's config
-    // (src/modules/feoh/mcp.ts).
+    // feoh.* is always registered (ADR 0007, gate removed 2026-08-16).
     expect(names).toContain('household.whoami');
     expect(names).toContain('calendar.list_events');
     expect(names).toContain('meals.list_recipes');
-    expect(names).not.toContain('feoh.record_transaction');
+    expect(names).toContain('feoh.record_transaction');
     // Every tool is namespaced module.tool.
     for (const n of names) expect(n).toMatch(/^[a-z]+\.[a-z_]+$/);
   });

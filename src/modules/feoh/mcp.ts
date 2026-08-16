@@ -5,6 +5,7 @@ import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../
 import * as service from './service.js';
 import * as occ from './occurrences.js';
 import * as itemCosts from './item-costs.js';
+import { getAccountLedger } from './ledger.js';
 
 /**
  * Heorth is a multi-member household (unlike single-user Feoh, whose copy of
@@ -189,6 +190,21 @@ export const feohTools: McpTool[] = [
       const breakdown = await itemCosts.getItemCosts((input as { itemId: string }).itemId);
       if (!breakdown) return toolError('Item not found');
       return result(breakdown);
+    },
+  },
+  {
+    name: 'feoh.account_ledger',
+    description: 'Return an account\'s ledger entries with a running balance, plus opening/end balance for the window (read-only).',
+    inputSchema: {
+      accountId: z.string().uuid(),
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    },
+    async handler(_ctx, input) {
+      const parsed = input as { accountId: string; from?: string; to?: string };
+      const ledger = await getAccountLedger(parsed.accountId, { from: parsed.from, to: parsed.to });
+      if (!ledger) return toolError('Account not found');
+      return result(ledger);
     },
   },
   {

@@ -6,6 +6,7 @@ import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../
 import * as service from './service.js';
 import * as occ from './occurrences.js';
 import * as itemCosts from './item-costs.js';
+import { getAccountLedger } from './ledger.js';
 import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema, occurrenceRefSchema, linkOccurrenceSchema, overrideOccurrenceSchema, listOccurrencesQuerySchema, createItemCostSchema } from './validators.js';
 
 export const feohRouter = new Hono();
@@ -37,6 +38,14 @@ feohRouter.delete('/accounts/:id', canWrite, async (c) => {
   const row = await service.deleteAccount(c.req.param('id'));
   if (!row) return err(c, 'NOT_FOUND', 'Account not found', 404);
   return ok(c, { id: row.id });
+});
+
+feohRouter.get('/accounts/:id/ledger', async (c) => {
+  const q = listTransactionsQuerySchema.safeParse(c.req.query());
+  if (!q.success) return err(c, 'VALIDATION_ERROR', 'Invalid query parameters', 400);
+  const ledger = await getAccountLedger(c.req.param('id'), q.data);
+  if (!ledger) return err(c, 'NOT_FOUND', 'Account not found', 404);
+  return ok(c, ledger.entries, ledger.meta);
 });
 
 feohRouter.get('/envelopes', async (c) => ok(c, await service.listEnvelopes()));

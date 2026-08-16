@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import * as service from '../src/modules/inventory/service.js';
+import { updateItemSchema } from '../src/modules/inventory/validators.js';
 
 async function stubTransactionId(): Promise<string> {
   const { seedTestHousehold } = await import('./helpers.js');
@@ -54,5 +55,23 @@ describe('inventory service', () => {
     await expect(service.deleteItem(linked.id)).rejects.toThrow('HAS_FINANCE_LINKS');
     const free = await service.createItem({ name: 'Chair' });
     expect((await service.deleteItem(free.id))!.id).toBe(free.id);
+  });
+
+  it('rejects a partial lifecycle trio (only two of three nulled)', () => {
+    const result = updateItemSchema.safeParse({
+      decommissionedAt: null, decommissionReason: null,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('reactivates successfully when no disposal link exists', async () => {
+    const item = await service.createItem({ name: 'Ladder' });
+    await service.decommissionItem(item.id, { date: '2026-08-01', reason: 'worn_out' });
+    const reactivated = await service.updateItem(item.id, {
+      decommissionedAt: null, decommissionReason: null, disposalProceeds: null,
+    });
+    expect(reactivated!.decommissionedAt).toBeNull();
+    expect(reactivated!.decommissionReason).toBeNull();
+    expect(reactivated!.disposalProceeds).toBeNull();
   });
 });

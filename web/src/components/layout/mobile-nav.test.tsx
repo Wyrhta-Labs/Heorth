@@ -3,13 +3,6 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { createRootRoute, createRoute, createRouter, createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import MobileNav from './mobile-nav';
 
-const useFeaturesMock = vi.fn();
-// Mock the underlying `useFeatures` fetch only — `useFinanceEnabled` (a
-// separate module) is left real, so its `?? false` fetch-failure fallback is
-// what's actually exercised here, not a re-stubbed shortcut.
-vi.mock('@/hooks/use-features', () => ({
-  useFeatures: () => useFeaturesMock(),
-}));
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({ logout: vi.fn() }),
 }));
@@ -29,30 +22,12 @@ async function openMore() {
 
 afterEach(() => {
   cleanup();
-  useFeaturesMock.mockReset();
 });
 
-describe('MobileNav "More" sheet finance gating', () => {
-  it('hides the Feoh nav item when finance is disabled', async () => {
-    useFeaturesMock.mockReturnValue({ data: { data: { finance: false } }, isError: false });
-    renderAt();
-    await openMore();
-    expect(screen.getByText('Library')).toBeInTheDocument();
-    expect(screen.queryByText('Feoh')).not.toBeInTheDocument();
-  });
-
-  it('shows the Feoh nav item when finance is enabled', async () => {
-    useFeaturesMock.mockReturnValue({ data: { data: { finance: true } }, isError: false });
+describe('MobileNav "More" sheet', () => {
+  it('shows the Feoh nav item', async () => {
     renderAt();
     await openMore();
     expect(screen.getByText('Feoh')).toBeInTheDocument();
-  });
-
-  it('treats a failed features fetch as all features off', async () => {
-    useFeaturesMock.mockReturnValue({ data: undefined, isError: true });
-    renderAt();
-    await openMore();
-    expect(screen.getByText('Library')).toBeInTheDocument();
-    expect(screen.queryByText('Feoh')).not.toBeInTheDocument();
   });
 });

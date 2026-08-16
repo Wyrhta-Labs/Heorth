@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Sun, ShoppingCart, PlusCircle, Menu, LogOut } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
-import { useFinanceEnabled } from '@/hooks/use-finance-enabled';
-import { navItems, filterNavItems } from './sidebar';
+import { navItems } from './sidebar';
 import { cn } from '@/lib/utils';
 
 const TABS = [
@@ -25,8 +24,6 @@ export default function MobileNav() {
   const pathname = router.state.location.pathname;
   const { logout } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
-  const financeEnabled = useFinanceEnabled();
-  const visibleItems = filterNavItems(navItems, financeEnabled);
 
   return (
     <>
@@ -63,7 +60,7 @@ export default function MobileNav() {
             <DialogClose onClose={() => setMoreOpen(false)} />
           </DialogHeader>
           <div className="space-y-1">
-            {visibleItems.map(({ to, labelKey, icon: Icon }) => (
+            {navItems.map(({ to, labelKey, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}

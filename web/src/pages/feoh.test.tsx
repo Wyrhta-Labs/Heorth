@@ -16,43 +16,16 @@ vi.mock('@/hooks/use-feoh', () => ({
 }));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
-const useFeaturesMock = vi.fn();
-// Mock the underlying `useFeatures` fetch only — `useFinanceEnabled` (a
-// separate module) is left real, so its `?? false` fetch-failure fallback is
-// what's actually exercised here, not a re-stubbed shortcut.
-vi.mock('@/hooks/use-features', () => ({
-  useFeatures: () => useFeaturesMock(),
-}));
-
 import FeohPage from './feoh';
 
 afterEach(() => {
   cleanup();
-  useFeaturesMock.mockReset();
 });
 
-describe('FeohPage feature gating', () => {
-  it('renders the unavailable card when finance is disabled', () => {
-    useFeaturesMock.mockReturnValue({ data: { data: { finance: false } }, isError: false });
-    render(<FeohPage />);
-    expect(screen.getByText('Feature not enabled')).toBeInTheDocument();
-    expect(screen.getByText('Finance is not enabled on this server.')).toBeInTheDocument();
-    expect(screen.queryByText('New transaction')).not.toBeInTheDocument();
-    // Direct navigation lands here headless of any prior screen-reader
-    // context — it must announce itself, not just render silently.
-    expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-
-  it('renders the normal finance UI when finance is enabled', () => {
-    useFeaturesMock.mockReturnValue({ data: { data: { finance: true } }, isError: false });
+describe('FeohPage', () => {
+  it('renders the normal finance UI', () => {
     render(<FeohPage />);
     expect(screen.getByText('New transaction')).toBeInTheDocument();
     expect(screen.queryByText('Feature not enabled')).not.toBeInTheDocument();
-  });
-
-  it('treats a failed features fetch as finance disabled', () => {
-    useFeaturesMock.mockReturnValue({ data: undefined, isError: true });
-    render(<FeohPage />);
-    expect(screen.getByText('Feature not enabled')).toBeInTheDocument();
   });
 });

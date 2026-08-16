@@ -14,13 +14,11 @@ import CsvPanel from '@/components/feoh/csv-panel';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useSummary, useEnvelopes, useAccounts, useBills, useRecordTransaction, useDeleteBill } from '@/hooks/use-feoh';
-import { useFinanceEnabled } from '@/hooks/use-finance-enabled';
 import { ApiError } from '@/api/client';
 
 export default function FeohPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const financeEnabled = useFinanceEnabled();
   const month = format(new Date(), 'yyyy-MM');
   const summaryQuery = useSummary(month);
   const envQuery = useEnvelopes();
@@ -46,23 +44,6 @@ export default function FeohPage() {
       toast(msg || t('feoh.recordFailed'), 'error');
     }
   };
-
-  // Route stays registered so direct navigation gets this card instead of a
-  // crash — the finance components below assume the feature is on.
-  if (!financeEnabled) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Card className="max-w-md text-center" role="status" aria-live="polite">
-          <CardHeader>
-            <CardTitle className="text-base">{t('feoh.unavailableTitle')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-ash">{t('feoh.unavailableBody')}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

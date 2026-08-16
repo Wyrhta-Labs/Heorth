@@ -18,6 +18,8 @@ describe('assembled MCP server', () => {
     expect(names).toContain('feoh.list_occurrences');
     expect(names).toContain('feoh.link_occurrence');
     expect(names).toContain('feoh.skip_occurrence');
+    expect(names).toContain('feoh.get_item_costs');
+    expect(names).toContain('feoh.link_item_cost');
     // Every tool is namespaced module.tool.
     for (const n of names) expect(n).toMatch(/^[a-z]+\.[a-z_]+$/);
   });

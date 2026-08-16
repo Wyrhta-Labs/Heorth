@@ -66,6 +66,12 @@ export const listOccurrencesQuerySchema = z.object({
   status: z.enum(['planned', 'paid', 'overdue', 'skipped', 'unknown']).optional(),
 });
 
+export const createItemCostSchema = z.object({
+  transactionId: z.string().uuid(),
+  itemId: z.string().uuid(),
+  kind: z.enum(['purchase', 'disposal', 'repair', 'maintenance', 'accessory']),
+});
+
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 export type CreateEnvelopeInput = z.infer<typeof createEnvelopeSchema>;
 export type RecordTransactionInput = z.infer<typeof recordTransactionSchema>;

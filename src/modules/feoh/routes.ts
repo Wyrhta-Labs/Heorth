@@ -5,7 +5,8 @@ import { requireAuth, requireRole } from '../../wiring.js';
 import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import * as service from './service.js';
 import * as occ from './occurrences.js';
-import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema, occurrenceRefSchema, linkOccurrenceSchema, overrideOccurrenceSchema, listOccurrencesQuerySchema } from './validators.js';
+import * as itemCosts from './item-costs.js';
+import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema, occurrenceRefSchema, linkOccurrenceSchema, overrideOccurrenceSchema, listOccurrencesQuerySchema, createItemCostSchema } from './validators.js';
 
 export const feohRouter = new Hono();
 feohRouter.use('*', requireAuth);
@@ -173,6 +174,35 @@ feohRouter.patch('/occurrences/override', canWrite, async (c) => {
   const body = overrideOccurrenceSchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
   return occCall(c, () => occ.overrideOccurrence(body.data));
+});
+
+const COST_ERRORS: Record<string, [string, string, number]> = {
+  NOT_FOUND_TRANSACTION: ['NOT_FOUND', 'Transaction not found', 404],
+  NOT_FOUND_ITEM: ['NOT_FOUND', 'Item not found', 404],
+  ITEM_DECOMMISSIONED: ['ITEM_DECOMMISSIONED', 'Only disposal links are allowed on a decommissioned item', 409],
+  NOT_A_COST: ['NOT_A_COST', 'Transaction has no envelope spending - transfers cannot be item costs', 400],
+  DUPLICATE_LINK: ['DUPLICATE_LINK', 'This link already exists (or purchase/disposal already linked)', 409],
+};
+
+feohRouter.get('/item-costs/:itemId', async (c) => {
+  const breakdown = await itemCosts.getItemCosts(c.req.param('itemId'));
+  if (!breakdown) return err(c, 'NOT_FOUND', 'Item not found', 404);
+  return ok(c, breakdown);
+});
+feohRouter.post('/item-costs', canWrite, async (c) => {
+  const body = createItemCostSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  try { return ok(c, await itemCosts.createItemCost(body.data), undefined, 201); }
+  catch (e: unknown) {
+    const m = e instanceof Error ? COST_ERRORS[e.message] : undefined;
+    if (m) return err(c, m[0], m[1], m[2] as 400);
+    throw e;
+  }
+});
+feohRouter.delete('/item-costs/:id', canWrite, async (c) => {
+  const row = await itemCosts.deleteItemCost(c.req.param('id'));
+  if (!row) return err(c, 'NOT_FOUND', 'Link not found', 404);
+  return ok(c, { id: row.id });
 });
 
 feohRouter.get('/export', async (c) => {

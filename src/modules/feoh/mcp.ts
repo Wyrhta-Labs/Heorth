@@ -4,6 +4,7 @@ import type { Role } from '@wyrhta/core/identity';
 import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import * as service from './service.js';
 import * as occ from './occurrences.js';
+import * as itemCosts from './item-costs.js';
 
 /**
  * Heorth is a multi-member household (unlike single-user Feoh, whose copy of
@@ -52,6 +53,16 @@ async function occCall(fn: () => Promise<void>): Promise<McpToolResult> {
     throw e;
   }
 }
+
+/** Known item-cost linking errors, mapped to a classified tool-error result
+ *  (not an unhandled throw) — mirrors routes.ts's COST_ERRORS. */
+const COST_ERROR_MESSAGES: Record<string, string> = {
+  NOT_FOUND_TRANSACTION: 'Transaction not found',
+  NOT_FOUND_ITEM: 'Item not found',
+  ITEM_DECOMMISSIONED: 'Only disposal links are allowed on a decommissioned item',
+  NOT_A_COST: 'Transaction has no envelope spending - transfers cannot be item costs',
+  DUPLICATE_LINK: 'This link already exists (or purchase/disposal already linked)',
+};
 
 export const feohTools: McpTool[] = [
   {
@@ -168,6 +179,37 @@ export const feohTools: McpTool[] = [
       if (gateError) return gateError;
       await assertNotMaintenanceAdmin(ctx.principal.userId);
       return occCall(() => occ.skipOccurrence(input as never));
+    },
+  },
+  {
+    name: 'feoh.get_item_costs',
+    description: 'Return the total-cost-of-ownership breakdown (capital, tier-2 costs, recurring, proceeds) for an inventory item.',
+    inputSchema: { itemId: z.string().uuid() },
+    async handler(_ctx, input) {
+      const breakdown = await itemCosts.getItemCosts((input as { itemId: string }).itemId);
+      if (!breakdown) return toolError('Item not found');
+      return result(breakdown);
+    },
+  },
+  {
+    name: 'feoh.link_item_cost',
+    description: 'Link a transaction to an inventory item as a cost (purchase, disposal, repair, maintenance, accessory).',
+    inputSchema: {
+      transactionId: z.string().uuid(),
+      itemId: z.string().uuid(),
+      kind: z.enum(['purchase', 'disposal', 'repair', 'maintenance', 'accessory']),
+    },
+    async handler(ctx: McpToolContext, input) {
+      const gateError = assertCanWrite(ctx);
+      if (gateError) return gateError;
+      await assertNotMaintenanceAdmin(ctx.principal.userId);
+      try {
+        return result(await itemCosts.createItemCost(input as never));
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? COST_ERROR_MESSAGES[e.message] : undefined;
+        if (msg) return toolError(msg);
+        throw e;
+      }
     },
   },
 ];

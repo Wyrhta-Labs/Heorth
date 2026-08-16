@@ -3,6 +3,7 @@ import type { McpTool, McpToolContext, McpToolResult } from '@wyrhta/core/mcp';
 import type { Role } from '@wyrhta/core/identity';
 import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import * as service from './service.js';
+import * as occ from './occurrences.js';
 
 /**
  * Heorth is a multi-member household (unlike single-user Feoh, whose copy of
@@ -30,6 +31,26 @@ function assertCanWrite(ctx: { principal: { userId: string; role: Role } }): Mcp
     return toolError('Finance writes require an admin or adult member');
   }
   return null;
+}
+
+/** Known occurrence state-machine errors, mapped to a classified tool-error
+ *  result (not an unhandled throw) — mirrors routes.ts's OCC_ERRORS. */
+const OCC_ERROR_MESSAGES: Record<string, string> = {
+  NOT_FOUND_BILL: 'Bill not found',
+  NOT_FOUND_TRANSACTION: 'Transaction not found',
+  NOT_AN_OCCURRENCE: 'dueDate is not an occurrence of this bill',
+  ALREADY_PAID: 'Occurrence is already linked to a transaction',
+  ALREADY_SKIPPED: 'Occurrence is skipped',
+};
+async function occCall(fn: () => Promise<void>): Promise<McpToolResult> {
+  try {
+    await fn();
+    return result({ ok: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? OCC_ERROR_MESSAGES[e.message] : undefined;
+    if (msg) return toolError(msg);
+    throw e;
+  }
 }
 
 export const feohTools: McpTool[] = [
@@ -105,6 +126,48 @@ export const feohTools: McpTool[] = [
     inputSchema: {},
     async handler() {
       return result({ ledger: await service.exportLedger() });
+    },
+  },
+  {
+    name: 'feoh.list_occurrences',
+    description: 'List recurring-bill occurrences (planned/paid/overdue/skipped) in a date window. The "what is overdue" tool.',
+    inputSchema: {
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      billId: z.string().uuid().optional(),
+      status: z.enum(['planned', 'paid', 'overdue', 'skipped', 'unknown']).optional(),
+    },
+    async handler(_ctx, input) {
+      return result({ occurrences: await occ.listOccurrences(input as never) });
+    },
+  },
+  {
+    name: 'feoh.link_occurrence',
+    description: 'Mark an occurrence paid by linking the settling transaction.',
+    inputSchema: {
+      billId: z.string().uuid(),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      transactionId: z.string().uuid(),
+    },
+    async handler(ctx: McpToolContext, input) {
+      const gateError = assertCanWrite(ctx);
+      if (gateError) return gateError;
+      await assertNotMaintenanceAdmin(ctx.principal.userId);
+      return occCall(() => occ.linkOccurrence(input as never));
+    },
+  },
+  {
+    name: 'feoh.skip_occurrence',
+    description: 'Skip one occurrence of a recurring bill.',
+    inputSchema: {
+      billId: z.string().uuid(),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    },
+    async handler(ctx: McpToolContext, input) {
+      const gateError = assertCanWrite(ctx);
+      if (gateError) return gateError;
+      await assertNotMaintenanceAdmin(ctx.principal.userId);
+      return occCall(() => occ.skipOccurrence(input as never));
     },
   },
 ];

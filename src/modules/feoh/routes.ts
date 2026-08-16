@@ -1,9 +1,11 @@
 import { Hono, type MiddlewareHandler } from 'hono';
+import type { Context } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../../wiring.js';
 import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import * as service from './service.js';
-import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema } from './validators.js';
+import * as occ from './occurrences.js';
+import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema, occurrenceRefSchema, linkOccurrenceSchema, overrideOccurrenceSchema, listOccurrencesQuerySchema } from './validators.js';
 
 export const feohRouter = new Hono();
 feohRouter.use('*', requireAuth);
@@ -114,9 +116,63 @@ feohRouter.patch('/bills/:id', canWrite, async (c) => {
   return ok(c, row);
 });
 feohRouter.delete('/bills/:id', canWrite, async (c) => {
-  const row = await service.deleteBill(c.req.param('id'));
-  if (!row) return err(c, 'NOT_FOUND', 'Bill not found', 404);
-  return ok(c, { id: row.id });
+  try {
+    const row = await service.deleteBill(c.req.param('id'));
+    if (!row) return err(c, 'NOT_FOUND', 'Bill not found', 404);
+    return ok(c, { id: row.id });
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'BILL_HAS_HISTORY') {
+      return err(c, 'BILL_HAS_HISTORY', 'Bill has recorded occurrence history and cannot be deleted', 409);
+    }
+    throw e;
+  }
+});
+
+const OCC_ERRORS: Record<string, [string, string, number]> = {
+  NOT_FOUND_BILL: ['NOT_FOUND', 'Bill not found', 404],
+  NOT_FOUND_TRANSACTION: ['NOT_FOUND', 'Transaction not found', 404],
+  NOT_AN_OCCURRENCE: ['NOT_AN_OCCURRENCE', 'dueDate is not an occurrence of this bill', 400],
+  ALREADY_PAID: ['ALREADY_PAID', 'Occurrence is already linked to a transaction', 409],
+  ALREADY_SKIPPED: ['ALREADY_SKIPPED', 'Occurrence is skipped', 409],
+};
+async function occCall(c: Context, fn: () => Promise<void>) {
+  try { await fn(); return ok(c, { ok: true }); }
+  catch (e: unknown) {
+    const m = e instanceof Error ? OCC_ERRORS[e.message] : undefined;
+    if (m) return err(c, m[0], m[1], m[2] as 400);
+    throw e;
+  }
+}
+
+feohRouter.get('/occurrences', async (c) => {
+  const q = listOccurrencesQuerySchema.safeParse(c.req.query());
+  if (!q.success) return err(c, 'VALIDATION_ERROR', 'Invalid query parameters', 400);
+  return ok(c, await occ.listOccurrences(q.data));
+});
+feohRouter.post('/occurrences/link', canWrite, async (c) => {
+  const body = linkOccurrenceSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  return occCall(c, () => occ.linkOccurrence(body.data));
+});
+feohRouter.post('/occurrences/skip', canWrite, async (c) => {
+  const body = occurrenceRefSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  return occCall(c, () => occ.skipOccurrence(body.data));
+});
+feohRouter.post('/occurrences/unlink', canWrite, async (c) => {
+  const body = occurrenceRefSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  return occCall(c, () => occ.unlinkOccurrence(body.data));
+});
+feohRouter.post('/occurrences/unskip', canWrite, async (c) => {
+  const body = occurrenceRefSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  return occCall(c, () => occ.unskipOccurrence(body.data));
+});
+feohRouter.patch('/occurrences/override', canWrite, async (c) => {
+  const body = overrideOccurrenceSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  return occCall(c, () => occ.overrideOccurrence(body.data));
 });
 
 feohRouter.get('/export', async (c) => {

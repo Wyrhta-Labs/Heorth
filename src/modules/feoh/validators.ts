@@ -53,6 +53,19 @@ export const createBillSchema = z.object({
 });
 export const updateBillSchema = createBillSchema.partial();
 
+export const occurrenceRefSchema = z.object({
+  billId: z.string().uuid(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+export const linkOccurrenceSchema = occurrenceRefSchema.extend({ transactionId: z.string().uuid() });
+export const overrideOccurrenceSchema = occurrenceRefSchema.extend({ amount: z.number().nonnegative().nullable() });
+export const listOccurrencesQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  billId: z.string().uuid().optional(),
+  status: z.enum(['planned', 'paid', 'overdue', 'skipped', 'unknown']).optional(),
+});
+
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 export type CreateEnvelopeInput = z.infer<typeof createEnvelopeSchema>;
 export type RecordTransactionInput = z.infer<typeof recordTransactionSchema>;

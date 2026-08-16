@@ -15,6 +15,9 @@ describe('assembled MCP server', () => {
     expect(names).toContain('calendar.list_events');
     expect(names).toContain('meals.list_recipes');
     expect(names).toContain('feoh.record_transaction');
+    expect(names).toContain('feoh.list_occurrences');
+    expect(names).toContain('feoh.link_occurrence');
+    expect(names).toContain('feoh.skip_occurrence');
     // Every tool is namespaced module.tool.
     for (const n of names) expect(n).toMatch(/^[a-z]+\.[a-z_]+$/);
   });

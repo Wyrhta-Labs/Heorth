@@ -141,23 +141,26 @@ describe('feoh MCP tools (unit-level, direct handler invocation)', () => {
 });
 
 describe('feoh MCP tools do not include feoh.list_parties', () => {
-  it('has exactly six tools, no list_parties', () => {
+  it('has exactly nine tools, no list_parties', () => {
     expect(feohTools.map((t) => t.name).sort()).toEqual([
       'feoh.export_ledger',
       'feoh.get_month_summary',
       'feoh.import_csv',
+      'feoh.link_occurrence',
       'feoh.list_envelopes',
+      'feoh.list_occurrences',
       'feoh.list_recurring_bills',
       'feoh.record_transaction',
+      'feoh.skip_occurrence',
     ]);
   });
 });
 
 describe('the assembled MCP registry (createApp)', () => {
-  it('contains the six feoh.* tools (always registered)', () => {
+  it('contains the nine feoh.* tools (always registered)', () => {
     const tools = collectMcpTools(ALL_MODULES).all();
     const feohToolNames = tools.filter((t) => t.name.startsWith('feoh.')).map((t) => t.name);
-    expect(feohToolNames.length).toBe(6);
+    expect(feohToolNames.length).toBe(9);
     expect(feohToolNames).not.toContain('feoh.list_parties');
   });
 });

@@ -115,6 +115,35 @@ describe('feoh account ledger', () => {
     expect(await ledgerBalanceCents(account.id, '2026-08-05')).toBe(6000);
   });
 
+  it('collapses a transaction with TWO postings on the same account into ONE ledger entry (GROUP BY correctness)', async () => {
+    const { adult, account, envelope } = await setup();
+    // Both legs on the ledger account (debit 30 + debit 20), balanced by a
+    // single envelope credit of 50 (Sigma debit = Sigma credit = 50). This is
+    // the exact scenario the ledger query's `GROUP BY t.id, ...` protects
+    // against: a naive per-posting listing would show two rows for this
+    // transaction instead of one summed row.
+    const result = await service.recordTransaction({
+      date: '2026-08-10', payee: 'Split deposit', amount: 50, memo: null,
+      postings: [
+        { accountId: account.id, envelopeId: null, debit: 30, credit: 0 },
+        { accountId: account.id, envelopeId: null, debit: 20, credit: 0 },
+        { envelopeId: envelope.id, accountId: null, debit: 0, credit: 50 },
+      ],
+      splits: [],
+    }, adult.user.id);
+    const txn = result.transaction;
+
+    const ledger = await getAccountLedger(account.id, {});
+    expect(ledger).not.toBeNull();
+    const matches = ledger!.entries.filter((e) => e.transactionId === txn.id);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.delta).toBe(50);
+    expect(matches[0]!.balance).toBe(150); // opening 100 + 50
+    expect(ledger!.meta.total).toBe(1);
+    expect(ledger!.meta.endBalance).toBe(150);
+    expect(await ledgerBalanceCents(account.id, '2026-08-10')).toBe(15000);
+  });
+
   it('returns null for an unknown account (service) and 404 at the route', async () => {
     const { adult } = await setup();
     const missing = await getAccountLedger('00000000-0000-0000-0000-000000000000', {});

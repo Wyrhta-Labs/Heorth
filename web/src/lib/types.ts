@@ -160,6 +160,7 @@ export interface RecurringBill {
   cadence: string;          // ISO-8601 duration
   nextDue: string;          // YYYY-MM-DD
   envelopeId: string | null;
+  inventoryItemId: string | null;
 }
 
 // /feoh/summary — computed numbers (NOT strings).
@@ -175,6 +176,90 @@ export interface MonthSummary {
   month: string;            // YYYY-MM
   envelopes: EnvelopeSummary[];
   totals: { budget: number; spent: number; remaining: number };
+}
+
+// ---- Inventory (physical items; hand-synced from src/modules/inventory/schema.ts) ----
+export type DecommissionReason = 'broken' | 'sold' | 'given_away' | 'worn_out' | 'lost' | 'other';
+
+export interface InventoryItem {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  name: string;
+  category: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  location: string | null;
+  notes: string | null;
+  warrantyUntil: string | null;
+  purchasePrice: string | null;   // numeric -> string
+  purchaseDate: string | null;
+  decommissionedAt: string | null;
+  decommissionReason: DecommissionReason | null;
+  disposalProceeds: string | null; // numeric -> string
+}
+
+// ---- Feoh occurrences / item-costs / ledger (hand-synced from src/modules/feoh) ----
+export type OccurrenceStatus = 'planned' | 'paid' | 'overdue' | 'skipped' | 'unknown';
+
+export interface OccurrenceEntry {
+  billId: string;
+  payee: string;
+  dueDate: string;
+  status: OccurrenceStatus;
+  expectedAmount: number;
+  overrideAmount: number | null;
+  transactionId: string | null;
+  offSchedule: boolean;
+  cadenceUnknown: boolean;
+}
+
+export type ItemCostKind = 'purchase' | 'disposal' | 'repair' | 'maintenance' | 'accessory';
+
+export interface FeohItemCost {
+  id: string;
+  createdAt: string;
+  transactionId: string;
+  itemId: string;
+  kind: ItemCostKind;
+}
+
+export interface ItemCostsBreakdown {
+  item: InventoryItem;
+  links: Array<FeohItemCost & { transaction: Transaction }>;
+  recurringBills: RecurringBill[];
+  totals: {
+    capital: number;
+    tier2: number;
+    recurring: number;
+    proceeds: number;
+    total: number;
+    perYear: number | null;
+    lifetimeDays: number | null;
+  };
+}
+
+export interface LedgerEntry {
+  transactionId: string;
+  date: string;
+  payee: string;
+  memo: string | null;
+  delta: number;
+  balance: number;
+}
+
+export interface LedgerMeta {
+  total: number;
+  limit: number;
+  offset: number;
+  openingBalance: number;
+  endBalance: number;
+}
+
+export interface ReconcileResult {
+  difference: number;
+  transaction: TransactionDetail | null;
 }
 
 // ---- Auth / keys ----

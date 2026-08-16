@@ -9,3 +9,4 @@ export * from '../../modules/feoh/schema';
 export * from '../../modules/library/schema';
 export * from '../../modules/tasks/schema';
 export * from '../../m365/schema';
+export * from '../../modules/inventory/schema';

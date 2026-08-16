@@ -11,3 +11,4 @@ export * from '../../modules/feoh/schema.js';
 export * from '../../modules/library/schema.js';
 export * from '../../modules/tasks/schema.js';
 export * from '../../m365/schema.js';
+export * from '../../modules/inventory/schema.js';

@@ -8,9 +8,10 @@
 // principal gets the write gate's tool-error, and the registry assembled by
 // `createApp` carries exactly the six `feoh.*` tools.
 import { describe, it, expect } from 'vitest';
-import { seedTestHousehold, invokeTool } from './helpers.js';
+import { seedTestHousehold, invokeTool, collectMcpTools } from './helpers.js';
 import { feohTools } from '../src/modules/feoh/mcp.js';
 import * as service from '../src/modules/feoh/service.js';
+import { ALL_MODULES } from '../src/modules/index.js';
 
 describe('feoh MCP tools (unit-level, direct handler invocation)', () => {
   it('records a balanced transaction and summarises the month', async () => {
@@ -153,10 +154,7 @@ describe('feoh MCP tools do not include feoh.list_parties', () => {
 });
 
 describe('the assembled MCP registry (createApp)', () => {
-  it('contains the six feoh.* tools (always registered)', async () => {
-    const { collectMcpTools } = await import('./helpers.js');
-    const { ALL_MODULES } = await import('../src/modules/index.js');
-
+  it('contains the six feoh.* tools (always registered)', () => {
     const tools = collectMcpTools(ALL_MODULES).all();
     const feohToolNames = tools.filter((t) => t.name.startsWith('feoh.')).map((t) => t.name);
     expect(feohToolNames.length).toBe(6);

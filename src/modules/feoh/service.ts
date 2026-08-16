@@ -1,6 +1,6 @@
 import { db } from '../../db/index.js';
-import { accounts, envelopes, transactions, postings, expenseSplits, recurringBills, type Account, type Envelope, type Transaction, type RecurringBill } from './schema.js';
-import { eq, and, gte, lte, lt, desc, sql } from 'drizzle-orm';
+import { accounts, envelopes, transactions, postings, expenseSplits, recurringBills, recurringOccurrences, type Account, type Envelope, type Transaction, type RecurringBill } from './schema.js';
+import { eq, and, gte, lte, lt, desc, sql, isNull, inArray } from 'drizzle-orm';
 import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput, CreateBillInput } from './validators.js';
 import { toCsv, parseCsv, sanitizeCsvText } from './csv.js';
 
@@ -123,8 +123,25 @@ export async function getTransaction(id: string) {
 }
 
 export async function deleteTransaction(id: string): Promise<Transaction | null> {
-  const [row] = await db.delete(transactions).where(eq(transactions.id, id)).returning();
-  return row ?? null;
+  return db.transaction(async (tx) => {
+    // Capture the occurrence rows this transaction settles BEFORE the delete
+    // (the FK then nulls their transactionId) so the prune is scoped to
+    // exactly these rows — never a global sweep.
+    const touched = await tx.select({ id: recurringOccurrences.id }).from(recurringOccurrences)
+      .where(eq(recurringOccurrences.transactionId, id));
+    const [row] = await tx.delete(transactions).where(eq(transactions.id, id)).returning();
+    if (!row) return null;
+    if (touched.length > 0) {
+      // Rows whose only "touch" was this transaction revert to pure projections.
+      await tx.delete(recurringOccurrences).where(and(
+        inArray(recurringOccurrences.id, touched.map((t) => t.id)),
+        isNull(recurringOccurrences.transactionId),
+        eq(recurringOccurrences.skipped, false),
+        isNull(recurringOccurrences.overrideAmount),
+      ));
+    }
+    return row;
+  });
 }
 
 export async function getMonthSummary(month: string) {
@@ -169,6 +186,7 @@ export async function createBill(i: CreateBillInput): Promise<RecurringBill> {
   const [row] = await db.insert(recurringBills).values({
     payee: i.payee, amount: String(i.amount), cadence: i.cadence,
     nextDue: i.nextDue, envelopeId: i.envelopeId ?? null,
+    inventoryItemId: i.inventoryItemId ?? null,
   }).returning();
   return row!;
 }
@@ -180,11 +198,15 @@ export async function updateBill(id: string, i: Partial<CreateBillInput>): Promi
   if (i.cadence !== undefined) patch['cadence'] = i.cadence;
   if (i.nextDue !== undefined) patch['nextDue'] = i.nextDue;
   if (i.envelopeId !== undefined) patch['envelopeId'] = i.envelopeId;
+  if (i.inventoryItemId !== undefined) patch['inventoryItemId'] = i.inventoryItemId;
   const [row] = await db.update(recurringBills).set(patch).where(eq(recurringBills.id, id)).returning();
   return row ?? null;
 }
 
 export async function deleteBill(id: string): Promise<RecurringBill | null> {
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
+    .from(recurringOccurrences).where(eq(recurringOccurrences.billId, id));
+  if (count! > 0) throw new Error('BILL_HAS_HISTORY');
   const [row] = await db.delete(recurringBills).where(eq(recurringBills.id, id)).returning();
   return row ?? null;
 }

@@ -46,9 +46,10 @@ export const monthQuerySchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-
 export const createBillSchema = z.object({
   payee: z.string().min(1),
   amount: z.number(),
-  cadence: z.string().min(1),
+  cadence: z.enum(['weekly', 'monthly', 'quarterly', 'semiannual', 'yearly']),
   nextDue: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   envelopeId: z.string().uuid().optional().nullable(),
+  inventoryItemId: z.string().uuid().optional().nullable(),
 });
 export const updateBillSchema = createBillSchema.partial();
 

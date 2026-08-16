@@ -12,18 +12,18 @@ const app = createApp(ALL_MODULES);
 describe('feoh recurring bills', () => {
   it('creates and lists a recurring bill', async () => {
     const envelope = await service.createEnvelope({ name: 'Utilities', monthlyBudget: 200 });
-    await service.createBill({ payee: 'Power Co', amount: 85, cadence: 'P1M', nextDue: '2026-08-01', envelopeId: envelope.id });
+    await service.createBill({ payee: 'Power Co', amount: 85, cadence: 'monthly', nextDue: '2026-08-01', envelopeId: envelope.id });
     const bills = await service.listBills();
     expect(bills.length).toBe(1);
     expect(bills[0]!.payee).toBe('Power Co');
-    expect(bills[0]!.cadence).toBe('P1M');
+    expect(bills[0]!.cadence).toBe('monthly');
   });
 
   it('updates and deletes a bill via the API', async () => {
     const { adult } = await seedTestHousehold();
     const { data: bill } = await (await app.request('/api/v1/feoh/bills', {
       method: 'POST', headers: authHeaders(adult.jwt),
-      body: JSON.stringify({ payee: 'Water Co', amount: 40, cadence: 'P1M', nextDue: '2026-08-15' }),
+      body: JSON.stringify({ payee: 'Water Co', amount: 40, cadence: 'monthly', nextDue: '2026-08-15' }),
     })).json() as { data: { id: string } };
 
     const patched = await app.request(`/api/v1/feoh/bills/${bill.id}`, {

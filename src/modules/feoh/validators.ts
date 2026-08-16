@@ -66,6 +66,13 @@ export const listOccurrencesQuerySchema = z.object({
   status: z.enum(['planned', 'paid', 'overdue', 'skipped', 'unknown']).optional(),
 });
 
+export const reconcileSchema = z.object({
+  countedBalance: z.number().nonnegative(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  envelopeId: z.string().uuid(),
+  memo: z.string().optional().nullable(),
+});
+
 export const createItemCostSchema = z.object({
   transactionId: z.string().uuid(),
   itemId: z.string().uuid(),

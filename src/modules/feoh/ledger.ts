@@ -7,6 +7,7 @@
 import { db } from '../../db/index.js';
 import { accounts } from './schema.js';
 import { eq, sql } from 'drizzle-orm';
+import { recordTransaction } from './service.js';
 
 export interface LedgerEntry {
   transactionId: string;
@@ -96,4 +97,46 @@ export async function ledgerBalanceCents(accountId: string, throughDate: string)
     FROM postings p JOIN transactions t ON t.id = p.transaction_id
     WHERE p.account_id = ${accountId}::uuid AND t.date <= ${throughDate}::date`) as unknown as Array<{ s: string }>;
   return toCents(account.openingBalance) + toCents(rows[0]!.s);
+}
+
+/** Kassensturz reconciliation: books an adjusting transaction between a
+ *  physically counted balance and the ledger balance through `i.date`, so a
+ *  cash account can be squared to what's actually in the wallet. Only asset
+ *  accounts are reconcilable (liabilities have no physical count). */
+export async function reconcileAccount(
+  accountId: string,
+  i: { countedBalance: number; date: string; envelopeId: string; memo?: string | null },
+  createdBy: string,
+) {
+  const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId)).limit(1);
+  if (!account) throw new Error('NOT_FOUND_ACCOUNT');
+  if (account.kind !== 'asset') throw new Error('ACCOUNT_NOT_ASSET');
+  // Server-LOCAL calendar date (spec) — toISOString() would be UTC and
+  // misclassify dates around local midnight.
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (i.date > today) throw new Error('DATE_IN_FUTURE');
+
+  // Postings in (date, today] would be silently shifted by a past adjustment.
+  // Future-dated postings (> today) are not in the counted wallet: exempt.
+  const later = await db.execute(sql`
+    SELECT 1 FROM postings p JOIN transactions t ON t.id = p.transaction_id
+    WHERE p.account_id = ${accountId}::uuid AND t.date > ${i.date}::date AND t.date <= ${today}::date
+    LIMIT 1`) as unknown as unknown[];
+  if (later.length > 0) throw new Error('LATER_TRANSACTIONS_EXIST');
+
+  const ledgerCents = await ledgerBalanceCents(accountId, i.date);
+  const countedCents = Math.round(i.countedBalance * 100);
+  const diffCents = countedCents - ledgerCents;
+  if (diffCents === 0) return { difference: 0, transaction: null };
+
+  const abs = Math.abs(diffCents) / 100;
+  const txn = await recordTransaction({
+    date: i.date, payee: 'Kassensturz', memo: i.memo ?? null, amount: abs,
+    postings: diffCents > 0
+      ? [{ accountId, envelopeId: null, debit: abs, credit: 0 }, { accountId: null, envelopeId: i.envelopeId, debit: 0, credit: abs }]
+      : [{ accountId, envelopeId: null, debit: 0, credit: abs }, { accountId: null, envelopeId: i.envelopeId, debit: abs, credit: 0 }],
+    splits: [],
+  }, createdBy);
+  return { difference: diffCents / 100, transaction: txn };
 }

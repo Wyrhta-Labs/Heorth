@@ -6,8 +6,8 @@ import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../
 import * as service from './service.js';
 import * as occ from './occurrences.js';
 import * as itemCosts from './item-costs.js';
-import { getAccountLedger } from './ledger.js';
-import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema, occurrenceRefSchema, linkOccurrenceSchema, overrideOccurrenceSchema, listOccurrencesQuerySchema, createItemCostSchema } from './validators.js';
+import { getAccountLedger, reconcileAccount } from './ledger.js';
+import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema, occurrenceRefSchema, linkOccurrenceSchema, overrideOccurrenceSchema, listOccurrencesQuerySchema, createItemCostSchema, reconcileSchema } from './validators.js';
 
 export const feohRouter = new Hono();
 feohRouter.use('*', requireAuth);
@@ -46,6 +46,19 @@ feohRouter.get('/accounts/:id/ledger', async (c) => {
   const ledger = await getAccountLedger(c.req.param('id'), q.data);
   if (!ledger) return err(c, 'NOT_FOUND', 'Account not found', 404);
   return ok(c, ledger.entries, ledger.meta);
+});
+
+feohRouter.post('/accounts/:id/reconcile', canWrite, async (c) => {
+  const body = reconcileSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  try { return ok(c, await reconcileAccount(c.req.param('id'), body.data, c.get('auth').userId)); }
+  catch (e: unknown) {
+    if (e instanceof Error && e.message === 'NOT_FOUND_ACCOUNT') return err(c, 'NOT_FOUND', 'Account not found', 404);
+    if (e instanceof Error && e.message === 'ACCOUNT_NOT_ASSET') return err(c, 'ACCOUNT_NOT_ASSET', 'Only asset accounts can be reconciled', 400);
+    if (e instanceof Error && e.message === 'DATE_IN_FUTURE') return err(c, 'VALIDATION_ERROR', 'Reconcile date must not be in the future', 400);
+    if (e instanceof Error && e.message === 'LATER_TRANSACTIONS_EXIST') return err(c, 'LATER_TRANSACTIONS_EXIST', 'Transactions exist after the reconcile date - reconcile with a current date', 409);
+    throw e;
+  }
 });
 
 feohRouter.get('/envelopes', async (c) => ok(c, await service.listEnvelopes()));

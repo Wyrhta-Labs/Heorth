@@ -281,8 +281,9 @@ unknown data.
     `overdue`, dueDate ≥ today → `planned`
 - `nextDue` is **not auto-bumped**; it stays the user-owned anchor. Editing
   it forward is the escape hatch that discards old overdue projections.
-  The derived `nextOpen` (earliest non-paid/skipped due date) is returned in
-  the occurrence listing for display.
+  The derived `nextOpen` (earliest non-paid/skipped due date) is NOT returned
+  by the listing API — it is derivable client-side as the first non-paid/
+  skipped entry, which the UI strip already effectively shows.
 - Editing `cadence` or `nextDue` re-projects; persisted (touched) rows keep
   their stored `dueDate` and are merged into the listing even if they no
   longer fall on projected dates (flagged `offSchedule: true`).

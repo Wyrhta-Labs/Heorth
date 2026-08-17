@@ -23,12 +23,38 @@ architecture and API surface.
   the meta repo's `deploy/` stack). External services
   are faked in-process and installed via a `set*Runtime` seam — never real
   network calls.
-- **Feoh finance module** (`src/modules/feoh/`, ADR 0007) is env-gated via
-  `FEOH_ENABLED` (default off — unset/empty/`false` leaves it a no-op: no
-  routes, no MCP tools). Tests toggle it with `vi.resetModules()` plus a fresh
-  dynamic `import()` of `src/app.js`/`src/modules/index.js` after mutating
-  `process.env.FEOH_ENABLED` (see `tests/feoh-gating.test.ts`), the same
-  env-gated-config pattern the M365 suite uses.
+- **Feoh finance module** (`src/modules/feoh/`, ADR 0007) is **always on** —
+  the `FEOH_ENABLED` kill switch was removed 2026-08-17; `feohModule` mounts
+  unconditionally in `ALL_MODULES` (`src/modules/index.ts`), no env var or
+  `GET /api/v1/features` check required. It covers envelopes, accounts,
+  double-entry transactions, and recurring bills, plus three surfaces added
+  alongside the inventory lifecycle work:
+  - **Recurring occurrences** (`src/modules/feoh/occurrences.ts`) — a bill's
+    cadence is projected into due-date entries (`planned`/`overdue`/`paid`/
+    `skipped`/`unknown`), persisting a `recurring_occurrences` row only once
+    an entry is touched (linked/skipped/overridden); untouched rows are pure
+    projection and are pruned back to nothing once un-touched again.
+  - **Item costs / TCO** (`src/modules/feoh/item-costs.ts`) — links a
+    transaction to an inventory item as a cost (`purchase`/`disposal`/
+    `repair`/`maintenance`/`accessory`) and rolls up a per-item total-cost-of-
+    ownership breakdown (capital + tier2 + recurring − proceeds, plus a
+    per-year rate over the item's lifetime).
+  - **Account ledger + Kassensturz** (`src/modules/feoh/ledger.ts`) — a
+    per-account running-balance ledger (Postgres window function over the
+    full unfiltered history so paginated balances stay correct) and a
+    reconciliation flow that books an adjusting transaction between a
+    physically counted balance and the ledger balance.
+  - A shared `localTodayIso()` helper (`src/modules/feoh/dates.ts`) gives both
+    item-costs and ledger the same server-local "today" (never
+    `toISOString()`'s UTC date, which misclassifies dates around local
+    midnight).
+- **Inventory module** (`src/modules/inventory/`) is a standalone,
+  **always-on** `HeorthModule` — household items with lifecycle fields
+  (purchase, warranty, decommission/reactivation). It has no dependency on
+  feoh; the *only* sanctioned inventory→feoh touchpoint is a raw-SQL
+  existence check (`hasDisposalLink` in `service.ts`, querying
+  `feoh_item_costs` directly — no module import) that blocks reactivating an
+  item with a recorded disposal link.
 - **KithLedger reminders module** (`src/modules/kith/`) is env-gated via the
   `KITH_BASE_URL` + `KITH_API_KEY` group — optional AS A GROUP like `M365_*`
   (both present → enabled; both absent → no-op, routes 404, `kithledger: false`

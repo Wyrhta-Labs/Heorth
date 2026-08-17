@@ -20,15 +20,12 @@ JWT_TTL_SECONDS=604800
 CORS_ORIGIN=*
 DB_POOL_MAX=10
 POSTGRES_PASSWORD=<password>
-
-# Finance module (ADR 0007) — optional kill switch, default off.
-FEOH_ENABLED=false
 ```
 
-`FEOH_ENABLED` gates the built-in finance module: `true` mounts
-`/api/v1/feoh/*` and its MCP tools; absent/empty/`false` leaves it a
-no-op (routes 404, no MCP tools, UI hides it via `GET /api/v1/features`).
-Toggling never touches data.
+Finance (`src/modules/feoh/`, ADR 0007) and inventory (`src/modules/inventory/`)
+are both built-in, **always-on** modules — no env var gates them. `feoh` was
+briefly behind a `FEOH_ENABLED` kill switch; that switch was removed
+2026-08-17, so `/api/v1/feoh/*` and its MCP tools are always mounted.
 
 ```bash
 npm install
@@ -57,14 +54,18 @@ lists `ALL_MODULES`):
 | `/api/v1/recipes`, `/api/v1/meals` | `src/modules/meals/` | Recipes, weekly meal plan, shopping list |
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |
 | `/api/v1/tasks` | `src/modules/tasks/` | Household tasks backed by Microsoft To Do — list/complete/create + per-member list allowlist (writes need M365 enabled) |
-| `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills (ADR 0007) — a `HeorthModule`, gated behind `FEOH_ENABLED` (see [Finance](#finance) below) |
+| `/api/v1/inventory` | `src/modules/inventory/` | Household inventory: items with lifecycle fields (purchase, warranty, decommission/reactivation), search/filter/paginate — a standalone, always-on `HeorthModule`; no dependency on feoh |
+| `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills + occurrences, item costs/TCO, account ledger + reconciliation (ADR 0007) — a `HeorthModule`, always on (see [Finance](#finance) below) |
 | `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
 
 `/mcp` (mounted in `src/index.ts`) exposes one MCP-over-HTTP server
 (`@wyrhta/core`'s scaffold) assembling every module's tool registry plus a
 `household.*` set, authenticated the same way as REST (`he_` API key or JWT).
-Finance MCP tools (`feoh.*`) are on Heorth's own `/mcp` once `FEOH_ENABLED=true`
-(see `src/modules/feoh/mcp.ts`).
+`inventory.*` MCP tools (`src/modules/inventory/mcp.ts`: `list_items`,
+`get_item`, `record_item`, `decommission_item`) and finance `feoh.*` MCP
+tools (`src/modules/feoh/mcp.ts`, including occurrence link/skip/override,
+item-cost link/unlink, and ledger/reconcile tools) are both always registered
+on Heorth's own `/mcp`.
 
 The React web UI (`web/`) is served as static files from `web/dist` for any
 unmatched non-API route.
@@ -74,21 +75,33 @@ unmatched non-API route.
 Finance (envelopes, accounts, double-entry transactions, recurring bills) is
 a built-in `HeorthModule` (`src/modules/feoh/`, ADR 0007) — it was briefly
 extracted to an independent Feoh satellite service and was merged back
-in-process. It is gated behind the `FEOH_ENABLED` kill switch:
+in-process, and is now **always on** (the earlier `FEOH_ENABLED` kill switch
+was removed 2026-08-17 — routes mount at `/api/v1/feoh/*` and `feoh.*` MCP
+tools register unconditionally).
 
-- Disabled (default): the module registers nothing — `/api/v1/feoh/*` falls
-  through to the `/api` catch-all 404, no MCP tools are added, and
-  `GET /api/v1/features` reports `{ finance: false }` for the web UI.
-- Enabled: routes mount at `/api/v1/feoh/*`, `feoh.*` MCP tools register, and
-  `GET /api/v1/features` reports `{ finance: true }`.
-- Toggling the switch never touches data — only whether the module's
-  `register()` mounts anything.
+Beyond the core ledger primitives, three surfaces round out the feature:
 
-Writes (accounts/envelopes/transactions/bills/import) require `admin` or
-`adult` role (children can't edit finances) and are rejected for a
-maintenance-admin acting principal (`src/household/maintenance-admin.ts`).
-`transactions.createdBy` and expense-split `memberId` reference Heorth's
-`users` table directly — there is no separate parties/roster boundary.
+- **Recurring occurrences** — a bill's cadence projects into due-date entries
+  (`GET /api/v1/feoh/occurrences`) with derived status (`planned`/`overdue`/
+  `paid`/`skipped`/`unknown`); linking, skipping, unskipping, and overriding
+  an occurrence persist a row only once it's touched. `nextOpen` (the
+  earliest non-paid/skipped date) is **not** returned by the API — it's
+  cheap to derive client-side from the listing.
+- **Item costs / TCO** — `POST /api/v1/feoh/item-costs` links a transaction
+  to an inventory item as a cost (purchase/disposal/repair/maintenance/
+  accessory); `GET /api/v1/feoh/item-costs/:itemId` returns the rolled-up
+  total-cost-of-ownership breakdown plus a per-year rate.
+- **Account ledger + Kassensturz** — `GET /api/v1/feoh/accounts/:id/ledger`
+  is a paginated, running-balance ledger per account; `POST
+  /api/v1/feoh/accounts/:id/reconcile` books an adjusting transaction between
+  a physically counted balance and the ledger balance (asset accounts only).
+
+Writes (accounts/envelopes/transactions/bills/import/occurrences/item-costs/
+reconcile) require `admin` or `adult` role (children can't edit finances) and
+are rejected for a maintenance-admin acting principal
+(`src/household/maintenance-admin.ts`). `transactions.createdBy` and
+expense-split `memberId` reference Heorth's `users` table directly — there is
+no separate parties/roster boundary.
 
 ## Microsoft 365 (optional integration)
 
@@ -302,9 +315,9 @@ npm test
 
 `tests/setup.ts` also defaults `JWT_SECRET`/`HOUSEHOLD_NAME`/`ADMIN_EMAIL`/
 `ADMIN_PASSWORD` if unset, so only the database connection needs to be
-supplied. Suites exercising the finance module set `FEOH_ENABLED=true`
-before dynamically importing `src/app.js`, since `src/config/env.ts` reads
-`FEOH_ENABLED` once at module load (see `tests/feoh-accounts.test.ts`).
+supplied. Finance is always on, so suites exercising it (e.g.
+`tests/feoh-accounts.test.ts`) import `src/app.js` directly — no env var
+toggling or dynamic re-import required.
 `tests/setup.ts` also blanks the `M365_*` group so the integration is disabled
 in the suite regardless of a local `.env`; M365 tests that need it enabled
 install an in-process fake Graph (`tests/fake-graph.ts`) via `setM365Runtime`.

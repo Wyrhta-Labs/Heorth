@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`FEOH_ENABLED` kill switch removed — finance is now always on.**
+  `feohModule` mounts unconditionally in `ALL_MODULES`
+  (`src/modules/index.ts`); `/api/v1/feoh/*` and `feoh.*` MCP tools are
+  always present, and the web UI no longer needs to gate its finance nav on
+  `GET /api/v1/features`. **Behavior change** for any deployment relying on
+  the switch to hide finance — it is no longer possible to disable the
+  module via env var.
+
+### Added
+
+- **Inventory module** (`src/modules/inventory/`) — a standalone, always-on
+  `HeorthModule` for household items: name/category/manufacturer/model/
+  serial/location/notes, purchase price/date, warranty, and a
+  decommission/reactivation lifecycle. REST (`/api/v1/inventory`, with
+  search/status/category filters and pagination) and four MCP tools
+  (`inventory.list_items`/`get_item`/`record_item`/`decommission_item`,
+  `src/modules/inventory/mcp.ts`). No dependency on feoh; the sole
+  inventory→feoh touchpoint is a raw-SQL existence check against
+  `feoh_item_costs` (`hasDisposalLink` in `service.ts`) that blocks
+  reactivating an item with a recorded disposal link.
+- **Recurring bill occurrences** (`src/modules/feoh/occurrences.ts`) — a
+  bill's cadence projects into due-date entries with derived status
+  (`planned`/`overdue`/`paid`/`skipped`/`unknown`); linking, skipping,
+  unskipping, and overriding an occurrence persist a `recurring_occurrences`
+  row only once it's touched, pruning back to pure projection when
+  untouched again. Off-schedule (edited) rows always surface even past the
+  listing's horizon.
+- **Item cost links + total-cost-of-ownership** (`src/modules/feoh/
+  item-costs.ts`) — links a transaction to an inventory item as a cost
+  (purchase/disposal/repair/maintenance/accessory) and rolls up a per-item
+  TCO breakdown (capital + tier2 + recurring − proceeds, plus a per-year
+  rate over the item's lifetime).
+- **Account ledger + Kassensturz reconciliation** (`src/modules/feoh/
+  ledger.ts`) — a per-account running-balance ledger (Postgres window
+  function over the full unfiltered history, so paginated balances stay
+  correct) and a reconciliation flow that books an adjusting transaction
+  between a physically counted balance and the ledger balance through a
+  given date (asset accounts only, guarded against later postings that
+  would silently shift).
+- **German locale coverage** for the new inventory, occurrences, and ledger/
+  Kassensturz UI surfaces.
+- Migration `0015` for the inventory + occurrences + item-cost tables.
+
+### Fixed
+
+- Recurring-occurrence override race: a concurrent insert on the same
+  (billId, dueDate) now maps the underlying `23505` conflict to a
+  classified error, matching the existing link/skip behavior, instead of
+  leaking a raw 500.
+- `inventory.list_items` MCP tool now accepts `limit`/`offset`, matching the
+  REST endpoint's pagination.
+- Inventory search escapes `%`/`_` in the ILIKE pattern so a literal wildcard
+  character in a search term (e.g. `100%`) no longer wildcard-matches
+  unrelated items.
+- Kassensturz reconciliation now also invalidates the month-summary query on
+  the web client, since a booked difference posts to an envelope.
+- `item-costs.ts` and `ledger.ts` now derive "today" from the same shared
+  `localTodayIso()` helper (`src/modules/feoh/dates.ts`) instead of two
+  independent implementations (one of which used UTC and could misclassify
+  dates around local midnight).
+
 ## [0.5.0] - 2026-08-11
 
 ### Added

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAccounts, useLedger } from '@/hooks/use-feoh';
 import { useFormatters } from '@/hooks/use-formatters';
+import { LEDGER_PAGE_SIZE } from '@/lib/constants';
 import LedgerView from '@/components/feoh/ledger-view';
 import ReconcileDialog from '@/components/feoh/reconcile-dialog';
 import type { Account } from '@/lib/types';
@@ -18,9 +19,12 @@ interface RowProps {
 function AccountRow({ account, expanded, onToggle }: RowProps) {
   const { t } = useTranslation();
   const { formatMoney } = useFormatters();
-  // Fetched at limit=1 purely to read the ledger meta's endBalance; the row's
-  // own expand-to-ledger view fetches the full page separately.
-  const ledgerQuery = useLedger(account.id, { limit: 1, offset: 0 });
+  // Read the ledger meta's endBalance for the header. Deliberately requests
+  // the SAME { limit, offset } as LedgerView's first page (below) so the two
+  // share one react-query cache entry: expanding the row does not trigger a
+  // second network request, and this row's own periodic re-renders are
+  // covered by useLedger's staleTime.
+  const ledgerQuery = useLedger(account.id, { limit: LEDGER_PAGE_SIZE, offset: 0 });
   const endBalance = ledgerQuery.data?.meta.endBalance;
   const [reconcileOpen, setReconcileOpen] = useState(false);
 

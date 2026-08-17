@@ -74,6 +74,13 @@ describe('AccountsPanel', () => {
     expect(screen.getAllByText('$250.00').length).toBeGreaterThan(0);
   });
 
+  it('requests the header balance with the same params as the ledger view\'s first page, so expanding reuses one cache entry', () => {
+    setup();
+    render(<AccountsPanel />);
+
+    expect(useLedger).toHaveBeenCalledWith('a1', { limit: 50, offset: 0 });
+  });
+
   it('shows the Kassensturz button only on asset accounts', () => {
     setup({ accounts: [checking, creditCard] });
     render(<AccountsPanel />);

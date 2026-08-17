@@ -81,6 +81,13 @@ export const ROLE_OPTIONS = [
   { value: 'child', labelKey: 'options.role.child' },
 ] as const satisfies { value: Role; labelKey: string }[];
 
+/**
+ * Feoh ledger page size. Also doubles as the AccountsPanel header-balance
+ * fetch size (limit/offset match LedgerView's first page) so the two views
+ * share one react-query cache entry instead of firing separate requests.
+ */
+export const LEDGER_PAGE_SIZE = 50;
+
 export const RECURRENCE_OPTIONS = [
   { value: '', labelKey: 'options.recurrence.none' },
   { value: 'P1D', labelKey: 'options.recurrence.daily' },

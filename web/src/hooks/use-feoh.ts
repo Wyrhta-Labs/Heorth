@@ -20,6 +20,12 @@ export function useLedger(accountId: string, params: Parameters<typeof api.getAc
     queryKey: [...QUERY_KEYS.ledger(accountId), params],
     queryFn: () => api.getAccountLedger(accountId, params),
     enabled: !!accountId,
+    // AccountsPanel fires one of these per visible account (no batch-balance
+    // endpoint exists; household account counts are single-digit, so this is
+    // a deliberate, small per-account cost). staleTime keeps unrelated
+    // re-renders (toggling a sibling row, toasts, etc.) from re-firing every
+    // account's balance query within the window.
+    staleTime: 30_000,
   });
 }
 

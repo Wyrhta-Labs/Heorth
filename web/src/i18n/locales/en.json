@@ -4,6 +4,7 @@
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
+    "confirm": "Confirm",
     "loadFailed": "We couldn’t load this right now.",
     "checkConnection": "Check your connection and try again."
   },
@@ -275,6 +276,29 @@
       "importCsv": "Import CSV",
       "imported_one": "Imported {{count}} transaction",
       "imported_other": "Imported {{count}} transactions"
+    },
+    "occurrences": {
+      "overdueBadge": "{{count}} overdue",
+      "status": {
+        "planned": "Planned",
+        "paid": "Paid",
+        "overdue": "Overdue",
+        "skipped": "Skipped",
+        "unknown": "Cadence unknown - edit the bill"
+      },
+      "link": "Book",
+      "skip": "Skip",
+      "unskip": "Unskip",
+      "unlink": "Unlink",
+      "override": "Adjust amount",
+      "pickTransaction": "Pick the settling transaction"
+    },
+    "cadence": {
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "semiannual": "Every 6 months",
+      "yearly": "Yearly"
     }
   },
   "nav": {

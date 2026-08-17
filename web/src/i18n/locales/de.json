@@ -4,6 +4,7 @@
     "loading": "Lädt…",
     "save": "Speichern",
     "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
     "loadFailed": "Das konnte gerade nicht geladen werden.",
     "checkConnection": "Prüf deine Verbindung und versuch es nochmal."
   },
@@ -275,6 +276,29 @@
       "importCsv": "CSV importieren",
       "imported_one": "{{count}} Buchung importiert",
       "imported_other": "{{count}} Buchungen importiert"
+    },
+    "occurrences": {
+      "overdueBadge": "{{count}} überfällig",
+      "status": {
+        "planned": "Geplant",
+        "paid": "Bezahlt",
+        "overdue": "Überfällig",
+        "skipped": "Übersprungen",
+        "unknown": "Turnus unbekannt – Dauerauftrag bearbeiten"
+      },
+      "link": "Buchen",
+      "skip": "Überspringen",
+      "unskip": "Wieder aufnehmen",
+      "unlink": "Verknüpfung lösen",
+      "override": "Betrag anpassen",
+      "pickTransaction": "Ausgleichende Buchung wählen"
+    },
+    "cadence": {
+      "weekly": "Wöchentlich",
+      "monthly": "Monatlich",
+      "quarterly": "Vierteljährlich",
+      "semiannual": "Halbjährlich",
+      "yearly": "Jährlich"
     }
   },
   "nav": {

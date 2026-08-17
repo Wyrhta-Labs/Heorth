@@ -13,6 +13,15 @@ vi.mock('@/hooks/use-feoh', () => ({
   useRecordTransaction: () => mutation,
   useDeleteBill: () => mutation,
   useImportCsv: () => mutation,
+  // BillsList renders OverdueBadge/OccurrenceStrip (occurrence-strip.tsx),
+  // which call these hooks even with zero bills.
+  useOccurrences: () => okList,
+  useTransactions: () => okList,
+  useLinkOccurrence: () => mutation,
+  useSkipOccurrence: () => mutation,
+  useUnskipOccurrence: () => mutation,
+  useUnlinkOccurrence: () => mutation,
+  useOverrideOccurrence: () => mutation,
 }));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 

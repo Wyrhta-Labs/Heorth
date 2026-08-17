@@ -12,6 +12,9 @@ export function useBills() { return useQuery({ queryKey: QUERY_KEYS.bills, query
 export function useItemCosts(itemId: string) {
   return useQuery({ queryKey: QUERY_KEYS.itemCosts(itemId), queryFn: () => api.getItemCosts(itemId), enabled: !!itemId });
 }
+export function useOccurrences(params: Parameters<typeof api.listOccurrences>[0] = {}) {
+  return useQuery({ queryKey: [...QUERY_KEYS.occurrences, params], queryFn: () => api.listOccurrences(params) });
+}
 
 export function useCreateAccount() {
   const qc = useQueryClient();
@@ -52,6 +55,29 @@ export function useDeleteItemCost(itemId: string) {
     mutationFn: (id: string) => api.deleteItemCost(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.itemCosts(itemId) }),
   });
+}
+function invalidateOccurrences(qc: ReturnType<typeof useQueryClient>) {
+  return () => qc.invalidateQueries({ queryKey: QUERY_KEYS.occurrences });
+}
+export function useLinkOccurrence() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (i: api.LinkOccurrenceInput) => api.linkOccurrence(i), onSuccess: invalidateOccurrences(qc) });
+}
+export function useSkipOccurrence() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (i: api.OccurrenceRefInput) => api.skipOccurrence(i), onSuccess: invalidateOccurrences(qc) });
+}
+export function useUnskipOccurrence() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (i: api.OccurrenceRefInput) => api.unskipOccurrence(i), onSuccess: invalidateOccurrences(qc) });
+}
+export function useUnlinkOccurrence() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (i: api.OccurrenceRefInput) => api.unlinkOccurrence(i), onSuccess: invalidateOccurrences(qc) });
+}
+export function useOverrideOccurrence() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (i: api.OverrideOccurrenceInput) => api.overrideOccurrence(i), onSuccess: invalidateOccurrences(qc) });
 }
 export function useImportCsv() {
   const qc = useQueryClient();

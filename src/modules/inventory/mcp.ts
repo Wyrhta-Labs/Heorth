@@ -35,6 +35,8 @@ export const inventoryTools: McpTool[] = [
       status: z.enum(['active', 'decommissioned']).optional(),
       category: z.string().optional(),
       q: z.string().optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+      offset: z.number().int().min(0).optional(),
     },
     async handler(_ctx, input) {
       return result(await service.listItems(input as never));

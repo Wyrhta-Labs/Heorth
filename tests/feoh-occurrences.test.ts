@@ -181,6 +181,30 @@ describe('feoh occurrence state machine', () => {
     expect(deleted?.id).toBe(freshBill.id);
   });
 
+  it('maps a concurrent overrideOccurrence insert race (23505) to a classified error, not a raw 500', async () => {
+    // Simulate the race window between resolveTarget's select (no row yet)
+    // and the insert: two callers hit the same never-before-touched
+    // (billId, dueDate) concurrently. Both read `row: null`, so both take
+    // the insert branch; the unique index rejects the loser with 23505,
+    // which must be mapped by mapOccurrenceConflict instead of leaking.
+    const bill = await mkBill('monthly', '2026-06-01', 85);
+    const results = await Promise.allSettled([
+      occurrences.overrideOccurrence({ billId: bill.id, dueDate: '2026-06-01', amount: 120 }),
+      occurrences.overrideOccurrence({ billId: bill.id, dueDate: '2026-06-01', amount: 130 }),
+    ]);
+    const rejected = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    // Postgres may serialize both inserts without either raising 23505 (no
+    // true concurrency guarantee in a single-process test), so allow either
+    // outcome — but any rejection MUST be the classified error, never a raw
+    // postgres error object leaking through.
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+    for (const r of rejected) {
+      expect(r.reason).toBeInstanceOf(Error);
+      expect(['ALREADY_PAID', 'ALREADY_SKIPPED']).toContain((r.reason as Error).message);
+    }
+  });
+
   it('rejects the legacy P1M cadence via createBillSchema', () => {
     const result = createBillSchema.safeParse({
       payee: 'Legacy', amount: 10, cadence: 'P1M', nextDue: '2026-08-01',

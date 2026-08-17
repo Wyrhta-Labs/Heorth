@@ -11,7 +11,11 @@ export async function listItems(q: {
   if (q.status === 'decommissioned') conditions.push(isNotNull(inventoryItems.decommissionedAt));
   if (q.category) conditions.push(eq(inventoryItems.category, q.category));
   if (q.q) {
-    const pat = `%${q.q}%`;
+    // Escape LIKE/ILIKE wildcards in user input (Postgres' default ESCAPE
+    // character is backslash) so a literal "%" or "_" in a search term
+    // doesn't act as a wildcard, e.g. searching "100%" must not match "1000".
+    const escaped = q.q.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const pat = `%${escaped}%`;
     conditions.push(or(
       ilike(inventoryItems.name, pat), ilike(inventoryItems.manufacturer, pat),
       ilike(inventoryItems.model, pat), ilike(inventoryItems.serialNumber, pat),

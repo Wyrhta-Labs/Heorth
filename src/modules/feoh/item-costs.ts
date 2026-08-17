@@ -3,6 +3,7 @@ import { feohItemCosts, recurringBills, recurringOccurrences, transactions, type
 import { inventoryItems, type InventoryItem } from '../inventory/schema.js';
 import { eq, and, isNotNull, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
+import { localTodayIso } from './dates.js';
 
 export type CostKind = 'purchase' | 'disposal' | 'repair' | 'maintenance' | 'accessory';
 const TIER2: CostKind[] = ['repair', 'maintenance', 'accessory'];
@@ -88,7 +89,7 @@ export async function getItemCosts(itemId: string): Promise<ItemCostsBreakdown |
 
   let lifetimeDays: number | null = null;
   if (item.purchaseDate) {
-    const end = item.decommissionedAt ?? new Date().toISOString().slice(0, 10);
+    const end = item.decommissionedAt ?? localTodayIso();
     lifetimeDays = Math.round((Date.parse(end) - Date.parse(item.purchaseDate)) / 86_400_000);
   }
   const perYear = lifetimeDays != null && lifetimeDays >= 1 ? total / (lifetimeDays / 365.25) : null;

@@ -8,6 +8,7 @@ import { db } from '../../db/index.js';
 import { accounts } from './schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { recordTransaction } from './service.js';
+import { localTodayIso } from './dates.js';
 
 export interface LedgerEntry {
   transactionId: string;
@@ -113,8 +114,7 @@ export async function reconcileAccount(
   if (account.kind !== 'asset') throw new Error('ACCOUNT_NOT_ASSET');
   // Server-LOCAL calendar date (spec) — toISOString() would be UTC and
   // misclassify dates around local midnight.
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = localTodayIso();
   if (i.date > today) throw new Error('DATE_IN_FUTURE');
 
   // Postings in (date, today] would be silently shifted by a past adjustment.

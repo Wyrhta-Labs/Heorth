@@ -99,6 +99,8 @@ export function useReconcileAccount() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.ledger(vars.id) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.transactions });
+      // A booked difference posts to an envelope, same as useRecordTransaction.
+      qc.invalidateQueries({ queryKey: ['summary'] });
     },
   });
 }

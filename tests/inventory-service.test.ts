@@ -25,6 +25,13 @@ describe('inventory service', () => {
     expect((await service.listItems({ status: 'decommissioned' })).total).toBe(0);
   });
 
+  it('escapes ILIKE wildcards in the search term so "100%" does not wildcard-match "1000 Watt"', async () => {
+    await service.createItem({ name: '100% Wool Blanket' });
+    await service.createItem({ name: '1000 Watt Heater' });
+    const hits = (await service.listItems({ q: '100%' })).rows;
+    expect(hits.map((r) => r.name)).toEqual(['100% Wool Blanket']);
+  });
+
   it('decommissions once, rejects a second time', async () => {
     const item = await service.createItem({ name: 'Kettle' });
     const done = await service.decommissionItem(item.id, { date: '2026-08-01', reason: 'broken' });

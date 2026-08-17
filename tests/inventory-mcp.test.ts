@@ -25,6 +25,20 @@ describe('inventory MCP tools (unit-level, direct handler invocation)', () => {
     expect(got.name).toBe('Dishwasher');
   });
 
+  it('passes limit/offset through to service.listItems for paging', async () => {
+    const { admin } = await seedTestHousehold();
+    await invokeTool(inventoryTools, 'inventory.record_item', { userId: admin.user.id, role: 'admin' }, { name: 'Item A' });
+    await invokeTool(inventoryTools, 'inventory.record_item', { userId: admin.user.id, role: 'admin' }, { name: 'Item B' });
+
+    const page = await invokeTool(inventoryTools, 'inventory.list_items',
+      { userId: admin.user.id, role: 'admin' },
+      { limit: 1, offset: 0 }) as { rows: Array<{ id: string }>; total: number; limit: number; offset: number };
+    expect(page.rows.length).toBe(1);
+    expect(page.limit).toBe(1);
+    expect(page.offset).toBe(0);
+    expect(page.total).toBeGreaterThanOrEqual(2);
+  });
+
   it('returns a classified tool-error result (not a throw) for a child-role principal calling record_item', async () => {
     const { child } = await seedTestHousehold();
 

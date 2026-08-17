@@ -35,6 +35,9 @@ export async function listOccurrences(
     }
     const projected = projectDueDates(bill.nextDue, bill.cadence, cappedHorizon);
     const projectedSet = new Set(projected);
+    // `to`/cappedHorizon only bounds the PROJECTION — persisted (touched) rows
+    // always appear regardless of dueDate vs. horizon (the off-schedule
+    // exception), so a row edited past `to` is never silently dropped.
     const dates = [...new Set([...projected, ...persisted.map((r) => r.dueDate)])].sort();
 
     for (const dueDate of dates) {
@@ -155,6 +158,8 @@ export async function overrideOccurrence(i: { billId: string; dueDate: string; a
       .where(eq(recurringOccurrences.id, row.id));
     await pruneIfUntouched(row.id);
   } else if (i.amount != null) {
-    await db.insert(recurringOccurrences).values({ billId: i.billId, dueDate: i.dueDate, overrideAmount: String(i.amount) });
+    try {
+      await db.insert(recurringOccurrences).values({ billId: i.billId, dueDate: i.dueDate, overrideAmount: String(i.amount) });
+    } catch (e: unknown) { mapOccurrenceConflict(e, row); }
   }
 }

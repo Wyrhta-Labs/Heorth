@@ -137,6 +137,57 @@ describe('InventoryPage', () => {
     expect(screen.getByText('$40.00')).toBeInTheDocument();
   });
 
+  it('refreshes the open detail view and TCO panel after a decommission with no transaction picked', async () => {
+    const decommissioned: InventoryItem = {
+      ...item1,
+      decommissionedAt: '2026-08-17',
+      decommissionReason: 'broken',
+      disposalProceeds: '75',
+    };
+    // First list load returns the active item; after decommission invalidates
+    // the inventory query, the refetch returns the now-decommissioned row.
+    listItems
+      .mockResolvedValueOnce({ data: [item1], meta: { total: 1 } })
+      .mockResolvedValue({ data: [decommissioned], meta: { total: 1 } });
+    getItemCosts.mockResolvedValue({
+      data: {
+        item: item1,
+        links: [],
+        recurringBills: [],
+        totals: { capital: 120, tier2: 0, recurring: 0, proceeds: 0, total: 120, perYear: 40, lifetimeDays: 1095 },
+      },
+    });
+    decommissionItem.mockResolvedValue({ data: decommissioned });
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Drill')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Drill'));
+    await waitFor(() => expect(getItemCosts).toHaveBeenCalledTimes(1));
+
+    const openButton = await screen.findByRole('button', { name: 'Decommission' });
+    fireEvent.click(openButton);
+
+    const submitButton = screen.getByRole('button', { name: 'Decommission' });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(decommissionItem).toHaveBeenCalledWith('i1', expect.any(Object)));
+    // No transaction was picked, so createItemCost must not run.
+    expect(createItemCost).not.toHaveBeenCalled();
+
+    // Bug 1: itemCosts must be invalidated (refetched) even without a linked
+    // transaction, since decommission itself changes disposalProceeds/total.
+    await waitFor(() => expect(getItemCosts.mock.calls.length).toBeGreaterThanOrEqual(2));
+    // Bug 2: the open detail view must reflect the refreshed (decommissioned)
+    // row instead of the stale `selected` snapshot.
+    await waitFor(() => expect(listItems).toHaveBeenCalledTimes(2));
+    // "Decommissioned" also names the status filter chip, so match the
+    // specific lifecycle line rather than the bare word.
+    await waitFor(() =>
+      expect(screen.getAllByText(/Decommissioned Aug 17, 2026 \(Broken\)/).length).toBeGreaterThan(0),
+    );
+    expect(screen.getByRole('button', { name: 'Decommission' })).toBeDisabled();
+  });
+
   it('decommissions the item then links the picked sale transaction, tolerating a link failure', async () => {
     listItems.mockResolvedValue({ data: [item1], meta: { total: 1 } });
     getItemCosts.mockResolvedValue({

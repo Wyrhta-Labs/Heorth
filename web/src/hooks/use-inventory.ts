@@ -26,7 +26,15 @@ export function useDecommissionItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: api.DecommissionInput }) => api.decommissionItem(id, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.inventory }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
+      // Server-side TCO totals (proceeds/total) read `item.disposalProceeds`,
+      // which decommission just set — invalidate itemCosts too so an open
+      // detail panel's numbers aren't stale when no transaction was linked
+      // (the linked-transaction path also invalidates this key, but that
+      // only happens when a transaction was actually picked).
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.itemCosts(vars.id) });
+    },
   });
 }
 

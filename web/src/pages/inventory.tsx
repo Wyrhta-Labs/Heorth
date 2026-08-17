@@ -36,6 +36,12 @@ export default function InventoryPage() {
   const allItems = itemsQuery.data?.data ?? [];
   const items = q ? allItems.filter((i) => i.name.toLowerCase().includes(q.toLowerCase())) : allItems;
 
+  // Prefer the freshly refetched row over the plain `selected` snapshot, so
+  // the open detail view picks up server-side changes (e.g. decommission)
+  // as soon as the list query refetches, instead of staying stale until the
+  // dialog is closed and reopened.
+  const displayedItem = selected ? (allItems.find((i) => i.id === selected.id) ?? selected) : null;
+
   const submitCreate = async (input: Parameters<typeof createItem.mutateAsync>[0]) => {
     try {
       await createItem.mutateAsync(input);
@@ -108,7 +114,7 @@ export default function InventoryPage() {
         </DialogContent>
       </Dialog>
 
-      <ItemDetail item={selected} onClose={() => setSelected(null)} />
+      <ItemDetail item={displayedItem} onClose={() => setSelected(null)} />
     </div>
   );
 }

@@ -15,6 +15,14 @@ interface Props { accountId: string; }
  * to the accumulated list (no re-fetch of already-loaded rows). Running
  * balances stay correct across pages because the backend computes `balance`
  * over full account history, not per-page.
+ *
+ * Invalidation refetches (e.g. `useReconcileAccount` invalidating the ledger
+ * key while this view is mounted) are handled by restarting at page 0: a
+ * fresh page-0 refetch simply replaces the top page, but a refetch landing on
+ * a LATER mounted page resets the whole view back to offset 0 rather than
+ * patching in the middle of the accumulated list — reconciling changes
+ * balances/totals anyway, so restarting at the top is both simplest and
+ * always correct (no gaps, no desynced offset math).
  */
 export default function LedgerView({ accountId }: Props) {
   const { t } = useTranslation();
@@ -52,13 +60,28 @@ export default function LedgerView({ accountId }: Props) {
 
     if (appendedOffsets.current.has(pageOffset)) {
       if (!isRefetch) return; // Unchanged re-render of already-appended data — no-op.
-      // Invalidation refetch of a page we already rendered (e.g. after
-      // reconciling): collapse back to this fresh page instead of keeping
-      // rows from before the invalidation, so `entries`/`meta.total` and
-      // subsequent offset math stay in sync with the server.
-      appendedOffsets.current = new Set([pageOffset]);
-      setEntries(data.data);
+
+      if (pageOffset === 0) {
+        // Invalidation refetch of the page we're already showing at the top
+        // (e.g. after reconciling): collapse back to this fresh page.
+        appendedOffsets.current = new Set([0]);
+        setEntries(data.data);
+        lastDataUpdatedAt.current = updatedAt;
+        return;
+      }
+
+      // Invalidation refetch landed on a LATER page — the user had scrolled
+      // past page 0 via "load more" when the invalidation (e.g. a reconcile)
+      // hit. Partially resyncing just this page would either lose earlier
+      // rows or desync the load-more offset math against a mid-list page.
+      // Reconciling changes balances/totals anyway, so the simplest
+      // always-correct behavior is: restart the view at the top. Update the
+      // ref bookkeeping BEFORE setOffset so the page-0 fetch this triggers
+      // is treated as a normal (first-time) load, not another invalidation.
+      appendedOffsets.current = new Set();
       lastDataUpdatedAt.current = updatedAt;
+      setEntries([]);
+      setOffset(0);
       return;
     }
 

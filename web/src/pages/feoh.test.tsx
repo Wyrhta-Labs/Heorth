@@ -22,6 +22,8 @@ vi.mock('@/hooks/use-feoh', () => ({
   useUnskipOccurrence: () => mutation,
   useUnlinkOccurrence: () => mutation,
   useOverrideOccurrence: () => mutation,
+  useLedger: () => okList,
+  useReconcileAccount: () => mutation,
 }));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 

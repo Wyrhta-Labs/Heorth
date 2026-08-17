@@ -299,6 +299,19 @@
       "quarterly": "Vierteljährlich",
       "semiannual": "Halbjährlich",
       "yearly": "Jährlich"
+    },
+    "accounts": {
+      "title": "Konten",
+      "balance": "Saldo",
+      "ledger": "Kontobuch",
+      "openingBalance": "Anfangssaldo",
+      "reconcile": "Kassensturz",
+      "counted": "Gezählter Betrag",
+      "bookedAs": "Differenz buchen auf",
+      "noDifference": "Zählung stimmt – nichts zu buchen.",
+      "difference": "Differenz: {{amount}}",
+      "laterTransactions": "Es gibt neuere Buchungen – mit dem heutigen Datum abgleichen.",
+      "loadMore": "Mehr laden"
     }
   },
   "nav": {

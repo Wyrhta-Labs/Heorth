@@ -299,6 +299,19 @@
       "quarterly": "Quarterly",
       "semiannual": "Every 6 months",
       "yearly": "Yearly"
+    },
+    "accounts": {
+      "title": "Accounts",
+      "balance": "Balance",
+      "ledger": "Ledger",
+      "openingBalance": "Opening balance",
+      "reconcile": "Kassensturz",
+      "counted": "Counted amount",
+      "bookedAs": "Book difference to",
+      "noDifference": "Counts match - nothing to book.",
+      "difference": "Difference: {{amount}}",
+      "laterTransactions": "There are newer transactions - reconcile with today's date.",
+      "loadMore": "Load more"
     }
   },
   "nav": {

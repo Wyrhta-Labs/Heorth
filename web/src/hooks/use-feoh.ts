@@ -15,6 +15,13 @@ export function useItemCosts(itemId: string) {
 export function useOccurrences(params: Parameters<typeof api.listOccurrences>[0] = {}) {
   return useQuery({ queryKey: [...QUERY_KEYS.occurrences, params], queryFn: () => api.listOccurrences(params) });
 }
+export function useLedger(accountId: string, params: Parameters<typeof api.getAccountLedger>[1] = {}) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.ledger(accountId), params],
+    queryFn: () => api.getAccountLedger(accountId, params),
+    enabled: !!accountId,
+  });
+}
 
 export function useCreateAccount() {
   const qc = useQueryClient();
@@ -78,6 +85,16 @@ export function useUnlinkOccurrence() {
 export function useOverrideOccurrence() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (i: api.OverrideOccurrenceInput) => api.overrideOccurrence(i), onSuccess: invalidateOccurrences(qc) });
+}
+export function useReconcileAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: api.ReconcileInput }) => api.reconcileAccount(id, input),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.ledger(vars.id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.transactions });
+    },
+  });
 }
 export function useImportCsv() {
   const qc = useQueryClient();

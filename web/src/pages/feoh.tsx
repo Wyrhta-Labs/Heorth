@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import SummaryHeader from '@/components/feoh/summary-header';
 import EnvelopeCard from '@/components/feoh/envelope-card';
 import BillsList from '@/components/feoh/bills-list';
+import AccountsPanel from '@/components/feoh/accounts-panel';
 import TransactionForm from '@/components/feoh/transaction-form';
 import CsvPanel from '@/components/feoh/csv-panel';
 import { ErrorState } from '@/components/ui/error-state';
@@ -66,6 +67,8 @@ export default function FeohPage() {
             <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.recurringBills')}</CardTitle></CardHeader>
             <CardContent><BillsList bills={bills} onRemove={(id) => deleteBill.mutate(id)} /></CardContent>
           </Card>
+
+          <AccountsPanel />
 
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.importExport')}</CardTitle></CardHeader>

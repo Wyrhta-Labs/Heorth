@@ -311,7 +311,8 @@
       "noDifference": "Zählung stimmt – nichts zu buchen.",
       "difference": "Differenz: {{amount}}",
       "laterTransactions": "Es gibt neuere Buchungen – mit dem heutigen Datum abgleichen.",
-      "loadMore": "Mehr laden"
+      "loadMore": "Mehr laden",
+      "envelopeRequired": "Wähle einen Umschlag, auf den die Differenz gebucht wird"
     }
   },
   "nav": {

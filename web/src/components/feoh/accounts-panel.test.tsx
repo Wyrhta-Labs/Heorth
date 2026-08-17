@@ -45,13 +45,18 @@ const ledgerEntry = (over: Partial<LedgerEntry> = {}): LedgerEntry => ({
   transactionId: 't1', date: '2026-08-01', payee: 'Market', memo: null, delta: 150, balance: 250, ...over,
 });
 
-function setup(opts: { accounts?: Account[]; ledger?: { data: LedgerEntry[]; meta: LedgerMeta } } = {}) {
+function setup(opts: {
+  accounts?: Account[];
+  ledger?: { data: LedgerEntry[]; meta: LedgerMeta };
+  envelopes?: Envelope[];
+} = {}) {
   const accounts = opts.accounts ?? [checking];
   const ledger = opts.ledger ?? { data: [ledgerEntry()], meta: ledgerMeta() };
+  const envelopes = opts.envelopes ?? [groceries];
   useAccounts.mockReturnValue({ data: { data: accounts }, isError: false, isLoading: false });
-  useEnvelopes.mockReturnValue({ data: { data: [groceries] }, isError: false, isLoading: false });
+  useEnvelopes.mockReturnValue({ data: { data: envelopes }, isError: false, isLoading: false });
   useLedger.mockReturnValue({ data: ledger, isError: false, isLoading: false });
-  return { accounts, ledger };
+  return { accounts, ledger, envelopes };
 }
 
 describe('AccountsPanel', () => {
@@ -99,7 +104,7 @@ describe('AccountsPanel', () => {
 
     await waitFor(() => expect(reconcileMutateAsync).toHaveBeenCalledWith({
       id: 'a1',
-      input: { countedBalance: 250, date: expect.any(String), envelopeId: '', memo: null },
+      input: { countedBalance: 250, date: expect.any(String), envelopeId: 'e1', memo: null },
     }));
     expect(await screen.findByText('Counts match - nothing to book.')).toBeInTheDocument();
   });
@@ -114,5 +119,38 @@ describe('AccountsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
 
     expect(await screen.findByText("There are newer transactions - reconcile with today's date.")).toBeInTheDocument();
+  });
+
+  it('never submits reconcileAccount without an envelope: the select always carries a valid envelopeId', async () => {
+    // Regression: the dialog used to offer a blank "-" option and would
+    // submit `envelopeId: ''`, which the backend rejects with a generic 400
+    // VALIDATION_ERROR (envelope is required). It must default to — and only
+    // ever offer — a real envelope id.
+    setup();
+    reconcileMutateAsync.mockResolvedValue({ data: { difference: 0, transaction: null } });
+    render(<AccountsPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kassensturz' }));
+    const select = await screen.findByLabelText('Book difference to');
+    expect(select).toHaveValue('e1');
+    expect(screen.queryByRole('option', { name: '-' })).not.toBeInTheDocument();
+
+    fireEvent.change(await screen.findByLabelText('Counted amount'), { target: { value: '250' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+
+    await waitFor(() => expect(reconcileMutateAsync).toHaveBeenCalled());
+    expect(reconcileMutateAsync.mock.calls[0][0].input.envelopeId).toBe('e1');
+  });
+
+  it('disables Record (and never calls reconcileAccount) when there is no envelope to book the difference into', async () => {
+    setup({ envelopes: [] });
+    render(<AccountsPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kassensturz' }));
+    fireEvent.change(await screen.findByLabelText('Counted amount'), { target: { value: '250' } });
+    expect(screen.getByRole('button', { name: 'Record' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(reconcileMutateAsync).not.toHaveBeenCalled();
   });
 });

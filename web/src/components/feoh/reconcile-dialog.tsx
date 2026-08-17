@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
@@ -31,6 +31,14 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
   const [result, setResult] = useState<ReconcileResult | null>(null);
   const [error, setError] = useState('');
 
+  // The envelope to book the difference into is REQUIRED by the backend
+  // (reconcileSchema expects a uuid) — default to the first envelope once
+  // the list loads (envelopes may still be fetching when the dialog mounts)
+  // rather than offering a blank/placeholder option a user could submit.
+  useEffect(() => {
+    if (!envelopeId && envelopes.length > 0) setEnvelopeId(envelopes[0]!.id);
+  }, [envelopes, envelopeId]);
+
   const reset = () => {
     setCounted('');
     setDate(format(new Date(), 'yyyy-MM-dd'));
@@ -48,6 +56,11 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    // Belt-and-suspenders: the select defaults to the first envelope once
+    // envelopes load, but a household with zero envelopes (or a race before
+    // the list loads) could otherwise still submit an empty envelopeId,
+    // which the backend rejects as a generic 400 VALIDATION_ERROR.
+    if (!envelopeId) { setError(t('feoh.accounts.envelopeRequired')); return; }
     try {
       const res = await reconcile.mutateAsync({
         id: accountId,
@@ -98,7 +111,6 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
                 id="reconcile-envelope" value={envelopeId} onChange={(e) => setEnvelopeId(e.target.value)}
                 className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
               >
-                <option value="">-</option>
                 {envelopes.map((en) => <option key={en.id} value={en.id}>{en.name}</option>)}
               </select>
             </div>
@@ -109,7 +121,7 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={close}>{t('feoh.form.cancel')}</Button>
-              <Button type="submit" disabled={reconcile.isPending}>
+              <Button type="submit" disabled={reconcile.isPending || !envelopeId}>
                 {reconcile.isPending ? t('feoh.form.saving') : t('feoh.form.record')}
               </Button>
             </div>

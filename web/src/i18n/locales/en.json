@@ -311,7 +311,8 @@
       "noDifference": "Counts match - nothing to book.",
       "difference": "Difference: {{amount}}",
       "laterTransactions": "There are newer transactions - reconcile with today's date.",
-      "loadMore": "Load more"
+      "loadMore": "Load more",
+      "envelopeRequired": "Pick an envelope to book the difference into"
     }
   },
   "nav": {

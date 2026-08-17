@@ -1,77 +1,133 @@
 ---
 name: run-local
-description: Use when asked to run, start, launch, or smoke-test Heorth locally (API + web UI) for manual testing.
+description: Use when asked to run, start, launch, restart, or smoke-test Heorth locally (API + web UI) for manual testing.
 ---
 
 # Run Heorth locally
 
-Heorth is a Hono API (`tsx`/Node) plus a Vite + React web UI in `web/`. Both
-run against a shared Postgres. The web dev server proxies `/api` → the API.
+Heorth is a Hono API (`tsx`/Node) plus a Vite + React web UI in `web/`. There
+are **two** ways it runs locally, and they collide on port 4000. Work out which
+one you want *before* starting anything.
 
-## 1. Postgres (shared `kith-testdb`)
+| | API | Web UI | DB | Picks up source edits? |
+|---|---|---|---|---|
+| **A. Compose stack** (usually already up) | `wyrhta-dev-heorth-1` container, host **4000** | built bundle, same port | `wyrhta-dev-db-1` :5432 `heorth_dev` | No — baked image, needs a rebuild |
+| **B. Local processes** | `tsx` on **4000** (repo `.env`) | Vite on **5173** | `kith-testdb` :55432 `heorth_dev` | Yes |
 
-Both Heorth and KithLedger use one Postgres container on host port **55432**
-(user `kith` / `kithpw`, databases `heorth` and `kithledger`). The API's
-`.env` `DATABASE_URL` already points at it.
+Vite proxies `/api` → `http://localhost:4000` (hardcoded in
+`web/vite.config.ts`), so **Vite on 5173 works against either API** — the
+compose container or a local `tsx`, whichever holds 4000.
+
+## 0. Look before you start
 
 ```bash
-docker info >/dev/null 2>&1 || {              # Docker Desktop down? start it and wait
-  "/c/Program Files/Docker/Docker/Docker Desktop.exe" &
-  for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 5; done
-}
-docker start kith-testdb                        # container already exists & is seeded
-docker exec kith-testdb pg_isready -U kith      # → accepting connections
+docker ps --format '{{.Names}}\t{{.Ports}}\t{{.Status}}'
 ```
 
-If `kith-testdb` doesn't exist, create it:
-`docker run -d --name kith-testdb -e POSTGRES_USER=kith -e POSTGRES_PASSWORD=kithpw -e POSTGRES_DB=heorth -p 55432:5432 postgres:18-alpine`
-then `docker exec kith-testdb createdb -U kith kithledger`. The app runs
-migrations + seeds the admin on boot, so an empty DB self-populates.
-
-## 2. Run (background)
-
-`.env` is **not** auto-loaded (no dotenv / `--env-file` in package scripts), so
-pass `--env-file` explicitly. Non-watch keeps logs clean:
+`wyrhta-dev-heorth-1  0.0.0.0:4000->3000/tcp` means the compose API is already
+serving. **Do not check port 3000** — nothing listens there; the container's
+`API_PORT=3000` is internal only, published as 4000. To see local processes:
 
 ```bash
-# API on :3000
-npx tsx --env-file=.env src/index.ts &> /tmp/heorth-api.log &
-# web on :5173 (Vite proxies /api → localhost:3000, config unchanged)
-( cd web && npx vite --port 5173 --strictPort ) &> /tmp/heorth-web.log &
+powershell -c "Get-NetTCPConnection -State Listen -LocalPort 4000,5173 -ea 0 | select LocalPort,OwningProcess"
 ```
 
-Ready line in the API log: `Heorth running on http://localhost:3000`.
+## 1. Common case: a web-only change
 
-## 3. Verify (drive it, don't just launch)
+The compose container already serves the API, so **start Vite only** — there is
+nothing to restart on the API side.
 
 ```bash
-bash .claude/skills/run-local/smoke.sh 5173 admin@heorth.local admin-test-password
+( cd web && npx vite --port 5173 --strictPort ) &> "$SCRATCH/heorth-web.log" &
 ```
 
-Exercises web → Vite proxy → API → Postgres → seeded admin by logging in and
-checking for a JWT. Exit 0 = the whole stack is healthy. Open
-http://localhost:5173 in a browser to click through the UI (title: "Heorth").
+Ready line: `Local:   http://localhost:5173/`. Then verify (§4).
 
-## 4. Stop
+## 2. API / backend change
+
+Source edits do **not** reach the container (`build: ../Heorth`, no bind
+mounts). Either rebuild it:
 
 ```bash
-pkill -f "tsx --env-file=.env src/index.ts"
+docker compose -f ../deploy/compose.dev.yml up -d --build heorth   # ~image rebuild
+```
+
+…or take port 4000 over with a local process, which is faster to iterate on.
+`.env` is **not** auto-loaded (no dotenv / `--env-file` in the package scripts),
+so pass `--env-file` explicitly:
+
+```bash
+docker compose -f ../deploy/compose.dev.yml stop heorth   # free port 4000 first
+npx tsx --env-file=.env src/index.ts &> "$SCRATCH/heorth-api.log" &
+```
+
+Ready line: `Heorth running on http://localhost:4000`. Skipping the `stop` gives
+`Error: listen EADDRINUSE: address already in use :::4000`.
+
+Keep the local API on **4000**: `web/vite.config.ts` hardcodes that proxy
+target, so overriding `API_PORT` to dodge the container silently breaks the web
+UI's `/api` calls.
+
+Postgres for this path is `kith-testdb` on **55432** (`heorth_dev`), per the
+repo `.env`. If it is not running:
+
+```bash
+docker start kith-testdb && docker exec kith-testdb pg_isready -U kith
+```
+
+Migrations run and the admin is seeded on boot, so an empty DB self-populates.
+
+## 3. Stop
+
+```bash
 pkill -f "vite --port 5173"
+pkill -f "tsx --env-file=.env src/index.ts"
+docker compose -f ../deploy/compose.dev.yml stop heorth    # only if you started it
 ```
+
+Leave the compose stack alone unless you actually took port 4000 — it is the
+default dev API and has usually been up for hours.
+
+## 4. Verify (drive it, don't just launch)
+
+```bash
+bash .claude/skills/run-local/smoke.sh          # resolves admin creds itself
+```
+
+Logs in through web → Vite proxy → API → Postgres → seeded admin and checks for
+a JWT. Exit 0 = the whole stack is healthy. The credentials **differ per path**
+(see below), so let the script resolve them rather than passing guesses; to
+override: `smoke.sh [WEB_PORT] [EMAIL] [PASSWORD]`.
+
+Open http://localhost:5173 in a browser to click through the UI (title:
+"Heorth"). The API's own liveness route is unversioned:
+`curl http://localhost:4000/health` → `{"data":{"status":"ok"}}`.
 
 ## Environment
 
-Admin/login come from `.env`. Login: `POST /api/v1/auth/token` with
-`{"email","password"}`.
+Login is `POST /api/v1/auth/token` with `{"email","password"}`. **The seeded
+admin is not the same account on both paths** — this is the single most common
+way a smoke test fails:
 
-| Variable | Default | Notes |
+| | Compose container | Local `tsx` (repo `.env`) |
 |---|---|---|
-| `DATABASE_URL` | `postgres://kith:kithpw@localhost:55432/heorth` | shared `kith-testdb` |
-| `API_PORT` | `3000` | override to run beside another instance |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@heorth.local` / `admin-test-password` | seeded on boot |
-| `JWT_SECRET` | (in `.env`) | ≥32 chars |
+| `ADMIN_EMAIL` | `admin@dev.local` | `admin@example.com` |
+| `ADMIN_PASSWORD` | generated, in `deploy/.env` | in `.env` |
+| `DATABASE_URL` | `…@db:5432/heorth_dev` | `postgres://kith:kithpw@localhost:55432/heorth_dev` |
+| `API_PORT` | `3000` internal → **4000** published | **4000** |
 
-## Running alongside KithLedger
+Read the container's values with:
 
-Heorth keeps the defaults (API 3000, web 5173). See KithLedger's own
-`run-local` skill — it moves to API 3001 / web 5174 to avoid the clash.
+```bash
+docker inspect wyrhta-dev-heorth-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E "ADMIN|DATABASE_URL"
+```
+
+`JWT_SECRET` (≥32 chars) lives in `.env` / `deploy/.env`. Never echo secrets
+into the transcript beyond what a login needs.
+
+## Neighbours on the dev stack
+
+The same compose project also publishes `wyrhta-dev-kithledger-1` on **4002**
+and `wyrhta-dev-db-1` on **5432**. `kith-testdb` on **55432** is separate and
+holds `heorth_dev` plus the `heorth_test` database the backend suite requires
+(`tests/setup.ts` refuses any DB whose name does not end in `_test`).

@@ -1,0 +1,4 @@
+# core.autocrlf=true on the dev machines would hand shell scripts CRLF line
+# endings on checkout, and bash then fails on the stray \r ("$'\r': command not
+# found"). Pin them to LF regardless of the local autocrlf setting.
+*.sh text eol=lf

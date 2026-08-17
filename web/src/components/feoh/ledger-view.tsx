@@ -25,6 +25,12 @@ export default function LedgerView({ accountId }: Props) {
   // same page if this query re-renders with unchanged data (e.g. a sibling
   // state update), since we accumulate rather than replace on each fetch.
   const appendedOffsets = useRef<Set<number>>(new Set());
+  // The `dataUpdatedAt` we last folded in. A later timestamp for an offset
+  // that's already in `appendedOffsets` means react-query delivered a FRESH
+  // page for it — e.g. reconciling the account invalidates the ledger key
+  // and the currently-mounted page refetches. That must overwrite the stale
+  // accumulated rows, not be discarded as "already seen".
+  const lastDataUpdatedAt = useRef(0);
 
   const ledgerQuery = useLedger(accountId, { limit: LEDGER_PAGE_SIZE, offset });
   const meta = ledgerQuery.data?.meta;
@@ -33,6 +39,7 @@ export default function LedgerView({ accountId }: Props) {
   useEffect(() => {
     setEntries([]);
     appendedOffsets.current = new Set();
+    lastDataUpdatedAt.current = 0;
     setOffset(0);
   }, [accountId]);
 
@@ -40,10 +47,25 @@ export default function LedgerView({ accountId }: Props) {
     const data = ledgerQuery.data;
     if (!data) return;
     const pageOffset = data.meta.offset;
-    if (appendedOffsets.current.has(pageOffset)) return;
+    const updatedAt = ledgerQuery.dataUpdatedAt;
+    const isRefetch = updatedAt > lastDataUpdatedAt.current;
+
+    if (appendedOffsets.current.has(pageOffset)) {
+      if (!isRefetch) return; // Unchanged re-render of already-appended data — no-op.
+      // Invalidation refetch of a page we already rendered (e.g. after
+      // reconciling): collapse back to this fresh page instead of keeping
+      // rows from before the invalidation, so `entries`/`meta.total` and
+      // subsequent offset math stay in sync with the server.
+      appendedOffsets.current = new Set([pageOffset]);
+      setEntries(data.data);
+      lastDataUpdatedAt.current = updatedAt;
+      return;
+    }
+
     appendedOffsets.current.add(pageOffset);
     setEntries((prev) => (pageOffset === 0 ? data.data : [...prev, ...data.data]));
-  }, [ledgerQuery.data]);
+    lastDataUpdatedAt.current = updatedAt;
+  }, [ledgerQuery.data, ledgerQuery.dataUpdatedAt]);
 
   return (
     <div className="space-y-2">

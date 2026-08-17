@@ -65,4 +65,30 @@ describe('LedgerView', () => {
     await screen.findByText('Market');
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
   });
+
+  it('replaces stale rows when an invalidation refetch (e.g. after reconciling) delivers a fresh page for an already-loaded offset', async () => {
+    const reconciledPage: LedgerEntry[] = [
+      { transactionId: 't3', date: '2026-08-16', payee: 'Kassensturz adjustment', memo: null, delta: -50, balance: 200 },
+    ];
+    let call = 0;
+    getAccountLedger.mockImplementation(() => {
+      call += 1;
+      if (call === 1) return Promise.resolve({ data: page1, meta: meta({ total: 1, offset: 0, endBalance: 250 }) });
+      return Promise.resolve({ data: reconciledPage, meta: meta({ total: 1, offset: 0, endBalance: 200 }) });
+    });
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={qc}><LedgerView accountId="a1" /></QueryClientProvider>);
+
+    expect(await screen.findByText('Market')).toBeInTheDocument();
+    // Give the first fetch's dataUpdatedAt a distinct timestamp from the refetch below.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    // Simulate reconcileAccount's onSuccess invalidating the ledger key prefix
+    // (see useReconcileAccount in use-feoh.ts) while this page is mounted.
+    await qc.invalidateQueries({ queryKey: ['ledger', 'a1'] });
+
+    expect(await screen.findByText('Kassensturz adjustment')).toBeInTheDocument();
+    expect(screen.queryByText('Market')).not.toBeInTheDocument();
+  });
 });

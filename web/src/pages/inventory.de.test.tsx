@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from '@/i18n';
-import type { InventoryItem, Transaction, OccurrenceEntry, Account, Envelope, LedgerEntry, LedgerMeta } from '@/lib/types';
+import type { InventoryItem, OccurrenceEntry, Account, Envelope, LedgerEntry, LedgerMeta } from '@/lib/types';
 
 // --- Inventory page mocks (mirrors inventory.test.tsx) ---
 const listItems = vi.fn();

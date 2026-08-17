@@ -294,7 +294,8 @@
     "shoppingTab": "Shopping",
     "captureTab": "Capture",
     "more": "More",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "inventory": "Inventory"
   },
   "pwa": {
     "updateReady": "A new version of Heorth is ready.",
@@ -459,6 +460,70 @@
       "rating": "Rating: {{rating}}",
       "viewSource": "View on source"
     }
+  },
+  "inventory": {
+    "title": "Inventory",
+    "addItem": "Add item",
+    "search": "Search items",
+    "filterAll": "All",
+    "filterActive": "Active",
+    "filterDecommissioned": "Decommissioned",
+    "fields": {
+      "name": "Name",
+      "category": "Category",
+      "manufacturer": "Manufacturer",
+      "model": "Model",
+      "serialNumber": "Serial number",
+      "location": "Location",
+      "notes": "Notes",
+      "warrantyUntil": "Warranty until",
+      "purchasePrice": "Purchase price",
+      "purchaseDate": "Purchase date"
+    },
+    "lifecycle": {
+      "purchased": "Purchased {{date}} for {{price}}",
+      "warranty": "Warranty until {{date}}",
+      "decommissioned": "Decommissioned {{date}} ({{reason}})"
+    },
+    "reasons": {
+      "broken": "Broken",
+      "sold": "Sold",
+      "given_away": "Given away",
+      "worn_out": "Worn out",
+      "lost": "Lost",
+      "other": "Other"
+    },
+    "decommission": {
+      "action": "Decommission",
+      "date": "Date",
+      "reason": "Reason",
+      "proceeds": "Sale proceeds",
+      "linkSale": "Link sale transaction",
+      "linkFailed": "Item decommissioned, but linking the transaction failed - retry from the item page."
+    },
+    "tco": {
+      "title": "Cost of ownership",
+      "capital": "Purchase",
+      "tier2": "Repairs & parts",
+      "recurring": "Recurring costs",
+      "proceeds": "Proceeds",
+      "total": "Total",
+      "perYear": "Per year",
+      "linkExpense": "Link expense",
+      "kind": {
+        "purchase": "Purchase",
+        "disposal": "Disposal",
+        "repair": "Repair",
+        "maintenance": "Maintenance",
+        "accessory": "Accessory"
+      }
+    },
+    "empty": "No items yet.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete {{name}}?",
+    "deleted": "Item deleted",
+    "deleteFailed": "Failed to delete item",
+    "deleteBlocked": "This item still has linked expenses — unlink them first."
   },
   "connections": {
     "pageTitle": "Connected accounts",

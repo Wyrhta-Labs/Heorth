@@ -9,6 +9,9 @@ export function useTransactions(params: Parameters<typeof api.listTransactions>[
   return useQuery({ queryKey: [...QUERY_KEYS.transactions, params], queryFn: () => api.listTransactions(params) });
 }
 export function useBills() { return useQuery({ queryKey: QUERY_KEYS.bills, queryFn: () => api.listBills() }); }
+export function useItemCosts(itemId: string) {
+  return useQuery({ queryKey: QUERY_KEYS.itemCosts(itemId), queryFn: () => api.getItemCosts(itemId), enabled: !!itemId });
+}
 
 export function useCreateAccount() {
   const qc = useQueryClient();
@@ -35,6 +38,20 @@ export function useCreateBill() {
 export function useDeleteBill() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (id: string) => api.deleteBill(id), onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.bills }) });
+}
+export function useCreateItemCost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (i: api.CreateItemCostInput) => api.createItemCost(i),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: QUERY_KEYS.itemCosts(vars.itemId) }),
+  });
+}
+export function useDeleteItemCost(itemId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteItemCost(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.itemCosts(itemId) }),
+  });
 }
 export function useImportCsv() {
   const qc = useQueryClient();

@@ -2,7 +2,7 @@ import { Link, useRouter } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library,
-  Sun, ShoppingCart, PlusCircle, Tv,
+  Sun, ShoppingCart, PlusCircle, Tv, Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,7 +20,8 @@ export type NavLabelKey =
   | 'nav.library'
   | 'nav.household'
   | 'nav.hearth'
-  | 'nav.profile';
+  | 'nav.profile'
+  | 'nav.inventory';
 
 interface NavItem {
   to: string;
@@ -51,6 +52,7 @@ export const navItems: NavItem[] = [
   { to: '/capture', labelKey: 'nav.quickCapture', icon: PlusCircle },
   { to: '/meals', labelKey: 'nav.meals', icon: UtensilsCrossed },
   { to: '/feoh', labelKey: 'nav.feoh', icon: Wallet },
+  { to: '/inventory', labelKey: 'nav.inventory', icon: Package },
   { to: '/library', labelKey: 'nav.library', icon: Library },
   { to: '/household/members', labelKey: 'nav.household', icon: Home, activePrefix: '/household' },
   { to: '/hearth', labelKey: 'nav.hearth', icon: Tv },

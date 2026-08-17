@@ -294,7 +294,8 @@
     "shoppingTab": "Einkaufen",
     "captureTab": "Erfassen",
     "more": "Mehr",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "inventory": "Inventar"
   },
   "pwa": {
     "updateReady": "Eine neue Version von Heorth ist bereit.",
@@ -459,6 +460,70 @@
       "rating": "Bewertung: {{rating}}",
       "viewSource": "Zur Quelle"
     }
+  },
+  "inventory": {
+    "title": "Inventar",
+    "addItem": "Gegenstand hinzufügen",
+    "search": "Gegenstände durchsuchen",
+    "filterAll": "Alle",
+    "filterActive": "Aktiv",
+    "filterDecommissioned": "Ausgemustert",
+    "fields": {
+      "name": "Name",
+      "category": "Kategorie",
+      "manufacturer": "Hersteller",
+      "model": "Modell",
+      "serialNumber": "Seriennummer",
+      "location": "Ort",
+      "notes": "Notizen",
+      "warrantyUntil": "Garantie bis",
+      "purchasePrice": "Kaufpreis",
+      "purchaseDate": "Kaufdatum"
+    },
+    "lifecycle": {
+      "purchased": "Gekauft am {{date}} für {{price}}",
+      "warranty": "Garantie bis {{date}}",
+      "decommissioned": "Ausgemustert am {{date}} ({{reason}})"
+    },
+    "reasons": {
+      "broken": "Defekt",
+      "sold": "Verkauft",
+      "given_away": "Verschenkt",
+      "worn_out": "Verschlissen",
+      "lost": "Verloren",
+      "other": "Sonstiges"
+    },
+    "decommission": {
+      "action": "Ausmustern",
+      "date": "Datum",
+      "reason": "Grund",
+      "proceeds": "Verkaufserlös",
+      "linkSale": "Verkaufsbuchung verknüpfen",
+      "linkFailed": "Gegenstand ausgemustert, aber die Verknüpfung der Buchung schlug fehl – vom Gegenstand aus erneut versuchen."
+    },
+    "tco": {
+      "title": "Betriebskosten",
+      "capital": "Anschaffung",
+      "tier2": "Reparaturen & Teile",
+      "recurring": "Laufende Kosten",
+      "proceeds": "Erlöse",
+      "total": "Gesamt",
+      "perYear": "Pro Jahr",
+      "linkExpense": "Ausgabe verknüpfen",
+      "kind": {
+        "purchase": "Kauf",
+        "disposal": "Verkauf",
+        "repair": "Reparatur",
+        "maintenance": "Wartung",
+        "accessory": "Zubehör"
+      }
+    },
+    "empty": "Noch keine Gegenstände.",
+    "delete": "Löschen",
+    "deleteConfirm": "{{name}} löschen?",
+    "deleted": "Gegenstand gelöscht",
+    "deleteFailed": "Gegenstand konnte nicht gelöscht werden",
+    "deleteBlocked": "Dieser Gegenstand hat noch verknüpfte Ausgaben – zuerst die Verknüpfung aufheben."
   },
   "connections": {
     "pageTitle": "Verbundene Konten",

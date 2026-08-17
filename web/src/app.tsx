@@ -18,6 +18,7 @@ import HouseholdPage from '@/pages/household';
 import SettingsTabPanel from '@/components/household/settings-tab-panel';
 import { DEFAULT_SETTINGS_TAB } from '@/lib/settings-tabs';
 import LibraryPage from '@/pages/library';
+import InventoryPage from '@/pages/inventory';
 import TodayPage from '@/pages/today';
 import ShoppingPage from '@/pages/shopping';
 import CapturePage from '@/pages/capture';
@@ -92,6 +93,7 @@ const householdTabRoute = createRoute({
   component: SettingsTabPanel,
 });
 const libraryRoute = createRoute({ getParentRoute: () => authRoute, path: '/library', component: LibraryPage });
+const inventoryRoute = createRoute({ getParentRoute: () => authRoute, path: '/inventory', component: InventoryPage });
 const todayRoute = createRoute({ getParentRoute: () => authRoute, path: '/today', component: TodayPage });
 const shoppingRoute = createRoute({ getParentRoute: () => authRoute, path: '/shopping', component: ShoppingPage });
 const captureRoute = createRoute({ getParentRoute: () => authRoute, path: '/capture', component: CapturePage });
@@ -103,7 +105,7 @@ const routeTree = rootRoute.addChildren([
   authRoute.addChildren([
     dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute,
     householdRoute.addChildren([householdIndexRoute, householdTabRoute]),
-    libraryRoute, todayRoute, shoppingRoute, captureRoute, profileRoute,
+    libraryRoute, inventoryRoute, todayRoute, shoppingRoute, captureRoute, profileRoute,
   ]),
 ]);
 

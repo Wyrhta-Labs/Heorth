@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useRouter } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { Sun, ShoppingCart, PlusCircle, Menu, LogOut } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
@@ -20,8 +20,7 @@ const TABS = [
  */
 export default function MobileNav() {
   const { t } = useTranslation();
-  const router = useRouter();
-  const pathname = router.state.location.pathname;
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { logout } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 

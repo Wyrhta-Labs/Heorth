@@ -1,4 +1,4 @@
-import { Link, useRouter } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library,
@@ -60,8 +60,9 @@ export const navItems: NavItem[] = [
 
 export default function Sidebar() {
   const { t } = useTranslation();
-  const router = useRouter();
-  const pathname = router.state.location.pathname;
+  // useRouterState (not useRouter().state) — only the former subscribes to
+  // router state, and the shell above us does not re-render on navigation.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <aside className="hidden md:flex flex-col w-60 min-h-screen bg-ink text-parchment">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-white/10">

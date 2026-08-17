@@ -1,4 +1,4 @@
-import { Outlet, useRouter } from '@tanstack/react-router';
+import { Outlet, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import Sidebar from './sidebar';
 import TopBar from './top-bar';
@@ -37,8 +37,8 @@ export function titleKeyFor(pathname: string): PageTitleKey | undefined {
 
 export default function AppShell() {
   const { t } = useTranslation();
-  const router = useRouter();
-  const titleKey = titleKeyFor(router.state.location.pathname);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const titleKey = titleKeyFor(pathname);
   const title = titleKey ? t(titleKey) : 'Heorth';
   return (
     <ToastProvider>

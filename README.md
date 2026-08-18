@@ -198,6 +198,129 @@ access against the real `.env` with `npx tsx scripts/m365-smoke.ts` (acquires
 an app-only token and probes `GET /users/{M365_FAMILY_MAILBOX}`; prints no
 secrets).
 
+## Satellite identity — signing keys and JWKS (optional)
+
+Heorth is the household's identity provider for satellite services
+(KithLedger first). The trust model is **asymmetric keys + JWKS**: Heorth signs
+satellite tokens with a *private* key and publishes the *public* keys, so a
+satellite can only ever **verify** and is structurally unable to mint tokens.
+A shared signing secret was explicitly rejected.
+
+The satellite key is **separate from `JWT_SECRET`**. `JWT_SECRET` signs member
+login tokens *and* derives the M365 refresh-token encryption key
+(`src/m365/crypto.ts`); it never leaves this service and nothing here touches
+it. Member login is unchanged.
+
+Key loading lives in `src/satellite/keys.ts`; the endpoint is
+`src/routes/jwks.ts`. `@wyrhta/core` (≥ v0.2.0) supplies the primitives
+(`loadPrivateKey`, `publicKeyFromPrivate`, `toJwks`) — core reads no env and no
+files, so this area is the seam that turns validated env into key material.
+
+### The endpoint
+
+```
+GET /.well-known/jwks.json      → 200 {"keys": [ ... ]}
+```
+
+**Unauthenticated by design** — that is the point of a public key set; a
+satellite fetches it with no credentials. It is mounted outside `/api/v1`, so
+no auth guard and no `/api/*` catch-all applies, and it is the one Heorth
+response that is **not** wrapped in the `ok()` `{ data: ... }` envelope: a JWKS
+is a wire-format contract read by off-the-shelf JWKS clients, which expect the
+bare `{ "keys": [...] }`. It sends `Cache-Control: public, max-age=300`.
+
+The body is built by core's `toJwks`, which emits **public members only** — no
+private component, no `JWT_SECRET`, nothing else about the deployment can
+appear there (`tests/satellite-jwks.test.ts` asserts this explicitly).
+
+### Configuration
+
+**Optional as a group**, the same contract as `M365_*` / `KITH_*`. With none of
+these set — the default — Heorth starts and behaves exactly as today and the
+endpoint returns `{"keys": []}`, the standard way to say "nothing is
+published". Partial presence is a startup error.
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `SATELLITE_SIGNING_KEY` | with `_KID` | Private key material: PKCS#8 PEM or JWK JSON |
+| `SATELLITE_SIGNING_KID` | with `_KEY` | Key id, stamped into signed tokens and into the JWKS |
+| `SATELLITE_SIGNING_ALG` | no | `EdDSA` (default, recommended) or `RS256` |
+| `SATELLITE_SIGNING_KEY_SECONDARY` | with `_KID_SECONDARY` | Rotation-overlap key — **published, never signs**. Accepts private *or* public material |
+| `SATELLITE_SIGNING_KID_SECONDARY` | with `_KEY_SECONDARY` | Its key id; must differ from the active `kid` |
+| `SATELLITE_SIGNING_ALG_SECONDARY` | no | `EdDSA` (default) or `RS256` — may differ from the active key's |
+
+Ed25519 (`EdDSA`) is the recommended default: small keys, small signatures, no
+parameter choices to get wrong. `RS256` is supported for satellites whose JWT
+library cannot do Ed25519.
+
+A PEM's newlines do not survive a single-line `.env`, so key material may use
+the conventional `\n`-escaped form — `normalizeMaterial` restores the real
+newlines. JWK JSON is single-line already and needs no escaping.
+
+Generate an Ed25519 key pair:
+
+```bash
+openssl genpkey -algorithm ed25519 -out satellite.key      # PKCS#8 private
+openssl pkey -in satellite.key -pubout -out satellite.pub  # SPKI public
+# single-line form for .env:
+awk 'BEGIN{ORS="\\n"} {print}' satellite.key
+```
+
+Only `SATELLITE_SIGNING_KEY` is a secret; the public half is meant to be
+published and can live anywhere.
+
+### Rotating the satellite signing key
+
+Two key slots exist so a rotation is never a flag-day. The **active** key is
+the only one that signs; the **secondary** slot is published in the JWKS but
+never signs. Because JWKS entries carry a `kid` and signed tokens carry that
+same `kid` in their header, a verifier always picks the right key, and both
+keys are valid at once for as long as the overlap lasts.
+
+Overlap must be at least the **satellite token TTL** (so no token in flight is
+orphaned) plus the satellites' **JWKS cache lifetime** (300 s from this
+endpoint, plus whatever the satellite caches on its side). A day is a
+comfortable margin for a household deployment.
+
+Order of operations — never skip step 2's wait, that is the whole point:
+
+1. **Generate** the new key pair and pick a fresh `kid`. Use a `kid` that sorts
+   and reads unambiguously, e.g. `sat-2026-09`; never reuse a retired one.
+2. **Pre-publish** the new key in the *secondary* slot, leaving the old key
+   active:
+   ```
+   SATELLITE_SIGNING_KEY=<old private>          SATELLITE_SIGNING_KID=sat-2026-08
+   SATELLITE_SIGNING_KEY_SECONDARY=<new public> SATELLITE_SIGNING_KID_SECONDARY=sat-2026-09
+   ```
+   Restart Heorth and confirm `GET /.well-known/jwks.json` lists **both**
+   `kid`s. Wait out the JWKS cache lifetime so every satellite has fetched the
+   new document *before* any token is signed with the new key.
+3. **Promote**: swap the slots so the new key signs and the old one is only
+   published.
+   ```
+   SATELLITE_SIGNING_KEY=<new private>          SATELLITE_SIGNING_KID=sat-2026-09
+   SATELLITE_SIGNING_KEY_SECONDARY=<old public> SATELLITE_SIGNING_KID_SECONDARY=sat-2026-08
+   ```
+   Restart. New tokens now carry `kid: sat-2026-09`; tokens already issued
+   under `sat-2026-08` keep verifying against the still-published old key.
+   Note the secondary slot takes **public** material, so the old *private* key
+   can be deleted from the host at this point — it is never needed again.
+4. **Wait** out the overlap window (≥ token TTL + cache lifetime).
+5. **Retire**: unset `SATELLITE_SIGNING_KEY_SECONDARY` /
+   `SATELLITE_SIGNING_KID_SECONDARY` and restart. The JWKS drops back to one
+   key, and any token still bearing the old `kid` now fails with
+   `UNKNOWN_KEY_ID` — which is the intended end state.
+6. **Destroy** the retired private key material from backups and secret stores.
+
+**Emergency revocation** (a private key is believed compromised) skips the
+overlap: jump straight to step 3 with the compromised key left *out* of both
+slots. Every token signed by it stops verifying at once — accept that
+outstanding satellite sessions break, because that is the point.
+
+Keys are loaded once and cached for the process lifetime, so **every step above
+needs a restart**; there is no hot-reload path, deliberately — key material
+changing under a running process is a debugging hazard, not a feature.
+
 ## Phone PWA
 
 The web app (`web/`) installs to a phone homescreen and stays useful with a

@@ -19,6 +19,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Satellite identity: asymmetric signing keys + a public JWKS**
+  (task B1c, Wyrhta-Labs/wyrhta-labs#1). Heorth is becoming the household's
+  identity provider for satellite services (KithLedger first), and the trust
+  model is asymmetric keys — Heorth signs with a private key and publishes the
+  public keys, so a satellite can only ever **verify** and is structurally
+  unable to mint. A shared signing secret was explicitly rejected.
+  - `GET /.well-known/jwks.json` publishes the public key set. It is
+    **unauthenticated by design** (a satellite fetches it with no credentials),
+    mounted outside `/api/v1` so no guard or catch-all applies, and is the one
+    Heorth response that is **not** wrapped in the `ok()` envelope — a JWKS is
+    a wire-format contract and generic clients expect a bare
+    `{ "keys": [...] }`. It exposes public key material only.
+  - New env group `SATELLITE_SIGNING_KEY` + `SATELLITE_SIGNING_KID`, optional
+    **as a group** exactly like `M365_*` / `KITH_*`: absent (the default) →
+    Heorth starts and behaves exactly as before and the endpoint returns
+    `{"keys": []}`; partial presence is a startup error. `SATELLITE_SIGNING_ALG`
+    selects `EdDSA` (Ed25519, the recommended default) or `RS256`. Material is
+    a PKCS#8 PEM or JWK JSON, with `\n`-escaped PEMs accepted so a key fits in
+    a single-line `.env`.
+  - **Rotation** is supported through a second, publish-only slot
+    (`SATELLITE_SIGNING_KEY_SECONDARY` / `_KID_SECONDARY` / `_ALG_SECONDARY`):
+    published in the JWKS with its own `kid` but never used for signing, so a
+    new key can be pre-published before it goes active and an outgoing key
+    stays verifiable while it retires. It accepts **public** material, so
+    retired private keys can be deleted from the host. The operator procedure
+    is documented in README.md, "Rotating the satellite signing key".
+  - **`JWT_SECRET` is untouched.** It still signs member logins and still
+    derives the M365 refresh-token encryption key (`src/m365/crypto.ts`); it
+    stays inside this service and the satellite key is entirely separate.
+    Existing tokens keep working.
+  - The token-exchange endpoint that will use these keys (`he_` key → a
+    short-lived satellite JWT) is **task B3** and is deliberately not part of
+    this change; ADR 0009 is still `proposed`.
+
 - **`GET /api/v1/events` accepts `limit`/`offset` in the range view.** With
   `from`+`to` the endpoint expands recurrence and merges the read-only external
   mirror; `limit`/`offset` now bound those **expanded occurrences** (previously

@@ -66,6 +66,37 @@ export function buildEnvSchema() {
     // partial presence is a startup error (see superRefine).
     KITH_BASE_URL: emptyToUndefined(z.string().url()),
     KITH_API_KEY: emptyToUndefined(z.string().min(1)),
+    // Satellite identity signing keys (B1c). Heorth signs member tokens for
+    // satellite services (KithLedger first) with an ASYMMETRIC key and
+    // publishes the public half at /.well-known/jwks.json; a satellite only
+    // ever verifies and is structurally unable to mint. This key is SEPARATE
+    // from JWT_SECRET, which stays inside Heorth (it also derives the M365
+    // refresh-token encryption key, src/m365/crypto.ts) and must never leave
+    // this service.
+    //
+    // Optional AS A GROUP, same contract as M365_*/KITH_*: KEY + KID present →
+    // the active signing key is configured and JWKS publishes it; both absent →
+    // nothing is published (`GET /.well-known/jwks.json` returns `{"keys":[]}`)
+    // and Heorth behaves exactly as before. Partial presence is a startup
+    // error (see superRefine).
+    //
+    // Material: a PKCS#8 PEM or a JWK JSON string. PEMs may use literal `\n`
+    // escapes so they survive a single-line .env (see src/satellite/keys.ts).
+    SATELLITE_SIGNING_KEY: emptyToUndefined(z.string().min(1)),
+    SATELLITE_SIGNING_KID: emptyToUndefined(z.string().min(1)),
+    // Algorithm of the active key. Optional WITHIN the group (EdDSA/Ed25519 is
+    // the recommended default); RS256 is supported for clients that cannot do
+    // Ed25519. Setting it alone, without the group, is a startup error.
+    SATELLITE_SIGNING_ALG: emptyToUndefined(z.enum(['EdDSA', 'RS256'])),
+    // A SECOND key, published in the JWKS but NEVER used for signing — the
+    // rotation overlap slot. It holds either the outgoing key (still verifying
+    // tokens in flight) or the incoming one (pre-published before it goes
+    // active). Because it is publish-only it accepts PUBLIC material too, so
+    // retired private material can be deleted from the host while its public
+    // half stays published. Requires the active group to be configured.
+    SATELLITE_SIGNING_KEY_SECONDARY: emptyToUndefined(z.string().min(1)),
+    SATELLITE_SIGNING_KID_SECONDARY: emptyToUndefined(z.string().min(1)),
+    SATELLITE_SIGNING_ALG_SECONDARY: emptyToUndefined(z.enum(['EdDSA', 'RS256'])),
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
@@ -93,6 +124,50 @@ export function buildEnvSchema() {
           `KithLedger integration is partially configured — set all of [${kithKeys.join(', ')}] ` +
           `or none. Missing: ${missing.join(', ')}.`,
       });
+    }
+    const satelliteKeys = ['SATELLITE_SIGNING_KEY', 'SATELLITE_SIGNING_KID'] as const;
+    const satPresent = satelliteKeys.filter((k) => env[k] !== undefined && env[k] !== '');
+    if (satPresent.length === 1) {
+      const missing = satelliteKeys.filter((k) => env[k] === undefined || env[k] === '');
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SATELLITE'],
+        message:
+          `Satellite signing key is partially configured — set all of [${satelliteKeys.join(', ')}] ` +
+          `or none. Missing: ${missing.join(', ')}.`,
+      });
+    }
+    // The secondary (publish-only) slot is itself all-or-nothing, and is
+    // meaningless without an active key — a JWKS with only a retired key would
+    // publish keys Heorth cannot sign with.
+    const secondaryKeys = ['SATELLITE_SIGNING_KEY_SECONDARY', 'SATELLITE_SIGNING_KID_SECONDARY'] as const;
+    const secPresent = secondaryKeys.filter((k) => env[k] !== undefined && env[k] !== '');
+    if (secPresent.length === 1) {
+      const missing = secondaryKeys.filter((k) => env[k] === undefined || env[k] === '');
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SATELLITE'],
+        message:
+          `Secondary satellite signing key is partially configured — set all of ` +
+          `[${secondaryKeys.join(', ')}] or none. Missing: ${missing.join(', ')}.`,
+      });
+    }
+    if (satPresent.length === 0) {
+      const orphans = [
+        'SATELLITE_SIGNING_ALG',
+        'SATELLITE_SIGNING_KEY_SECONDARY',
+        'SATELLITE_SIGNING_KID_SECONDARY',
+        'SATELLITE_SIGNING_ALG_SECONDARY',
+      ].filter((k) => env[k as keyof typeof env] !== undefined && env[k as keyof typeof env] !== '');
+      if (orphans.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SATELLITE'],
+          message:
+            `[${orphans.join(', ')}] set without an active signing key — also set ` +
+            'SATELLITE_SIGNING_KEY and SATELLITE_SIGNING_KID, or unset these.',
+        });
+      }
     }
   });
 }
@@ -145,6 +220,33 @@ export const config = {
           apiKey: parsed.data.KITH_API_KEY!,
         }
       : null,
+  // Resolved satellite signing config, or null when no key is configured
+  // (the default — JWKS then publishes an empty key set and nothing else
+  // changes). All-or-nothing like m365/kith above: SATELLITE_SIGNING_KEY
+  // present implies SATELLITE_SIGNING_KID is present too.
+  //
+  // NOTE: this holds PRIVATE key material. Never log it, never return it over
+  // the API — only the derived public half is ever published (src/satellite).
+  satellite:
+    parsed.data.SATELLITE_SIGNING_KEY
+      ? {
+          /** The ACTIVE key: the only one tokens are ever signed with. */
+          active: {
+            material: parsed.data.SATELLITE_SIGNING_KEY,
+            kid: parsed.data.SATELLITE_SIGNING_KID!,
+            alg: parsed.data.SATELLITE_SIGNING_ALG ?? ('EdDSA' as const),
+          },
+          /** Publish-only rotation-overlap key, or null when not rotating. */
+          secondary:
+            parsed.data.SATELLITE_SIGNING_KEY_SECONDARY
+              ? {
+                  material: parsed.data.SATELLITE_SIGNING_KEY_SECONDARY,
+                  kid: parsed.data.SATELLITE_SIGNING_KID_SECONDARY!,
+                  alg: parsed.data.SATELLITE_SIGNING_ALG_SECONDARY ?? ('EdDSA' as const),
+                }
+              : null,
+        }
+      : null,
 } as const;
 
 /** The resolved Microsoft 365 config shape (present only when enabled). */
@@ -152,3 +254,6 @@ export type M365Config = NonNullable<typeof config.m365>;
 
 /** The resolved KithLedger config shape (present only when enabled). */
 export type KithConfig = NonNullable<typeof config.kith>;
+
+/** The resolved satellite signing config shape (present only when configured). */
+export type SatelliteConfig = NonNullable<typeof config.satellite>;

@@ -10,6 +10,7 @@ import type { Role } from '@wyrhta/core/identity';
 import { config } from './config/env.js';
 import { healthRouter } from './routes/health.js';
 import { featuresRouter } from './routes/features.js';
+import { jwksRouter } from './routes/jwks.js';
 import { McpRegistry, type HeorthModule } from './modules/registry.js';
 import { MaintenanceAdminError } from './household/maintenance-admin.js';
 
@@ -48,6 +49,9 @@ export function createApp(modules: HeorthModule[], mcp: McpRegistry = new McpReg
   app.use('/api/*', bodyLimit({ maxSize: 1024 * 1024 }));
 
   app.route('/', healthRouter);
+  // Public JWKS for satellite identity — unauthenticated by design, and
+  // mounted outside /api/v1 so no guard or catch-all applies (see jwks.ts).
+  app.route('/', jwksRouter);
   app.route('/api/v1/features', featuresRouter);
 
   for (const mod of modules) {

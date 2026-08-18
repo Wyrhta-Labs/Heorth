@@ -69,6 +69,23 @@ architecture and API surface.
   gating toggles follow the feoh/M365 `vi.resetModules()` pattern
   (`tests/kith-gating.test.ts`).
 
+- **Satellite identity keys** (`src/satellite/keys.ts`, `src/routes/jwks.ts`,
+  task B1c) — Heorth signs satellite-service tokens with an ASYMMETRIC private
+  key and publishes the public half at the **unauthenticated**
+  `GET /.well-known/jwks.json`. Env-gated via `SATELLITE_SIGNING_KEY` +
+  `SATELLITE_SIGNING_KID` (optional AS A GROUP like `M365_*`/`KITH_*`; absent →
+  `{"keys": []}` and zero behavior change), with `SATELLITE_SIGNING_ALG`
+  (`EdDSA` default / `RS256`) and a publish-only rotation-overlap slot
+  (`*_SECONDARY`) that also accepts PUBLIC material. Two hard rules: this key is
+  **separate from `JWT_SECRET`** (which signs member logins and derives the M365
+  refresh-token encryption key — it must never leave this service or be reused
+  here), and the JWKS route deliberately does **not** use the `ok()` envelope,
+  because generic JWKS clients read a bare `{"keys": [...]}`. Keys resolve
+  through `getSatelliteKeys()` / `setSatelliteKeys()` (the usual runtime seam,
+  cached for the process lifetime — rotation needs a restart). The
+  token-exchange endpoint that will *use* these keys is task B3 and is NOT
+  built. Rotation procedure: README.md, "Rotating the satellite signing key".
+
 ## Microsoft 365 area (`src/m365/`) — Phase 2
 
 The **only** place Microsoft Graph types and URLs may appear. Providers in later

@@ -115,6 +115,51 @@ describe('satellite signing key env group', () => {
     });
   });
 
+  describe('SATELLITE_AUDIENCES (the known-satellite allowlist, B3)', () => {
+    it('defaults to absent — no satellite is trusted until one is named', () => {
+      const parsed = buildEnvSchema().parse({ ...base, ...activeGroup });
+      expect(parsed.SATELLITE_AUDIENCES).toBeUndefined();
+    });
+
+    it('parses a comma-separated list, trimming whitespace', () => {
+      const parsed = buildEnvSchema().parse({
+        ...base,
+        ...activeGroup,
+        SATELLITE_AUDIENCES: 'kithledger, heimr',
+      });
+      expect(parsed.SATELLITE_AUDIENCES).toEqual(['kithledger', 'heimr']);
+    });
+
+    it('rejects entries that are not lowercase slugs', () => {
+      for (const value of ['KithLedger', 'kith ledger', 'kith_ledger', 'https://kith']) {
+        expect(
+          buildEnvSchema().safeParse({ ...base, ...activeGroup, SATELLITE_AUDIENCES: value }).success,
+        ).toBe(false);
+      }
+    });
+
+    it('rejects duplicates', () => {
+      expect(
+        buildEnvSchema().safeParse({
+          ...base,
+          ...activeGroup,
+          SATELLITE_AUDIENCES: 'kithledger,kithledger',
+        }).success,
+      ).toBe(false);
+    });
+
+    it('is rejected without an active signing key — nothing could sign for it', () => {
+      expect(
+        buildEnvSchema().safeParse({ ...base, SATELLITE_AUDIENCES: 'kithledger' }).success,
+      ).toBe(false);
+    });
+
+    it('treats an empty value as absent', () => {
+      const parsed = buildEnvSchema().safeParse({ ...base, SATELLITE_AUDIENCES: '' });
+      expect(parsed.success).toBe(true);
+    });
+  });
+
   it('leaves JWT_SECRET and every other var untouched', () => {
     // The satellite key is SEPARATE: JWT_SECRET still signs member logins and
     // still derives the M365 refresh-token encryption key.

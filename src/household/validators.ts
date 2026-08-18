@@ -41,9 +41,19 @@ export const createKeySchema = z.object({
   name: z.string().min(1),
 });
 
+// Satellite token exchange (ADR 0009). The ONLY thing a caller may state is
+// which satellite the token is for — `sub` and `role` come from the
+// authenticated principal. Zod strips unknown keys, so a body trying to smuggle
+// `sub`/`role` is silently discarded rather than honoured. Whether the audience
+// is one Heorth knows is decided against the allowlist, not here.
+export const satelliteTokenSchema = z.object({
+  audience: z.string().min(1),
+});
+
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type SetRoleInput = z.infer<typeof setRoleSchema>;
 export type UpdateHouseholdInput = z.infer<typeof updateHouseholdSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateKeyInput = z.infer<typeof createKeySchema>;
+export type SatelliteTokenInput = z.infer<typeof satelliteTokenSchema>;

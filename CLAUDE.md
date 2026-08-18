@@ -83,8 +83,25 @@ architecture and API surface.
   because generic JWKS clients read a bare `{"keys": [...]}`. Keys resolve
   through `getSatelliteKeys()` / `setSatelliteKeys()` (the usual runtime seam,
   cached for the process lifetime — rotation needs a restart). The
-  token-exchange endpoint that will *use* these keys is task B3 and is NOT
-  built. Rotation procedure: README.md, "Rotating the satellite signing key".
+  Rotation procedure: README.md, "Rotating the satellite signing key".
+
+- **Satellite token exchange** (`src/satellite/token.ts`, the route in
+  `src/household/routes.ts`, task B3 / ADR 0009) — `POST /api/v1/auth/
+  satellite-token` trades a credential Heorth already accepts (`he_` key OR
+  member JWT, via `requireAuth`) for a **5-minute** member token bound to one
+  satellite: `{ sub, role, iss: 'heorth', aud, iat, exp }` plus `expires_in`
+  in the envelope. Non-negotiables: `sub`/`role` come from `c.get('auth')` and
+  NEVER from the body (Zod strips the rest, so a smuggled `sub` is discarded);
+  it is signed with `getSatelliteKeys().signingKey` and **never `JWT_SECRET`**
+  — no key means `503 SATELLITE_SIGNING_UNAVAILABLE`, never a fallback. Known
+  audiences are the `SATELLITE_AUDIENCES` env allowlist (comma-separated
+  lowercase slugs, empty by default, orphaned without the signing key group);
+  anything else is `400 UNKNOWN_AUDIENCE`. Rate-limited per IP at 60/15min
+  (wider than `/auth/token`: the caller is heorth-mcp, one IP for the whole
+  household). Both outcomes are audited via `logEvent`
+  (`auth.satellite_token.issued` / `.refused`), never with token material.
+  The audience allowlist has the usual seam (`getSatelliteAudiences()` /
+  `setSatelliteAudiences()`).
 
 ## Microsoft 365 area (`src/m365/`) — Phase 2
 

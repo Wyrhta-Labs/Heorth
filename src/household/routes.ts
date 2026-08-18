@@ -7,8 +7,9 @@ import { householdOptions } from './options.js';
 import { isMaintenanceAdminId } from './maintenance-admin.js';
 import {
   createMemberSchema, updateMemberSchema, setRoleSchema,
-  updateHouseholdSchema, loginSchema, createKeySchema,
+  updateHouseholdSchema, loginSchema, createKeySchema, satelliteTokenSchema,
 } from './validators.js';
+import { mintSatelliteToken, SatelliteTokenError } from '../satellite/token.js';
 
 export const householdRouter = new Hono();
 householdRouter.use('*', requireAuth);
@@ -155,3 +156,87 @@ authRouter.delete('/keys/:id', requireJwt, requireRole('admin', 'adult'), async 
   logEvent({ event: 'auth.key.revoked', key_id: id, member_id: c.get('auth').userId, request_id: c.get('requestId') });
   return ok(c, { id });
 });
+
+/**
+ * Satellite token exchange (B3, ADR 0009): trade a credential Heorth already
+ * accepts for a short-lived, audience-bound member token for ONE named
+ * satellite. This is how member identity reaches KithLedger without any
+ * component but Heorth being able to assert it — heorth-mcp holds no signing
+ * key and must stay unmintable.
+ *
+ * `requireAuth`, so an `he_` API key or a member JWT both work; the claims are
+ * built from the resolved principal, so the token grants exactly what its
+ * bearer already had and nothing in the body can change whose identity is
+ * minted.
+ *
+ * Rate-limited like `POST /token` above — it is credential-minting surface —
+ * but with a budget sized for a machine caller rather than a human typing a
+ * password: heorth-mcp is one source IP for the whole household, and with a
+ * 5-minute TTL every member behind it needs ~3 mints per 15-minute window.
+ * The default 10/window would lock the household out; 60 leaves ample room
+ * while still capping a runaway or hostile caller.
+ */
+authRouter.post(
+  '/satellite-token',
+  rateLimit({ max: 60 }),
+  requireAuth,
+  async (c) => {
+    const raw = await c.req.json().catch(() => null);
+    const body = satelliteTokenSchema.safeParse(raw);
+    if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+    const auth = c.get('auth');
+    try {
+      // userId/role come from the PRINCIPAL, never from `raw`.
+      const result = await mintSatelliteToken(
+        { userId: auth.userId, role: auth.role },
+        body.data.audience,
+      );
+      // Audited: this mints a credential. Heorth only ever sees heorth-mcp's
+      // cache MISSES (ADR 0009 caches for the token's life), so the volume is
+      // bounded at roughly one line per member per TTL. No token material,
+      // and no key material, is ever logged.
+      logEvent({
+        event: 'auth.satellite_token.issued',
+        member_id: auth.userId,
+        role: auth.role,
+        audience: result.audience,
+        credential: auth.type,
+        expires_in: result.expiresIn,
+        request_id: c.get('requestId'),
+      });
+      return ok(c, { token: result.token, expires_in: result.expiresIn, audience: result.audience });
+    } catch (e: unknown) {
+      if (e instanceof SatelliteTokenError) {
+        // Refusals are audited too: a request for an audience nobody trusts is
+        // exactly the signal worth having.
+        logEvent({
+          event: 'auth.satellite_token.refused',
+          member_id: auth.userId,
+          // Truncated: on the refusal path this is unvalidated caller input,
+          // and a log line is not the place for an arbitrarily long string.
+          audience: body.data.audience.slice(0, 64),
+          reason: e.code,
+          request_id: c.get('requestId'),
+        });
+        if (e.code === 'UNKNOWN_AUDIENCE') {
+          return err(c, 'UNKNOWN_AUDIENCE', 'Unknown satellite audience', 400);
+        }
+        // Configured audience, but no signing key on this deployment. A
+        // deliberate, explicit refusal — never a 500, and never a token signed
+        // with something else (JWT_SECRET stays inside this service).
+        // `err` from core caps at 500, so this 503 is built directly — the
+        // same precedent as kith's 502 (`src/modules/kith/routes.ts`).
+        return c.json(
+          {
+            error: {
+              code: 'SATELLITE_SIGNING_UNAVAILABLE',
+              message: 'Satellite token signing is not configured on this deployment',
+            },
+          },
+          503,
+        );
+      }
+      throw e;
+    }
+  },
+);

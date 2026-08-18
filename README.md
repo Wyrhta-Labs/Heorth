@@ -248,6 +248,7 @@ published". Partial presence is a startup error.
 | `SATELLITE_SIGNING_KEY_SECONDARY` | with `_KID_SECONDARY` | Rotation-overlap key — **published, never signs**. Accepts private *or* public material |
 | `SATELLITE_SIGNING_KID_SECONDARY` | with `_KEY_SECONDARY` | Its key id; must differ from the active `kid` |
 | `SATELLITE_SIGNING_ALG_SECONDARY` | no | `EdDSA` (default) or `RS256` — may differ from the active key's |
+| `SATELLITE_AUDIENCES` | no | Comma-separated allowlist of satellites tokens may be minted for, e.g. `kithledger`. Empty by default → every exchange is refused. Requires the active key |
 
 Ed25519 (`EdDSA`) is the recommended default: small keys, small signatures, no
 parameter choices to get wrong. `RS256` is supported for satellites whose JWT
@@ -268,6 +269,48 @@ awk 'BEGIN{ORS="\\n"} {print}' satellite.key
 
 Only `SATELLITE_SIGNING_KEY` is a secret; the public half is meant to be
 published and can live anywhere.
+
+### Token exchange — `POST /api/v1/auth/satellite-token`
+
+How member identity reaches a satellite (ADR 0009). A caller presenting a
+credential Heorth already accepts trades it for a short-lived, audience-bound
+member token for **one** named satellite. Only Heorth can mint these:
+heorth-mcp deliberately holds no signing key, so a compromise of the translator
+cannot forge a member.
+
+```
+POST /api/v1/auth/satellite-token     Authorization: Bearer <he_ key | member JWT>
+     { "audience": "kithledger" }
+  → 200 { "data": { "token": "<jwt>", "expires_in": 300, "audience": "kithledger" } }
+```
+
+The token carries `sub` (member id), `role`, `iss: heorth`, `aud: <satellite>`,
+`iat` and `exp`, and is signed with the **active satellite key** — verify it
+against `/.well-known/jwks.json`, selecting the key by the token header's
+`kid`, and pass `leewaySeconds: 60` (ADR 0009, open question 3).
+
+- **TTL is 5 minutes**, fixed. `expires_in` is returned so a caller can
+  schedule renewal without parsing the token.
+- `sub` and `role` come from the **authenticated principal**, never from the
+  request body — the exchanged token grants no more than its bearer already
+  had, and a `child` caller gets a `child` token.
+- The audience must be listed in `SATELLITE_AUDIENCES`; anything else is
+  `400 UNKNOWN_AUDIENCE`. Registering a satellite is a deliberate deployment
+  change, so tokens cannot be minted for a service nobody decided to trust.
+- With no signing key configured, the endpoint answers
+  `503 SATELLITE_SIGNING_UNAVAILABLE`. It never falls back to `JWT_SECRET`.
+- **Rate-limited** per source IP (60 requests / 15 min), in front of the auth
+  guard. The budget is wider than `POST /auth/token`'s because the caller is a
+  machine: heorth-mcp is one source IP for the whole household and each member
+  needs a mint every 5 minutes.
+- **Audited**: every mint logs `auth.satellite_token.issued` and every refusal
+  logs `auth.satellite_token.refused` (member, audience, credential type,
+  reason). Never the token itself. Volume is bounded — a caching client (ADR
+  0009) reaches Heorth only on a cache miss.
+
+Clients should cache the token **in memory only**, keyed by the presenting
+credential *and* the audience, and evict at `exp - 30s`. A coarser cache key
+would let one member act as another.
 
 ### Rotating the satellite signing key
 

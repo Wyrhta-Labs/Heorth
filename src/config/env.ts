@@ -97,6 +97,29 @@ export function buildEnvSchema() {
     SATELLITE_SIGNING_KEY_SECONDARY: emptyToUndefined(z.string().min(1)),
     SATELLITE_SIGNING_KID_SECONDARY: emptyToUndefined(z.string().min(1)),
     SATELLITE_SIGNING_ALG_SECONDARY: emptyToUndefined(z.enum(['EdDSA', 'RS256'])),
+    // The satellites Heorth will mint tokens FOR (B3, ADR 0009): a
+    // comma-separated allowlist of audience names, e.g. `kithledger,heimr`.
+    // `POST /api/v1/auth/satellite-token` refuses any audience not on this
+    // list — a token is never minted optimistically for a service nobody
+    // decided to trust. Adding a satellite is therefore an explicit
+    // deployment change, which is the friction ADR 0009 asks for.
+    //
+    // Absent (the default) → the list is empty and EVERY exchange is refused,
+    // so the endpoint is inert until an operator opts a satellite in. Names
+    // are lowercase slugs so the `aud` claim is stable and comparable
+    // byte-for-byte on the satellite side. Requires the active signing key
+    // group (an audience with no key to sign for it is a misconfiguration —
+    // see superRefine).
+    SATELLITE_AUDIENCES: emptyToUndefined(
+      z
+        .string()
+        .transform((raw) => raw.split(',').map((a) => a.trim()).filter((a) => a.length > 0))
+        .refine(
+          (list) => list.every((a) => /^[a-z][a-z0-9-]*$/.test(a)),
+          'SATELLITE_AUDIENCES entries must be lowercase slugs (e.g. kithledger)',
+        )
+        .refine((list) => new Set(list).size === list.length, 'SATELLITE_AUDIENCES has duplicates'),
+    ),
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
@@ -159,6 +182,11 @@ export function buildEnvSchema() {
         'SATELLITE_SIGNING_KID_SECONDARY',
         'SATELLITE_SIGNING_ALG_SECONDARY',
       ].filter((k) => env[k as keyof typeof env] !== undefined && env[k as keyof typeof env] !== '');
+      // Audiences without a signing key would be an allowlist Heorth can never
+      // honour: every exchange would fail at signing time instead of at boot.
+      if (env.SATELLITE_AUDIENCES !== undefined && env.SATELLITE_AUDIENCES.length > 0) {
+        orphans.push('SATELLITE_AUDIENCES');
+      }
       if (orphans.length > 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -247,6 +275,13 @@ export const config = {
               : null,
         }
       : null,
+  /**
+   * The satellite audiences `POST /api/v1/auth/satellite-token` will mint for
+   * (B3, ADR 0009). Empty by default — an unknown audience is refused, never
+   * minted optimistically, so the exchange endpoint stays inert until an
+   * operator names a satellite here.
+   */
+  satelliteAudiences: (parsed.data.SATELLITE_AUDIENCES ?? []) as readonly string[],
 } as const;
 
 /** The resolved Microsoft 365 config shape (present only when enabled). */

@@ -53,6 +53,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     short-lived satellite JWT) is **task B3** and is deliberately not part of
     this change; ADR 0009 is still `proposed`.
 
+- **Satellite token exchange: `POST /api/v1/auth/satellite-token`**
+  (task B3, Wyrhta-Labs/wyrhta-labs#1, ADR 0009). The endpoint that turns a
+  credential Heorth already accepts into member identity a satellite will
+  believe. Authenticated by `requireAuth`, so an `he_` API key *or* a member
+  JWT both work; heorth-mcp holds no signing key and stays structurally unable
+  to mint.
+  - Request `{ "audience": "kithledger" }`; response
+    `{ "token", "expires_in": 300, "audience" }`. The token carries `sub` (the
+    member id), `role`, `iss: heorth`, `aud: <satellite>`, `iat`, `exp`, and is
+    signed with the **active satellite key** — a satellite verifies it against
+    `/.well-known/jwks.json` by `kid`. **TTL is 5 minutes**, fixed.
+  - **`sub`/`role` come from the authenticated principal, never the request
+    body**, so the exchanged token grants no more than its bearer already had:
+    a `child` caller gets a `child` token, and a body carrying someone else's
+    `sub` is discarded.
+  - **`JWT_SECRET` is never used here.** With no satellite key configured the
+    endpoint answers `503 SATELLITE_SIGNING_UNAVAILABLE` rather than falling
+    back to another key or 500-ing.
+  - New env var `SATELLITE_AUDIENCES` — a comma-separated allowlist of the
+    satellites Heorth will mint for (lowercase slugs). **Empty by default**, so
+    the endpoint is inert until an operator names a satellite; an unregistered
+    audience is `400 UNKNOWN_AUDIENCE`, never minted optimistically. Setting it
+    without a signing key is a startup error.
+  - Rate-limited per source IP in front of the auth guard, at 60 requests /
+    15 min — the same middleware as `POST /auth/token` with a budget sized for
+    a machine caller (heorth-mcp is one source IP for the whole household).
+  - **Audited**: `auth.satellite_token.issued` on every mint and
+    `auth.satellite_token.refused` on every refusal (member, audience,
+    credential type, reason) — never any token or key material. This settles
+    ADR 0009 open question 2: log everything, because a caching client only
+    reaches Heorth on a cache miss, which bounds the volume at roughly one line
+    per member per TTL.
+
 - **`GET /api/v1/events` accepts `limit`/`offset` in the range view.** With
   `from`+`to` the endpoint expands recurrence and merges the read-only external
   mirror; `limit`/`offset` now bound those **expanded occurrences** (previously

@@ -19,6 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`GET /api/v1/events` accepts `limit`/`offset` in the range view.** With
+  `from`+`to` the endpoint expands recurrence and merges the read-only external
+  mirror; `limit`/`offset` now bound those **expanded occurrences** (previously
+  they were silently ignored whenever a range was given) while `meta.total`
+  still reports the unbounded occurrence count. Together with the existing
+  `member_id` filter this makes "the next N upcoming occurrences, optionally
+  for one member" a single bounded REST query — the capability the
+  `calendar.list_upcoming` MCP tool needs once MCP becomes a pure REST client
+  (ADR 0008). `service.listUpcoming` is now implemented as exactly that query,
+  so REST and MCP share one code path. Additive: omitting both parameters
+  leaves the previous response unchanged.
+
 - **Inventory module** (`src/modules/inventory/`) — a standalone, always-on
   `HeorthModule` for household items: name/category/manufacturer/model/
   serial/location/notes, purchase price/date, warranty, and a

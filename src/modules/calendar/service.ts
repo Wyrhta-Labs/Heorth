@@ -78,7 +78,19 @@ export async function listEvents(query: ListEventsQuery) {
     for (const row of mirrored) occurrences.push(mirrorRowToOccurrence(row));
 
     occurrences.sort((a, b) => a.occurrenceStart.localeCompare(b.occurrenceStart));
-    return { rows: occurrences, total: occurrences.length, limit: occurrences.length, offset: 0 };
+
+    // `limit`/`offset` bound the EXPANDED OCCURRENCES, not the underlying event
+    // rows: a single weekly event can produce dozens of occurrences in a range,
+    // so the window has to be applied after expansion + mirror merge + sort.
+    // Both are optional and omitting them keeps the pre-existing behaviour
+    // (every occurrence in the range, in chronological order).
+    const total = occurrences.length;
+    const rangeOffset = Math.max(0, query.offset ?? 0);
+    const rangeLimit = query.limit === undefined ? undefined : Math.min(100, Math.max(1, query.limit));
+    const page = rangeOffset === 0 && rangeLimit === undefined
+      ? occurrences
+      : occurrences.slice(rangeOffset, rangeLimit === undefined ? undefined : rangeOffset + rangeLimit);
+    return { rows: page, total, limit: rangeLimit ?? page.length, offset: rangeOffset };
   }
 
   // No range: raw, paginated list.
@@ -174,11 +186,14 @@ export async function deleteEvent(id: string) {
 export async function listUpcoming(memberId: string | null, limit: number) {
   const now = new Date();
   const horizon = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 90); // 90-day window
+  // Expressed entirely as a bounded range query, so the REST endpoint
+  // (`GET /api/v1/events?from&to&member_id&limit`) reproduces it exactly.
   const { rows } = await listEvents({
     from: now.toISOString(), to: horizon.toISOString(),
     member_id: memberId ?? undefined,
+    limit,
   });
-  return (rows as Array<EventOccurrence & { attendeeIds: string[] }>).slice(0, limit);
+  return rows as Array<EventOccurrence & { attendeeIds: string[] }>;
 }
 
 /** Expose for route-level child-scope checks. */

@@ -26,6 +26,81 @@ describe('calendar routes', () => {
     expect(body.data.length).toBe(1);
   });
 
+  it('bounds expanded occurrences with limit and reports the unbounded total', async () => {
+    const { adult } = await seedTestHousehold();
+    // ONE recurring event row -> five occurrences in the queried range.
+    await app.request('/api/v1/events', {
+      method: 'POST', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({
+        title: 'Bins out', startAt: '2026-07-01T18:00:00Z', endAt: '2026-07-01T18:30:00Z',
+        recurrence: 'P1W',
+      }),
+    });
+
+    const range = 'from=2026-07-01T00:00:00Z&to=2026-07-31T23:59:59Z';
+    const all = await app.request(`/api/v1/events?${range}`, { headers: authHeaders(adult.jwt) });
+    const allBody = await all.json() as { data: unknown[]; meta: { total: number } };
+    expect(allBody.data.length).toBe(5);
+
+    const bounded = await app.request(`/api/v1/events?${range}&limit=2`, { headers: authHeaders(adult.jwt) });
+    expect(bounded.status).toBe(200);
+    const body = await bounded.json() as {
+      data: Array<{ occurrenceStart: string }>;
+      meta: { total: number; limit: number; offset: number };
+    };
+    expect(body.data.length).toBe(2);
+    expect(body.meta).toMatchObject({ total: 5, limit: 2, offset: 0 });
+
+    const paged = await app.request(`/api/v1/events?${range}&limit=2&offset=2`, {
+      headers: authHeaders(adult.jwt),
+    });
+    const pagedBody = await paged.json() as {
+      data: Array<{ occurrenceStart: string }>;
+      meta: { total: number; offset: number };
+    };
+    expect(pagedBody.data.length).toBe(2);
+    expect(pagedBody.meta).toMatchObject({ total: 5, offset: 2 });
+    expect(pagedBody.data[0]!.occurrenceStart).not.toBe(body.data[0]!.occurrenceStart);
+  });
+
+  it('expresses "next N upcoming occurrences for one member" as a single query', async () => {
+    const { adult, child } = await seedTestHousehold();
+    await app.request('/api/v1/events', {
+      method: 'POST', headers: authHeaders(child.jwt),
+      body: JSON.stringify({
+        title: 'Bins out', startAt: '2026-07-01T18:00:00Z', endAt: '2026-07-01T18:30:00Z',
+        recurrence: 'P1W', attendeeIds: [adult.user.id],
+      }),
+    });
+    await app.request('/api/v1/events', {
+      method: 'POST', headers: authHeaders(child.jwt),
+      body: JSON.stringify({ title: 'Kid practice', startAt: '2026-07-02T16:00:00Z', endAt: '2026-07-02T17:00:00Z' }),
+    });
+
+    const res = await app.request(
+      `/api/v1/events?from=2026-07-01T00:00:00Z&to=2026-07-31T23:59:59Z&member_id=${adult.user.id}&limit=3`,
+      { headers: authHeaders(adult.jwt) },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      data: Array<{ title: string; occurrenceStart: string }>;
+      meta: { total: number; limit: number };
+    };
+    expect(body.data.length).toBe(3);
+    expect(body.meta).toMatchObject({ total: 5, limit: 3 });
+    expect(body.data.every((e) => e.title === 'Bins out')).toBe(true);
+    const starts = body.data.map((e) => e.occurrenceStart);
+    expect([...starts].sort()).toEqual(starts);
+  });
+
+  it('rejects a non-positive or oversized limit', async () => {
+    const { adult } = await seedTestHousehold();
+    for (const bad of ['0', '-1', '101', 'abc']) {
+      const res = await app.request(`/api/v1/events?limit=${bad}`, { headers: authHeaders(adult.jwt) });
+      expect(res.status).toBe(400);
+    }
+  });
+
   it('lets a child edit their own event but not another member event', async () => {
     const { adult, child } = await seedTestHousehold();
     const childEventRes = await makeEvent(child.jwt, 'Kid practice');

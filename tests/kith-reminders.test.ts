@@ -130,7 +130,7 @@ describe('GET /api/v1/kith/reminders', () => {
     const failingFetch: typeof fetch = async () => {
       throw new TypeError('fetch failed: ECONNREFUSED kl_test-key-must-not-appear');
     };
-    setKithRuntime(createKithRuntime({ baseUrl: 'http://kith.test', apiKey: 'kl_secret' }, failingFetch));
+    setKithRuntime(createKithRuntime({ baseUrl: 'http://kith.test', apiKey: 'kl_secret', keyKind: 'household' }, failingFetch));
     const { adult } = await seedTestHousehold();
 
     const res = await enabledApp().request(`/api/v1/kith/reminders?${WINDOW}`, { headers: authHeaders(adult.jwt) });
@@ -145,7 +145,7 @@ describe('GET /api/v1/kith/reminders', () => {
   it('maps an upstream 5xx to 502 KITH_UNAVAILABLE', async () => {
     const brokenFetch: typeof fetch = async () =>
       new Response('upstream exploded', { status: 500 });
-    setKithRuntime(createKithRuntime({ baseUrl: 'http://kith.test', apiKey: 'kl_secret' }, brokenFetch));
+    setKithRuntime(createKithRuntime({ baseUrl: 'http://kith.test', apiKey: 'kl_secret', keyKind: 'household' }, brokenFetch));
     const { adult } = await seedTestHousehold();
 
     const res = await enabledApp().request(`/api/v1/kith/reminders?${WINDOW}`, { headers: authHeaders(adult.jwt) });
@@ -153,6 +153,89 @@ describe('GET /api/v1/kith/reminders', () => {
     const body = await res.json() as { error: { code: string } };
     expect(body.error.code).toBe('KITH_UNAVAILABLE');
   });
+});
+
+/**
+ * ADR 0004 §2 / task B8 — the feed presents the HOUSEHOLD dashboard key, so it
+ * sees the `household`-visible slice and nothing else, and it never writes.
+ */
+describe('GET /api/v1/kith/reminders — household credential (ADR 0004 §2.2)', () => {
+  it('sends the configured household key, and only GETs', async () => {
+    const fake = createFakeKith([reminder({ id: 'shared', dueAt: '2026-08-12T09:00:00.000Z' })], {
+      apiKey: 'kl_household-key',
+    });
+    setKithRuntime(runtimeForFakeKith(fake, { apiKey: 'kl_household-key' }));
+    const { adult } = await seedTestHousehold();
+
+    const res = await enabledApp().request(`/api/v1/kith/reminders?${WINDOW}`, { headers: authHeaders(adult.jwt) });
+    expect(res.status).toBe(200);
+    expect(fake.authHeaders).toEqual(['Bearer kl_household-key']);
+    // Read-only by construction: a household key is refused on any non-GET
+    // upstream, and this proxy has no code path that could issue one.
+    expect(fake.methods.every((m) => m.toUpperCase() === 'GET')).toBe(true);
+  });
+
+  it('serves a narrowed result set as an ordinary 200 (private/shared items are simply absent)', async () => {
+    // What the household key sees: two `household` reminders. The member's
+    // `private` and `shared`-subset ones never reach Heorth at all — they are
+    // absent from the rows AND from `meta.total` (§3.4), so the narrowing is
+    // just a shorter list, not a short page.
+    const fake = createFakeKith([
+      reminder({ id: 'household-1', dueAt: '2026-08-12T09:00:00.000Z' }),
+      reminder({ id: 'household-2', dueAt: '2026-08-14T09:00:00.000Z' }),
+    ]);
+    setKithRuntime(runtimeForFakeKith(fake));
+    const { adult } = await seedTestHousehold();
+
+    const res = await enabledApp().request(`/api/v1/kith/reminders?${WINDOW}`, { headers: authHeaders(adult.jwt) });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: Array<{ id: string }> };
+    expect(body.data.map((r) => r.id)).toEqual(['household-1', 'household-2']);
+    expect(fake.requests).toBe(1);
+  });
+
+  it('an entirely narrowed-away window is 200 with an empty list, not an error', async () => {
+    setKithRuntime(runtimeForFakeKith(createFakeKith([])));
+    const { adult } = await seedTestHousehold();
+
+    const res = await enabledApp().request(`/api/v1/kith/reminders?${WINDOW}`, { headers: authHeaders(adult.jwt) });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: unknown[] };
+    expect(body.data).toEqual([]);
+  });
+
+  it('every member gets the same household slice (no per-member forwarding)', async () => {
+    const fake = createFakeKith([reminder({ id: 'household-1', dueAt: '2026-08-12T09:00:00.000Z' })]);
+    setKithRuntime(runtimeForFakeKith(fake));
+    const { adult, child } = await seedTestHousehold();
+    const app = enabledApp();
+
+    const bodies = [];
+    for (const jwt of [adult.jwt, child.jwt]) {
+      const res = await app.request(`/api/v1/kith/reminders?${WINDOW}`, { headers: authHeaders(jwt) });
+      expect(res.status).toBe(200);
+      bodies.push(await res.json() as { data: Array<{ id: string }> });
+    }
+    expect(bodies[0]).toEqual(bodies[1]);
+    // The Heorth caller's identity is authenticated but never forwarded: both
+    // requests carry the same household key and no member context.
+    expect(new Set(fake.authHeaders)).toEqual(new Set(['Bearer kl_test-key']));
+  });
+
+  it.each([401, 403] as const)(
+    'maps an upstream %i to 502 KITH_CREDENTIAL_REJECTED (misconfiguration, not an outage)',
+    async (status) => {
+      const fake = createFakeKith([], { refuseWith: status });
+      setKithRuntime(runtimeForFakeKith(fake));
+      const { adult } = await seedTestHousehold();
+
+      const res = await enabledApp().request(`/api/v1/kith/reminders?${WINDOW}`, { headers: authHeaders(adult.jwt) });
+      expect(res.status).toBe(502);
+      const text = await res.text();
+      expect((JSON.parse(text) as { error: { code: string } }).error.code).toBe('KITH_CREDENTIAL_REJECTED');
+      expect(text).not.toContain('kl_test-key');
+    },
+  );
 });
 
 describe('KithClient transport', () => {

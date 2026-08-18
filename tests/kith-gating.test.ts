@@ -14,6 +14,7 @@ import { createFakeKith, runtimeForFakeKith, reminder } from './fake-kith.js';
 afterAll(() => {
   delete process.env['KITH_BASE_URL'];
   delete process.env['KITH_API_KEY'];
+  delete process.env['KITH_API_KEY_KIND'];
 });
 
 async function freshApp() {
@@ -29,6 +30,7 @@ describe('kith module gating (KITH_* env group)', () => {
     it('GET /api/v1/kith/reminders 404s via the catch-all envelope', async () => {
       delete process.env['KITH_BASE_URL'];
       delete process.env['KITH_API_KEY'];
+  delete process.env['KITH_API_KEY_KIND'];
       const { app } = await freshApp();
       const { adult } = await seedTestHousehold();
 
@@ -44,6 +46,7 @@ describe('kith module gating (KITH_* env group)', () => {
     it('GET /api/v1/features reports kithledger disabled', async () => {
       delete process.env['KITH_BASE_URL'];
       delete process.env['KITH_API_KEY'];
+  delete process.env['KITH_API_KEY_KIND'];
       const { app } = await freshApp();
       const { adult } = await seedTestHousehold();
       const res = await app.request('/api/v1/features', { headers: authHeaders(adult.jwt) });

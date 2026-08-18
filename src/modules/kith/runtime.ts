@@ -19,6 +19,12 @@ export function isKithEnabled(): boolean {
 /**
  * Assemble a runtime from an explicit config + fetch (production uses the
  * validated env config and the global fetch; tests pass a fake-KithLedger fetch).
+ *
+ * The runtime holds exactly ONE credential, the household dashboard key
+ * (`cfg.keyKind` is always `'household'`; `src/config/env.ts` refuses anything
+ * else at boot). A member-scoped call would need a per-request member JWT from
+ * `POST /api/v1/auth/satellite-token` (ADR 0009) rather than a second
+ * long-lived key here — no such call path exists today.
  */
 export function createKithRuntime(cfg: KithConfig, fetchImpl: typeof fetch = fetch): KithRuntime {
   return {

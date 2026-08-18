@@ -298,6 +298,26 @@ describe('HearthPage KithLedger reminders', () => {
     expect(opts?.enabled).toBe(false);
   });
 
+  // ADR 0004 §2 / task B8: the feed now reads with KithLedger's household
+  // credential, so `private` and `shared`-subset reminders never arrive. A
+  // narrowed (possibly empty) list is a normal 200 and must render as "nothing
+  // due", not as a broken or empty-stated wall.
+  it('renders a narrowed household-only feed with no empty state and no error', () => {
+    useFeaturesMock.mockReturnValue(kithOn);
+    useKithRemindersMock.mockReturnValue({
+      data: { data: [] },
+      isError: false,
+      dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z'),
+    });
+    const { container } = render(<HearthPage />);
+    expect(container.querySelectorAll('[data-hearth-day]')).toHaveLength(7);
+    expect(container.querySelectorAll('[data-hearth-reminder]')).toHaveLength(0);
+    // The row stays available in the display settings — the integration is on,
+    // there is simply nothing household-visible to show.
+    openDisplayModal();
+    expect(screen.getByRole('button', { name: 'Reminders' })).toBeInTheDocument();
+  });
+
   it('keeps the wall rendering when the reminders query errors (KITH_UNAVAILABLE)', () => {
     useFeaturesMock.mockReturnValue(kithOn);
     useKithRemindersMock.mockReturnValue({ data: undefined, isError: true, dataUpdatedAt: 0 });

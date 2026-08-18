@@ -25,6 +25,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The KithLedger reminders feed now presents a `household` key, not a member
+  key** (task B8, Wyrhta-Labs/wyrhta-labs#1; ADR 0004 §2). KithLedger split
+  ADR 0004's three principals into three separate credentials, so a `kl_` key
+  now carries a **kind** — `member` (that account's full personal scope, may
+  write), `household` (the `household`-visible slice only, read-only,
+  member-less) or `ops` (no data access). Heorth's `KITH_API_KEY` was
+  backfilled as `member`, which meant the always-on Hearth wall was reading
+  with the full personal scope of KithLedger's local admin account and could
+  write. It now presents the **household dashboard credential**, the principal
+  ADR 0004 §2.2 defines for exactly this surface.
+  - **No member-JWT path was added.** `GET /api/v1/kith/reminders` authenticates
+    the Heorth caller but never forwards that identity upstream, and every
+    member sees the same wall — it is purely the household slice, so there is
+    no member-scoped read to migrate. A future one would take a member token
+    from `POST /api/v1/auth/satellite-token` (ADR 0009); until something needs
+    it, none is built.
+  - `KITH_API_KEY_KIND` (new, optional within the `KITH_*` group, default and
+    only accepted value `household`) makes the credential's role explicit
+    instead of implied, and `config.kith` carries `keyKind`. Nothing in a `kl_`
+    key's text reveals its kind and KithLedger's key listing needs a
+    local-account JWT Heorth does not hold, so this is a **declaration**, not a
+    check: a deliberate `member`/`ops` value fails at boot with the migration
+    procedure, while a member key pasted in silently cannot be detected here.
+  - A refused credential is no longer indistinguishable from an outage: an
+    upstream `401`/`403` now raises `KithCredentialError` and returns
+    **`502 KITH_CREDENTIAL_REJECTED`** (with a `kith.credential.rejected` audit
+    event, never the key) instead of `502 KITH_UNAVAILABLE`.
+  - **Operator action required — the deployed key must be replaced.** Mint a
+    household key in KithLedger as the local admin
+    (`POST /api/v1/auth/keys {"name":"…","kind":"household"}`), put it in
+    `deploy/`'s `KITH_API_KEY`, restart Heorth, then revoke the old member key.
+    Full procedure: README.md, "KithLedger reminders".
+  - **Expect fewer reminders on the wall.** A household key cannot see any
+    member's `private` reminders, nor `shared`-subset ones (it is on no share
+    list by design), and ADR 0004 §3.4 keeps them out of the counts too. Only
+    `visibility: household` reminders — KithLedger's create-time default —
+    reach the wall; a member who wants a carved-out reminder shown changes its
+    visibility in KithLedger. The wall degrades quietly: a narrowed or empty
+    list is an ordinary `200` with fewer chips, never an error state.
+
 - **`FEOH_ENABLED` kill switch removed — finance is now always on.**
   `feohModule` mounts unconditionally in `ALL_MODULES`
   (`src/modules/index.ts`); `/api/v1/feoh/*` and `feoh.*` MCP tools are

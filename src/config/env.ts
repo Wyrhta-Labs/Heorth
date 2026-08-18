@@ -63,9 +63,31 @@ export function buildEnvSchema() {
     // KithLedger integration. Optional AS A GROUP, same contract as M365_*:
     // both present → the kith module mounts and proxies upcoming reminders;
     // both absent → zero impact (routes fall through to the catch-all 404);
-    // partial presence is a startup error (see superRefine).
+    // partial presence is a startup error (see superRefine). The key MUST be
+    // a `household`-kinded `kl_` key — see KITH_API_KEY_KIND below.
     KITH_BASE_URL: emptyToUndefined(z.string().url()),
     KITH_API_KEY: emptyToUndefined(z.string().min(1)),
+    // WHICH of ADR 0004 §2's three principals `KITH_API_KEY` is. A `kl_` key
+    // carries a kind — member | household | ops — decided by KithLedger when
+    // the key was minted, and nothing in the key's TEXT reveals it (they all
+    // read `kl_…`). This variable is therefore the operator's DECLARATION of
+    // what they pasted, not a check on it: Heorth cannot introspect a key's
+    // kind (KithLedger's `GET /auth/keys` needs a local-account JWT, which
+    // Heorth does not have and must not have).
+    //
+    // Only `household` is accepted. The reminders feed is always-on with no
+    // logged-in member, so the household dashboard principal — the
+    // `household`-visible slice, read-only, member-less by design — is the
+    // only correct credential for it. Naming `member` or `ops` is refused at
+    // boot with the migration procedure rather than silently accepted: a
+    // `member` key would give an always-on dashboard the full personal scope
+    // of the account that issued it (exactly what ADR 0004 §2 splits the
+    // credentials to prevent), and an `ops` key has no data access at all.
+    //
+    // Optional WITHIN the group (defaults to `household`, the only legal
+    // value, so nothing has to change in an .env that already works); setting
+    // it without the group is a startup error like SATELLITE_SIGNING_ALG.
+    KITH_API_KEY_KIND: emptyToUndefined(z.enum(['household', 'member', 'ops'])),
     // Satellite identity signing keys (B1c). Heorth signs member tokens for
     // satellite services (KithLedger first) with an ASYMMETRIC key and
     // publishes the public half at /.well-known/jwks.json; a satellite only
@@ -146,6 +168,30 @@ export function buildEnvSchema() {
         message:
           `KithLedger integration is partially configured — set all of [${kithKeys.join(', ')}] ` +
           `or none. Missing: ${missing.join(', ')}.`,
+      });
+    }
+    // The declared credential kind (ADR 0004 §2, task B8). Orphaned without
+    // the group, and only `household` is a legal value — see the schema above
+    // for why Heorth trusts the declaration but refuses the wrong one.
+    if (kithPresent.length === 0 && env.KITH_API_KEY_KIND !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['KITH'],
+        message:
+          'KITH_API_KEY_KIND is set without the KithLedger group — also set ' +
+          'KITH_BASE_URL and KITH_API_KEY, or unset it.',
+      });
+    }
+    if (env.KITH_API_KEY_KIND !== undefined && env.KITH_API_KEY_KIND !== 'household') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['KITH'],
+        message:
+          `KITH_API_KEY_KIND must be 'household' (got '${env.KITH_API_KEY_KIND}'). The always-on ` +
+          'reminders feed has no logged-in member, so it may only present the household ' +
+          "dashboard key. Mint one in KithLedger as the local admin: POST /api/v1/auth/keys " +
+          '{"name":"heorth-dashboard","kind":"household"} — see README.md, "KithLedger ' +
+          'reminders".',
       });
     }
     const satelliteKeys = ['SATELLITE_SIGNING_KEY', 'SATELLITE_SIGNING_KID'] as const;
@@ -245,7 +291,19 @@ export const config = {
     parsed.data.KITH_BASE_URL
       ? {
           baseUrl: parsed.data.KITH_BASE_URL,
+          /**
+           * The household dashboard credential (ADR 0004 §2.2) — read-only,
+           * member-less, and limited to the `household`-visible slice. Never
+           * a member key: see `keyKind`.
+           */
           apiKey: parsed.data.KITH_API_KEY!,
+          /**
+           * Always `'household'` — the schema refuses any other declaration.
+           * Carried in the config (rather than left implicit) so the one call
+           * path that uses the key states which principal it presents, and so
+           * a future member-scoped call path cannot quietly reuse this one.
+           */
+          keyKind: (parsed.data.KITH_API_KEY_KIND ?? 'household') as 'household',
         }
       : null,
   // Resolved satellite signing config, or null when no key is configured

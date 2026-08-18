@@ -69,7 +69,22 @@ architecture and API surface.
   through `KithClient` (`client.ts`, the resurrected satellite-client transport),
   windows on the effective due (`snoozedUntil` when snoozed) Heorth-side (the
   upstream API has no lower-bound filter), and maps upstream failure to
-  502 `KITH_UNAVAILABLE`. Dependencies resolve through `getKithRuntime()` /
+  502 `KITH_UNAVAILABLE`.
+  **The credential is the `household` one** (B8, ADR 0004 §2.2): the feed is
+  always-on with no logged-in member — `requireAuth` authenticates the Heorth
+  caller but that identity is NEVER forwarded upstream — so it presents the
+  read-only, member-less household dashboard key and sees only the
+  `household`-visible slice (fewer reminders than a member key; that is
+  correct, and an empty list is a normal 200). `KITH_API_KEY_KIND` declares
+  this (only `household` is accepted; Heorth cannot introspect a `kl_` key's
+  kind, so it is a declaration, not a check) and `config.kith.keyKind` carries
+  it. Nothing here writes — `KithClient` issues GETs only. A member-scoped read
+  would need a member JWT from `POST /api/v1/auth/satellite-token` (ADR 0009)
+  rather than this key; **no such call path exists, so none is built** — do not
+  add one speculatively. An upstream 401/403 is a `KithCredentialError` →
+  502 `KITH_CREDENTIAL_REJECTED`, deliberately distinct from
+  `KITH_UNAVAILABLE` so a misconfigured key never reads as an outage.
+  Dependencies resolve through `getKithRuntime()` /
   `setKithRuntime()` — tests install a fake KithLedger (`tests/fake-kith.ts`);
   gating toggles follow the feoh/M365 `vi.resetModules()` pattern
   (`tests/kith-gating.test.ts`).

@@ -2,10 +2,29 @@
  * KithLedger HTTP client — the resurrected satellite-client transport pattern
  * (see the retired `src/satellites/satellite-client.ts`, removed when Feoh was
  * merged in). It owns the cross-cutting transport concerns only: base URL
- * joining, the single service API key (`Authorization: Bearer kl_…`), a
- * request timeout, an injectable fetch for tests, and turning a network
- * failure or timeout into a typed {@link KithUnreachableError}. On top of the
- * transport it exposes the one typed operation Heorth needs: listing reminders.
+ * joining, the credential (`Authorization: Bearer kl_…`), a request timeout,
+ * an injectable fetch for tests, and turning a network failure or timeout into
+ * a typed {@link KithUnreachableError}. On top of the transport it exposes the
+ * one typed operation Heorth needs: listing reminders.
+ *
+ * **Which principal this client presents (ADR 0004 §2, task B8).** The key it
+ * carries is the **household dashboard credential** — `kind: 'household'` on
+ * KithLedger's side: the `household`-visible slice only, member-less, and
+ * read-only. That is the correct principal for Heorth's one call path here,
+ * the always-on reminders feed, which has no logged-in member to speak for.
+ *
+ * Read-only is enforced structurally rather than by policy: {@link get} is the
+ * only request method on this class and hard-codes `method: 'GET'`, so there
+ * is no code path that could issue a write even if a caller wanted one.
+ * KithLedger refuses every non-GET from a household key anyway
+ * (`requireDataAccess`), so a write here would be a 403, never a mutation.
+ *
+ * A call that reads on a SPECIFIC MEMBER's behalf must not use this client's
+ * credential — it would read the household slice, not that member's. Such a
+ * call needs a member JWT from `POST /api/v1/auth/satellite-token`
+ * (ADR 0009, `aud: kithledger`). Heorth has no such call path today, so none
+ * is built; adding one means adding a per-request credential here, not
+ * widening this key.
  */
 
 /** Thrown when KithLedger could not be reached at all (connection refused,
@@ -21,6 +40,26 @@ export class KithUnreachableError extends Error {
   ) {
     super(message);
     this.name = 'KithUnreachableError';
+  }
+}
+
+/**
+ * Thrown when KithLedger REFUSED the credential rather than failing to serve
+ * the request: `401` (the key is unknown, revoked, or — post-B8 — has no
+ * credential record, which KithLedger fails closed on) or `403` (the key has
+ * the wrong kind for this call: an `ops` key has no data path at all, and a
+ * `household` key is refused on any non-GET).
+ *
+ * Separate from {@link KithUnreachableError} on purpose. Both degrade the wall
+ * the same way, but they ask the operator for opposite things: "KithLedger is
+ * down" versus "the key in KITH_API_KEY is not the household dashboard key".
+ * Folding the second into the first is how a misconfiguration spends a week
+ * looking like an outage. The message never contains the API key.
+ */
+export class KithCredentialError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'KithCredentialError';
   }
 }
 
@@ -48,6 +87,10 @@ export interface KithReminderPage {
 
 export interface KithClientOptions {
   baseUrl: string;
+  /**
+   * The household dashboard key (`kl_…`, `kind: 'household'` in KithLedger) —
+   * see the file header for why it is that principal and not a member key.
+   */
   apiKey: string;
   /** Per-request timeout in milliseconds (default 5000). */
   timeoutMs?: number;
@@ -88,6 +131,11 @@ export class KithClient {
         signal: controller.signal,
       });
       const text = await res.text();
+      if (res.status === 401 || res.status === 403) {
+        throw new KithCredentialError(
+          `KithLedger refused Heorth's credential (${res.status}) for ${path}`, res.status,
+        );
+      }
       if (!res.ok) {
         throw new KithUnreachableError(
           `KithLedger answered ${res.status} for ${path}`, 'bad_response',
@@ -95,7 +143,7 @@ export class KithClient {
       }
       return text;
     } catch (e: unknown) {
-      if (e instanceof KithUnreachableError) throw e;
+      if (e instanceof KithUnreachableError || e instanceof KithCredentialError) throw e;
       if (controller.signal.aborted) {
         throw new KithUnreachableError(
           `Request to KithLedger ${path} timed out after ${this.timeoutMs}ms`, 'timeout', e,
@@ -131,6 +179,12 @@ export class KithClient {
    * All reminders matching the query, following `meta.total` across pages.
    * KithLedger has no lower-bound (`due_after`) filter — callers window the
    * lower bound themselves.
+   *
+   * "All" is always "all *this credential can see*": with the household key
+   * that is the `household`-visible slice, and `meta.total` is computed over
+   * the same slice (ADR 0004 §3.4 — aggregates respect the filter), so
+   * pagination stays correct and a narrower result is simply a shorter list,
+   * never a partial page or an error.
    */
   async listAllReminders(query: { statuses?: string; dueBefore?: string }): Promise<KithReminder[]> {
     const all: KithReminder[] = [];

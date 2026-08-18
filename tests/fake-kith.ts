@@ -13,21 +13,43 @@ export interface FakeKith {
   fetch: typeof fetch;
   /** Every request's Authorization header, for key-forwarding assertions. */
   authHeaders: (string | null)[];
+  /** Every request's HTTP method — the household key is read-only (B8). */
+  methods: string[];
   /** Number of list requests served (asserts pagination behavior). */
   requests: number;
 }
 
-export function createFakeKith(reminders: KithReminder[], opts: { apiKey?: string } = {}): FakeKith {
+export interface FakeKithOptions {
+  apiKey?: string;
+  /**
+   * Refuse every request with this status instead of serving it — KithLedger's
+   * B8 credential refusals: `401` (key unknown/revoked, or fails closed with no
+   * credential record) and `403` (an `ops` key, which has no data path, or a
+   * household key on a non-GET).
+   */
+  refuseWith?: 401 | 403;
+}
+
+export function createFakeKith(reminders: KithReminder[], opts: FakeKithOptions = {}): FakeKith {
   const apiKey = opts.apiKey ?? 'kl_test-key';
-  const fake: FakeKith = { authHeaders: [], requests: 0, fetch: undefined as unknown as typeof fetch };
+  const fake: FakeKith = {
+    authHeaders: [], methods: [], requests: 0, fetch: undefined as unknown as typeof fetch,
+  };
 
   fake.fetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const headers = new Headers(input instanceof Request ? input.headers : init?.headers);
     fake.authHeaders.push(headers.get('authorization'));
+    fake.methods.push((input instanceof Request ? input.method : init?.method) ?? 'GET');
     fake.requests += 1;
 
-    if (headers.get('authorization') !== `Bearer ${apiKey}`) {
+    if (opts.refuseWith === 403) {
+      return Response.json(
+        { error: { code: 'FORBIDDEN', message: 'This credential has no access to household data' } },
+        { status: 403 },
+      );
+    }
+    if (opts.refuseWith === 401 || headers.get('authorization') !== `Bearer ${apiKey}`) {
       return Response.json({ error: { code: 'UNAUTHORIZED', message: 'Invalid API key' } }, { status: 401 });
     }
     if (url.pathname !== '/api/v1/reminders') {
@@ -53,10 +75,14 @@ export function createFakeKith(reminders: KithReminder[], opts: { apiKey?: strin
   return fake;
 }
 
-/** A runtime whose client talks to the fake (installed via setKithRuntime). */
+/**
+ * A runtime whose client talks to the fake (installed via setKithRuntime).
+ * The credential is the household dashboard key (ADR 0004 §2.2) — the only
+ * kind `src/config/env.ts` accepts, so the fake is configured the same way.
+ */
 export function runtimeForFakeKith(fake: FakeKith, opts: { apiKey?: string } = {}): KithRuntime {
   return createKithRuntime(
-    { baseUrl: 'http://kith.test', apiKey: opts.apiKey ?? 'kl_test-key' },
+    { baseUrl: 'http://kith.test', apiKey: opts.apiKey ?? 'kl_test-key', keyKind: 'household' },
     fake.fetch,
   );
 }

@@ -196,6 +196,98 @@ access against the real `.env` with `npx tsx scripts/m365-smoke.ts` (acquires
 an app-only token and probes `GET /users/{M365_FAMILY_MAILBOX}`; prints no
 secrets).
 
+## KithLedger reminders (optional integration)
+
+Heorth can show KithLedger's upcoming reminders on the Hearth wall. The module
+(`src/modules/kith/`) is a **stateless live proxy** — no mirror table, no
+database — exposing one route, `GET /api/v1/kith/reminders?from&to`, which
+windows KithLedger's `GET /api/v1/reminders` on the effective due date
+(`snoozedUntil` when snoozed) and passes the rows through unchanged.
+
+**Optional as a group**, the same contract as `M365_*`: both variables present
+→ the module mounts and `GET /api/v1/features` reports `kithledger: true`; both
+absent → nothing mounts (`/api/v1/kith/*` falls through to the catch-all `404`);
+partial presence is a startup error.
+
+```
+# KithLedger — both or neither (partial config is a startup error)
+KITH_BASE_URL=http://kithledger:4002
+KITH_API_KEY=<a HOUSEHOLD-kinded kl_ key — see below>
+
+# Optional within the group; 'household' is the only accepted value.
+KITH_API_KEY_KIND=household
+```
+
+### Which principal this feed presents (ADR 0004 §2)
+
+KithLedger keeps ADR 0004's three principals as three separate credentials, and
+a `kl_` key carries its **kind**:
+
+| kind | scope |
+| --- | --- |
+| `member` | that account's full personal scope (`household` + owned + shared-to), and may write |
+| `household` | the `household`-visible slice **only**, read-only, member-less by design |
+| `ops` | no data access at all |
+
+The reminders feed is an **always-on dashboard surface with no logged-in
+member** — `requireAuth` authenticates the Heorth caller, but that identity is
+never forwarded upstream, and every member sees the same wall. Its correct
+principal is therefore the **household** key, and that is the only kind
+`KITH_API_KEY` may hold. Nothing in this module writes: `KithClient` issues
+GETs only, and KithLedger refuses a non-GET from a household key anyway.
+
+A read made **on a specific member's behalf** would need a member JWT from
+`POST /api/v1/auth/satellite-token` (`aud: kithledger`, 5-minute TTL — see
+"Token exchange" below), not this key. Heorth has no such call path today, so
+none is built.
+
+Note that nothing in a key's text reveals its kind — they all read `kl_…` — and
+KithLedger's key listing requires a local-account JWT that Heorth does not hold.
+`KITH_API_KEY_KIND` is therefore the operator's **declaration**, pinned to the
+one legal value so a deliberate `member`/`ops` entry fails at boot with the
+procedure below. A `member` key pasted in *without* changing the declaration
+cannot be detected from here — it simply works, too widely, which is why the
+migration below matters. What *is* detected is a key KithLedger refuses (an
+unknown/revoked key, or an `ops` key): those surface as
+`502 KITH_CREDENTIAL_REJECTED` with a `kith.credential.rejected` audit event,
+distinct from `502 KITH_UNAVAILABLE`, so a misconfigured credential never reads
+as an outage.
+
+### Migrating an existing `KITH_API_KEY` to a household key
+
+Deployments predating this split hold a `member` key (KithLedger's migration
+`0006` backfilled every pre-existing key as `member`), which means the always-on
+wall reads with the full personal scope of KithLedger's local admin account
+**and could write**. Replace it:
+
+1. In **KithLedger**, as the local admin (JWT, not an API key — a key cannot
+   mint a key), mint the dashboard credential:
+   ```
+   POST /api/v1/auth/keys
+     { "name": "heorth-hearth-wall", "kind": "household" }
+   → 201 { "data": { "id": "…", "key": "kl_…", "kind": "household", … } }
+   ```
+   The `key` value is shown **once**.
+2. Put that value in `deploy/`'s `.env` as `KITH_API_KEY` (and optionally set
+   `KITH_API_KEY_KIND=household` to state it), then restart Heorth. Nothing else
+   changes: same variable, same route, same response shape.
+3. Confirm the wall still lists reminders, then **revoke the old member key** in
+   KithLedger (`DELETE /api/v1/auth/keys/:id`) so the wide credential stops
+   existing. Do not skip this — leaving it revocable-but-live is the whole risk
+   this migration removes.
+
+**Expect fewer reminders afterwards.** A household key cannot see anyone's
+`private` items, nor `shared`-subset items whose share list it is not on (it is
+member-less, so it is on none of them) — and ADR 0004 §3.4 makes counts respect
+the same filter, so they are absent from `meta.total` too, not just from the
+rows. Only reminders whose `visibility` is `household` reach the wall. Since
+`household` is KithLedger's create-time default, most reminders are unaffected;
+what disappears is exactly what someone deliberately marked private or shared to
+a subset — which is the point, since the wall is a screen anyone in the room can
+read. A member who wants such a reminder on the wall changes its visibility to
+`household` in KithLedger. The wall degrades quietly: a narrowed or empty list
+is an ordinary `200` with fewer chips, never an error or an empty-state banner.
+
 ## Satellite identity — signing keys and JWKS (optional)
 
 Heorth is the household's identity provider for satellite services

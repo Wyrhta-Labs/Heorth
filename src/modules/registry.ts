@@ -1,22 +1,14 @@
 import type { Hono } from 'hono';
-import type { McpTool } from '@wyrhta/core/mcp';
-
-/** Mutable collection a module pushes its MCP tools into during registration. */
-export class McpRegistry {
-  private tools: McpTool[] = [];
-  add(...tools: McpTool[]): void {
-    this.tools.push(...tools);
-  }
-  all(): McpTool[] {
-    return [...this.tools];
-  }
-}
 
 /**
- * Module convention: each module exports `register(app, mcpRegistry)` mounting
- * its REST routes and contributing its MCP tools. Compile-time registration only.
+ * Module convention: each module exports `register(app)` mounting its REST
+ * routes. Compile-time registration only.
+ *
+ * Heorth is REST-only since ADR 0008 — the MCP surface lives in its own
+ * service (`Wyrhta-Labs/heorth-mcp`), a pure REST client, so modules no
+ * longer contribute in-process MCP tools.
  */
 export interface HeorthModule {
   name: string;
-  register(app: Hono, mcp: McpRegistry): void;
+  register(app: Hono): void;
 }

@@ -5,18 +5,13 @@ import { db } from './db/index.js';
 import { config } from './config/env.js';
 import { createApp } from './app.js';
 import { ALL_MODULES } from './modules/index.js';
-import { McpRegistry } from './modules/registry.js';
-import { buildMcpServer } from './mcp/server.js';
 import { startM365Scheduler } from './m365/scheduler.js';
 import { repairMaintenanceAdmin } from './household/maintenance-admin.js';
 
 /**
- * Migrate, seed the household + admin (both idempotent), and build the app + MCP server.
+ * Migrate, seed the household + admin (both idempotent), and build the app.
  */
-export async function bootstrap(): Promise<{
-  app: ReturnType<typeof createApp>;
-  mcpServer: ReturnType<typeof buildMcpServer>;
-}> {
+export async function bootstrap(): Promise<{ app: ReturnType<typeof createApp> }> {
   await migrate(db, { migrationsFolder: './src/db/migrations' });
   await seedHousehold(db, { name: config.householdName });
   // Seeds the maintenance admin, re-syncs its env credentials, and strips any
@@ -26,18 +21,13 @@ export async function bootstrap(): Promise<{
     adminPassword: config.adminPassword,
   });
 
-  const mcp = new McpRegistry();
-  const app = createApp(ALL_MODULES, mcp);
-  const mcpServer = buildMcpServer(mcp);
-  return { app, mcpServer };
+  const app = createApp(ALL_MODULES);
+  return { app };
 }
 
 async function main() {
   console.log('Booting Heorth: migrations, household + admin seed/repair, module registration...');
-  const { app, mcpServer } = await bootstrap();
-
-  // Mount the MCP HTTP transport on the same server.
-  app.all('/mcp', (c) => mcpServer.fetch(c.req.raw));
+  const { app } = await bootstrap();
 
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(`Heorth running on http://localhost:${info.port}`);

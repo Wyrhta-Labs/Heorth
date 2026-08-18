@@ -7,7 +7,12 @@ architecture and API surface.
 
 ## Conventions
 
-- **Modules** implement `HeorthModule` (`register(app, mcp)`) and are listed in
+- **Heorth is REST-only** (ADR 0008, task A7). The embedded MCP server was
+  deleted 2026-08-18; the MCP surface is `Wyrhta-Labs/heorth-mcp`, a separate
+  container that is a pure REST client. Never add an in-process MCP tool here —
+  anything a tool needs must be reachable over `/api/v1`, and the REST surface
+  is now the only path those tools have.
+- **Modules** implement `HeorthModule` (`register(app)`) and are listed in
   `src/modules/index.ts` → `ALL_MODULES`. Routes mount under `/api/v1/<area>`;
   responses use `ok`/`err` from `@wyrhta/core/http`; auth via `requireAuth` /
   `requireRole` from `src/wiring.ts` (which sets the `auth` context key).
@@ -59,7 +64,7 @@ architecture and API surface.
   `KITH_BASE_URL` + `KITH_API_KEY` group — optional AS A GROUP like `M365_*`
   (both present → enabled; both absent → no-op, routes 404, `kithledger: false`
   in `GET /api/v1/features`; partial presence is a startup error). It is a
-  **stateless live proxy** (no DB, no MCP tools): `GET /api/v1/kith/reminders
+  **stateless live proxy** (no DB): `GET /api/v1/kith/reminders
   ?from&to` calls KithLedger's `GET /api/v1/reminders` with the service API key
   through `KithClient` (`client.ts`, the resurrected satellite-client transport),
   windows on the effective due (`snoozedUntil` when snoozed) Heorth-side (the
@@ -141,7 +146,7 @@ directly.
   Google/CalDAV provider slots in beside it with no Graph coupling). Mirrored
   events are a **sibling** table `calendar_mirror_events` (NOT columns on
   `events`), merged into the calendar service's range query and **read-only
-  everywhere** — the REST/MCP mutation guards reject any id resolving to a mirror
+  everywhere** — the mutation guards reject any id resolving to a mirror
   row (`EVENT_READ_ONLY` / `ReadOnlyEventError`). The sync runner
   (`calendar-sync.ts`) + scheduler (`scheduler.ts`) inherit the enablement gate
   and **never run under tests** (started from `main()` in `src/index.ts`, guarded

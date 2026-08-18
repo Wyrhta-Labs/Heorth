@@ -1,11 +1,6 @@
 import { sign } from 'hono/jwt';
-import { z } from 'zod';
 import { config } from '../src/config/env.js';
 import { identity, householdCore } from '../src/wiring.js';
-import { createApp } from '../src/app.js';
-import { McpRegistry, type HeorthModule } from '../src/modules/registry.js';
-import type { McpTool } from '@wyrhta/core/mcp';
-import type { Role } from '@wyrhta/core/identity';
 
 type Member = Awaited<ReturnType<typeof identity.createUser>>;
 
@@ -47,34 +42,4 @@ export async function seedTestHousehold(): Promise<{
 
 export function authHeaders(jwt: string): Record<string, string> {
   return { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' };
-}
-
-/**
- * Build the MCP tool registry the same way `bootstrap()` does in `src/index.ts`
- * (single registration pass via `createApp`), for tests that need the assembled
- * registry without standing up the HTTP server. Replaces the old `collectMcpTools`
- * helper removed from `src/app.ts` — modules must register exactly once.
- */
-export function collectMcpTools(modules: HeorthModule[]): McpRegistry {
-  const mcp = new McpRegistry();
-  createApp(modules, mcp);
-  return mcp;
-}
-
-/**
- * Invoke an MCP tool the way core's scaffold would: validate `input` against the
- * tool's ZodRawShape, call the handler with a `{ principal, requestId }` context,
- * and unwrap the JSON text from the McpToolResult.
- */
-export async function invokeTool(
-  tools: McpTool[],
-  name: string,
-  ctx: { userId: string; role: Role },
-  input: unknown,
-): Promise<any> {
-  const t = tools.find((x) => x.name === name);
-  if (!t) throw new Error(`MCP tool not found: ${name}`);
-  const parsed = z.object(t.inputSchema).parse(input ?? {});
-  const res = await t.handler({ principal: { userId: ctx.userId, role: ctx.role }, requestId: 'test' }, parsed);
-  return JSON.parse(res.content[0]!.text);
 }

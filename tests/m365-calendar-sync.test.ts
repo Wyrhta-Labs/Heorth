@@ -6,14 +6,13 @@ import { m365SyncState } from '../src/m365/schema.js';
 import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
 import * as calendar from '../src/modules/calendar/service.js';
 import { calendarRouter } from '../src/modules/calendar/routes.js';
-import { calendarTools } from '../src/modules/calendar/mcp.js';
 import { runCalendarSync } from '../src/m365/calendar-sync.js';
 import { m365Router } from '../src/m365/routes.js';
 import { feedKeys } from '../src/m365/feed-keys.js';
 import { setM365Runtime } from '../src/m365/runtime.js';
 import type { M365Runtime } from '../src/m365/runtime.js';
 import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph, type FakeCalEvent } from './fake-graph.js';
-import { seedTestHousehold, authHeaders, invokeTool } from './helpers.js';
+import { seedTestHousehold, authHeaders } from './helpers.js';
 
 afterEach(() => setM365Runtime(null));
 
@@ -632,13 +631,6 @@ describe('m365 calendar mirror — visibility + read-only', () => {
       method: 'DELETE', headers: authHeaders(seeded.admin.jwt),
     });
     expect(del.status).toBe(403);
-  });
-
-  it('rejects an MCP update of a mirrored event', async () => {
-    const { seeded, mirrorId } = await syncOneMemberEvent();
-    await expect(invokeTool(calendarTools, 'calendar.update_event',
-      { userId: seeded.admin.user.id, role: 'admin' }, { id: mirrorId, title: 'Hijack' },
-    )).rejects.toThrow(/read-only/i);
   });
 
   it('service.updateEvent throws ReadOnlyEventError for a mirrored id', async () => {

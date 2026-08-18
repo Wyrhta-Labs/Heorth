@@ -1,7 +1,6 @@
 import type { Hono } from 'hono';
-import type { HeorthModule, McpRegistry } from '../registry.js';
+import type { HeorthModule } from '../registry.js';
 import { tasksRouter } from './routes.js';
-import { tasksTools } from './mcp.js';
 
 /**
  * The Tasks module — the household task surface backed by Microsoft To Do (the
@@ -12,8 +11,7 @@ import { tasksTools } from './mcp.js';
  */
 export const tasksModule: HeorthModule = {
   name: 'tasks',
-  register(app: Hono, mcp: McpRegistry): void {
+  register(app: Hono): void {
     app.route('/api/v1/tasks', tasksRouter);
-    mcp.add(...tasksTools);
   },
 };

@@ -25,7 +25,7 @@ POSTGRES_PASSWORD=<password>
 Finance (`src/modules/feoh/`, ADR 0007) and inventory (`src/modules/inventory/`)
 are both built-in, **always-on** modules — no env var gates them. `feoh` was
 briefly behind a `FEOH_ENABLED` kill switch; that switch was removed
-2026-08-17, so `/api/v1/feoh/*` and its MCP tools are always mounted.
+2026-08-17, so `/api/v1/feoh/*` is always mounted.
 
 ```bash
 npm install
@@ -58,14 +58,12 @@ lists `ALL_MODULES`):
 | `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills + occurrences, item costs/TCO, account ledger + reconciliation (ADR 0007) — a `HeorthModule`, always on (see [Finance](#finance) below) |
 | `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
 
-`/mcp` (mounted in `src/index.ts`) exposes one MCP-over-HTTP server
-(`@wyrhta/core`'s scaffold) assembling every module's tool registry plus a
-`household.*` set, authenticated the same way as REST (`he_` API key or JWT).
-`inventory.*` MCP tools (`src/modules/inventory/mcp.ts`: `list_items`,
-`get_item`, `record_item`, `decommission_item`) and finance `feoh.*` MCP
-tools (`src/modules/feoh/mcp.ts`, including occurrence link/skip/override,
-item-cost link/unlink, and ledger/reconcile tools) are both always registered
-on Heorth's own `/mcp`.
+**Heorth serves REST only.** The MCP surface moved out of this service into
+its own container, `Wyrhta-Labs/heorth-mcp` (ADR 0008) — a pure REST client
+that talks to the endpoints above with a member's `he_` API key. Heorth no
+longer mounts `/mcp`, and modules no longer contribute in-process MCP tools;
+`HeorthModule.register(app)` mounts routers and nothing else. Any behaviour a
+tool needs must therefore be reachable over REST.
 
 The React web UI (`web/`) is served as static files from `web/dist` for any
 unmatched non-API route.
@@ -76,8 +74,8 @@ Finance (envelopes, accounts, double-entry transactions, recurring bills) is
 a built-in `HeorthModule` (`src/modules/feoh/`, ADR 0007) — it was briefly
 extracted to an independent Feoh satellite service and was merged back
 in-process, and is now **always on** (the earlier `FEOH_ENABLED` kill switch
-was removed 2026-08-17 — routes mount at `/api/v1/feoh/*` and `feoh.*` MCP
-tools register unconditionally).
+was removed 2026-08-17 — routes mount at `/api/v1/feoh/*`
+unconditionally).
 
 Beyond the core ledger primitives, three surfaces round out the feature:
 
@@ -151,9 +149,9 @@ M365_SYNC_INTERVAL_SECONDS=300                      # mirror poll interval; floo
   forward. Recurring events are mirrored as Graph's expanded occurrences (rules
   are never reconstructed). Mirrored events land in a sibling
   `calendar_mirror_events` table and surface in the existing calendar
-  range/week/dashboard/MCP queries alongside native events — but are
-  **read-only everywhere**: REST and MCP update/move/delete of a mirrored event
-  are rejected (`EVENT_READ_ONLY`), and the web renders them with a subtle
+  range/week/dashboard queries alongside native events — but are
+  **read-only everywhere**: update/move/delete of a mirrored event
+  is rejected (`EVENT_READ_ONLY`), and the web renders them with a subtle
   source marker and no edit affordance. Delta tokens + per-feed errors persist
   in `m365_sync_state`; an expired token (`410 Gone`) also triggers a full feed
   re-sync (in addition to the deterministic schedule above), and a connection
@@ -179,7 +177,7 @@ M365_SYNC_INTERVAL_SECONDS=300                      # mirror poll interval; floo
   member (children included) may complete/create; a write against a
   dead/absent connection returns a **classified** error (409 conflict, or 500
   when the integration is off / an upstream failure), never a crash and never a
-  silent drop. MCP: `tasks.list` / `tasks.complete` / `tasks.create`. Task feeds
+  silent drop. Task feeds
   join the same scheduler tick and `POST /api/v1/m365/sync` (sequential after
   calendar, same per-feed isolation) and appear in `GET /api/v1/m365/status`.
   Reads work even when the integration is disabled (the mirror is simply empty);

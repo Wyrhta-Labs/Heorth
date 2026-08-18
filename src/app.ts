@@ -11,7 +11,7 @@ import { config } from './config/env.js';
 import { healthRouter } from './routes/health.js';
 import { featuresRouter } from './routes/features.js';
 import { jwksRouter } from './routes/jwks.js';
-import { McpRegistry, type HeorthModule } from './modules/registry.js';
+import type { HeorthModule } from './modules/registry.js';
 import { MaintenanceAdminError } from './household/maintenance-admin.js';
 
 declare module 'hono' {
@@ -38,7 +38,7 @@ export const heorthErrorHandler: ErrorHandler = (error, c) => {
   return errorHandler(error, c);
 };
 
-export function createApp(modules: HeorthModule[], mcp: McpRegistry = new McpRegistry()): Hono {
+export function createApp(modules: HeorthModule[]): Hono {
   const app = new Hono();
 
   app.use('*', trimTrailingSlash());
@@ -55,7 +55,7 @@ export function createApp(modules: HeorthModule[], mcp: McpRegistry = new McpReg
   app.route('/api/v1/features', featuresRouter);
 
   for (const mod of modules) {
-    mod.register(app, mcp);
+    mod.register(app);
   }
 
   app.all('/api/*', (c) =>

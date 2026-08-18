@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The embedded MCP server is gone — Heorth is REST-only** (ADR 0008, task
+  A7). Deleted `src/mcp/` (the per-request MCP-over-HTTP server and the `he_`
+  key auth adapter), the `/mcp` route in `src/index.ts`, all seven module tool
+  files (`src/household/mcp.ts`, `src/modules/{calendar,meals,library,
+  inventory,tasks,feoh}/mcp.ts`, 37 tools), and their eight test files.
+  `McpRegistry` is removed from `src/modules/registry.ts`, so the module
+  contract is now `register(app)` and `createApp(modules)` takes no registry.
+  The MCP surface lives in `Wyrhta-Labs/heorth-mcp`, a separate container that
+  is a **pure REST client** — every deleted tool was a thin wrapper over a
+  service function that the REST routes already call, so no domain logic was
+  removed and **no REST route, response shape, status code, or guard changed**.
+  The MCP SDK was never a direct dependency here (it arrives via
+  `@wyrhta/core`), so `package.json` is unchanged.
+
 ### Changed
 
 - **`FEOH_ENABLED` kill switch removed — finance is now always on.**

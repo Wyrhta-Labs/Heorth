@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import type { HeorthModule, McpRegistry } from '../modules/registry.js';
+import type { HeorthModule } from '../modules/registry.js';
 import { m365Router } from './routes.js';
 import { getM365Runtime, isM365Enabled } from './runtime.js';
 import { GraphTaskProvider } from './task-provider.js';
@@ -15,7 +15,7 @@ import { setTaskProvider } from '../modules/tasks/provider.js';
  */
 export const m365Module: HeorthModule = {
   name: 'm365',
-  register(app: Hono, _mcp: McpRegistry): void {
+  register(app: Hono): void {
     if (!isM365Enabled()) return;
     app.route('/api/v1/m365', m365Router);
     const rt = getM365Runtime();

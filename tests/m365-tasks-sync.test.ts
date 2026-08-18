@@ -5,7 +5,6 @@ import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { tasksRouter } from '../src/modules/tasks/routes.js';
-import { tasksTools } from '../src/modules/tasks/mcp.js';
 import { setTaskProvider } from '../src/modules/tasks/provider.js';
 import { TaskProviderError, type TaskProvider } from '../src/modules/tasks/providers/types.js';
 import { runTaskSync } from '../src/m365/task-sync.js';
@@ -15,7 +14,7 @@ import { feedKeys } from '../src/m365/feed-keys.js';
 import { setM365Runtime, type M365Runtime } from '../src/m365/runtime.js';
 import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph } from './fake-graph.js';
 import { localDateOf } from '../src/lib/local-date.js';
-import { seedTestHousehold, authHeaders, invokeTool } from './helpers.js';
+import { seedTestHousehold, authHeaders } from './helpers.js';
 
 afterEach(() => {
   setM365Runtime(null);
@@ -383,7 +382,7 @@ describe('m365 tasks — scheduler isolation (mixed calendar + todo feeds)', () 
   });
 });
 
-describe('m365 tasks — REST + MCP', () => {
+describe('m365 tasks — REST', () => {
   function app() {
     const a = new Hono();
     a.route('/api/v1/tasks', tasksRouter);
@@ -516,24 +515,5 @@ describe('m365 tasks — REST + MCP', () => {
     const get = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     const body = await get.json() as { data: Array<{ listId: string }> };
     expect(body.data.map((r) => r.listId)).toEqual(['L2']);
-  });
-
-  it('MCP tasks.list / tasks.complete / tasks.create work', async () => {
-    const { fake, rt } = wire();
-    const { adult } = await seedTestHousehold();
-    await connect(rt, adult.user.id);
-    await allow(adult.user.id, 'L2', 'Household');
-    fake.setTodoTasks('L2', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
-    await runTaskSync(rt);
-
-    const listed = await invokeTool(tasksTools, 'tasks.list', { userId: adult.user.id, role: 'adult' }, { status: 'open' });
-    expect(listed.tasks.map((t: { externalId: string }) => t.externalId)).toEqual(['t1']);
-
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L2'));
-    const done = await invokeTool(tasksTools, 'tasks.complete', { userId: adult.user.id, role: 'adult' }, { id: row!.id, completed: true });
-    expect(done.status).toBe('completed');
-
-    const created = await invokeTool(tasksTools, 'tasks.create', { userId: adult.user.id, role: 'adult' }, { title: 'From MCP' });
-    expect(created.title).toBe('From MCP');
   });
 });

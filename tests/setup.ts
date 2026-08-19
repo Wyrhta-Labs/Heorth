@@ -66,13 +66,14 @@ const { sql } = await import('drizzle-orm');
  * drizzle`, `CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations`) plus a
  * SELECT — measured at 35-190ms each against an already-migrated database.
  *
- * This is also the hook the 10s `hookTimeout` guards, and one observed
- * `--sequence.shuffle` failure was exactly `Error: Hook timed out in 10000ms`
- * here — which fails the WHOLE file (reported as a failed suite with its tests
- * "skipped"), so the file blamed looks random. Running the migration once
- * removes 50+ exposures to that. It does NOT fix the underlying flake: the
- * stalls come from the environment (see the truncate note below), and the same
- * timeouts can still fire in a test body. Do not read this as a flake fix.
+ * This is also the hook `hookTimeout` guards (now 30s in `vitest.config.ts`),
+ * and one observed `--sequence.shuffle` failure under the old 10s default was
+ * exactly `Error: Hook timed out in 10000ms` here — which fails the WHOLE file
+ * (reported as a failed suite with its tests "skipped"), so the file blamed
+ * looks random. Running the migration once removes 50+ exposures to that. It
+ * does NOT fix the underlying flake: the stalls come from the environment (see
+ * the truncate note below), and the same timeouts can still fire in a test
+ * body. Do not read this as a flake fix.
  *
  * The PROMISE is cached, not a boolean: later files await the settled promise,
  * and a genuine migration failure still surfaces in every file rather than
@@ -108,8 +109,9 @@ beforeEach(async () => {
   // Why this matters beyond speed: on this dev cluster (Postgres in Docker on
   // Windows) checkpoints fsync 55k-97k files with 17-76s sync phases every 5
   // minutes, and during those episodes a test that normally takes 400-500ms can
-  // take 5.5s+ and trip Vitest's 5s `testTimeout`. Cutting the churn shortens
-  // each run's exposure window; it does not remove the stalls.
+  // take 5.5s+, which tripped Vitest's default 5s `testTimeout` (now 20s in
+  // `vitest.config.ts`). Cutting the churn shortens each run's exposure window;
+  // it does not remove the stalls.
   await db.execute(sql`
     DO $$
     DECLARE tables text;

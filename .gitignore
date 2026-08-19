@@ -7,3 +7,19 @@ web/dist/
 
 # Force-track Drizzle migration SQL (global core.excludesFile has *.sql)
 !src/db/migrations/*.sql
+
+# Claude Code local agent state. These live inside .claude/, which is otherwise
+# TRACKED here (.claude/skills/run-local/ is committed), so they are one
+# `git add -A` away from being published to a public repo. Claude Code writes the
+# same list into .git/info/exclude, but that file is per-clone and never pushed —
+# a fresh clone has no protection until these rules are in the tracked ignore.
+**/.claude/scheduled_tasks.lock
+**/.claude/scheduled_tasks.json
+**/.claude/routines/.state/
+**/.claude/worktrees/
+**/.claude/checkpoints/
+**/.claude/mailbox/
+**/.claude/agent-registry.json
+**/.claude/agent-memory-local
+**/.claude/first-run
+**/.claude/assistant-daemon-state.json

@@ -54,22 +54,73 @@ const { migrate } = await import('drizzle-orm/postgres-js/migrator');
 const { db } = await import('../src/db/index.js');
 const { sql } = await import('drizzle-orm');
 
+/**
+ * Migrate ONCE per process, memoised on `globalThis` — same reason (and same
+ * mechanism) as the postgres pool memo in `src/db/index.ts`.
+ *
+ * `poolOptions.forks.singleFork` runs all test files in ONE process, but
+ * `isolate: true` gives each file a FRESH module registry, so this setup file —
+ * and therefore this `beforeAll` — is re-evaluated per file. The database is
+ * fully migrated after the first file; the other 50+ calls are pure no-ops that
+ * still pay for two fsync'd DDL statements (`CREATE SCHEMA IF NOT EXISTS
+ * drizzle`, `CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations`) plus a
+ * SELECT — measured at 35-190ms each against an already-migrated database.
+ *
+ * This is also the hook the 10s `hookTimeout` guards, and one observed
+ * `--sequence.shuffle` failure was exactly `Error: Hook timed out in 10000ms`
+ * here — which fails the WHOLE file (reported as a failed suite with its tests
+ * "skipped"), so the file blamed looks random. Running the migration once
+ * removes 50+ exposures to that. It does NOT fix the underlying flake: the
+ * stalls come from the environment (see the truncate note below), and the same
+ * timeouts can still fire in a test body. Do not read this as a flake fix.
+ *
+ * The PROMISE is cached, not a boolean: later files await the settled promise,
+ * and a genuine migration failure still surfaces in every file rather than
+ * being swallowed after the first.
+ */
+const MIGRATED_KEY = '__heorthTestMigrated__';
+const migrationCache = globalThis as unknown as Record<string, Promise<void> | undefined>;
+
 beforeAll(async () => {
-  await migrate(db, { migrationsFolder: './src/db/migrations' });
+  await (migrationCache[MIGRATED_KEY] ??= migrate(db, { migrationsFolder: './src/db/migrations' }));
 });
 
 beforeEach(async () => {
-  // Truncate every application table, resetting FKs. Order-independent via CASCADE.
+  // Truncate every application table, resetting FKs. Order-independent via
+  // CASCADE, and every table is named in ONE statement rather than truncated in
+  // a per-table loop.
+  //
+  // That is not cosmetic. A per-table loop re-truncates a table once more for
+  // every parent that cascades into it: measured on this schema (24 tables) the
+  // loop performs 24 explicit + 33 cascaded = 57 table truncations per test,
+  // this statement performs 24 with zero cascades. Every truncation creates a
+  // fresh relfilenode that the next checkpoint must fsync and unlink, and the
+  // commit itself is fsync-bound (`pg_stat_activity` shows this hook waiting on
+  // `IO/WalSync` and `LWLock/WALWrite`).
+  //
+  // Timings, same schema, same database: idle machine 156-198ms for the loop vs
+  // 31-34ms for this statement; with a second suite running concurrently the gap
+  // widens to 771-875ms vs 40-46ms. Paid once per TEST, so the full 373-test
+  // suite drops from ~233s to ~80s. Naming every table also stops the flood of
+  // "truncate cascades to table ..." NOTICEs the loop printed through the test
+  // reporter — about 670KB of log per 40 tests, now ~3KB.
+  //
+  // Why this matters beyond speed: on this dev cluster (Postgres in Docker on
+  // Windows) checkpoints fsync 55k-97k files with 17-76s sync phases every 5
+  // minutes, and during those episodes a test that normally takes 400-500ms can
+  // take 5.5s+ and trip Vitest's 5s `testTimeout`. Cutting the churn shortens
+  // each run's exposure window; it does not remove the stalls.
   await db.execute(sql`
     DO $$
-    DECLARE r RECORD;
+    DECLARE tables text;
     BEGIN
-      FOR r IN (
-        SELECT tablename FROM pg_tables
-        WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations'
-      ) LOOP
-        EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE';
-      END LOOP;
+      SELECT string_agg(quote_ident(tablename), ', ')
+        INTO tables
+        FROM pg_tables
+       WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations';
+      IF tables IS NOT NULL THEN
+        EXECUTE 'TRUNCATE TABLE ' || tables || ' RESTART IDENTITY CASCADE';
+      END IF;
     END $$;
   `);
 });

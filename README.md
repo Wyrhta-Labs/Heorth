@@ -7,20 +7,37 @@ TypeScript, Hono, Drizzle ORM, PostgreSQL 18, Zod, and Vitest.
 
 ## Quick start
 
-Copy `.env.example` → `.env` and fill in real values:
+Requires Node.js 22 and Docker (or your own PostgreSQL 18).
 
+```bash
+cp .env.example .env
+# Fill in EVERY placeholder. .env.example documents what each value is and how
+# to generate the secrets; nothing has a usable default on purpose.
 ```
-DATABASE_URL=postgres://heorth:<password>@localhost:5432/heorth
-JWT_SECRET=<32+ char random string>
-HOUSEHOLD_NAME=Our Home
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=<password>
-API_PORT=4000
-JWT_TTL_SECONDS=604800
-CORS_ORIGIN=*
-DB_POOL_MAX=10
-POSTGRES_PASSWORD=<password>
-```
+
+Two settings deserve a second look before you expose this to anything:
+
+- **`CORS_ORIGIN`** ships as `*`, which is right for localhost and wrong
+  everywhere else — Heorth holds household, calendar, and finance data.
+- **`DATABASE_URL`** must never point at a database you care about while the
+  test suite runs: `tests/setup.ts` truncates every table between tests and
+  accepts only a database whose name ends in `_test`.
+
+`npm install` fetches `@wyrhta/core` straight from its **git tag** rather than
+from a registry, and builds it during install — so you need `git` on your PATH
+and a working toolchain, and the first install is slower than a normal one. See
+[ADR 0010](https://github.com/Wyrhta-Labs/wyrhta/blob/main/docs/decisions/0010-core-stays-a-git-dependency-that-builds-on-install.md)
+for why.
+
+### Which way to run it
+
+| | Use |
+|---|---|
+| `docker-compose.yml` (this repo) | **Start here.** Heorth plus its own PostgreSQL, nothing else. This is the supported path for running Heorth on its own. |
+| [`deploy/`](https://github.com/Wyrhta-Labs/wyrhta) in the meta repo | The whole household stack — Heorth, KithLedger, heorth-mcp and one shared PostgreSQL. Use it when you want the services talking to each other. |
+
+The two are alternatives, not layers. Do not run both against the same
+database.
 
 Finance (`src/modules/feoh/`, ADR 0007) and inventory (`src/modules/inventory/`)
 are both built-in, **always-on** modules — no env var gates them. `feoh` was

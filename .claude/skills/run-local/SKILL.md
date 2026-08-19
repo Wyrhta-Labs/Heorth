@@ -12,7 +12,7 @@ one you want *before* starting anything.
 | | API | Web UI | DB | Picks up source edits? |
 |---|---|---|---|---|
 | **A. Compose stack** (usually already up) | `wyrhta-dev-heorth-1` container, host **4000** | built bundle, same port | `wyrhta-dev-db-1` :5432 `heorth_dev` | No — baked image, needs a rebuild |
-| **B. Local processes** | `tsx` on **4000** (repo `.env`) | Vite on **5173** | `kith-testdb` :55432 `heorth_dev` | Yes |
+| **B. Local processes** | `tsx` on **4000** (repo `.env`) | Vite on **5173** | whatever the repo `.env` points at | Yes |
 
 Vite proxies `/api` → `http://localhost:4000` (hardcoded in
 `web/vite.config.ts`), so **Vite on 5173 works against either API** — the
@@ -68,11 +68,13 @@ Keep the local API on **4000**: `web/vite.config.ts` hardcodes that proxy
 target, so overriding `API_PORT` to dodge the container silently breaks the web
 UI's `/api` calls.
 
-Postgres for this path is `kith-testdb` on **55432** (`heorth_dev`), per the
-repo `.env`. If it is not running:
+Postgres for this path is whatever the repo `.env`'s `DATABASE_URL` names — a
+container of your own, or the compose stack's `db`. If it is a container that is
+stopped:
 
 ```bash
-docker start kith-testdb && docker exec kith-testdb pg_isready -U kith
+docker start <your-postgres-container>
+docker exec <your-postgres-container> pg_isready
 ```
 
 Migrations run and the admin is seeded on boot, so an empty DB self-populates.
@@ -111,10 +113,14 @@ way a smoke test fails:
 
 | | Compose container | Local `tsx` (repo `.env`) |
 |---|---|---|
-| `ADMIN_EMAIL` | `admin@dev.local` | `admin@example.com` |
-| `ADMIN_PASSWORD` | generated, in `deploy/.env` | in `.env` |
-| `DATABASE_URL` | `…@db:5432/heorth_dev` | `postgres://kith:kithpw@localhost:55432/heorth_dev` |
+| `ADMIN_EMAIL` | from `deploy/.env` | from the repo `.env` |
+| `ADMIN_PASSWORD` | from `deploy/.env` | from the repo `.env` |
+| `DATABASE_URL` | `…@db:5432/heorth_dev` | whatever the repo `.env` points at |
 | `API_PORT` | `3000` internal → **4000** published | **4000** |
+
+Both sides are whatever *your* env files say — they are not the same account,
+and neither is guessable, which is why `smoke.sh` resolves them at run time
+instead of hardcoding a default.
 
 Read the container's values with:
 
@@ -128,6 +134,7 @@ into the transcript beyond what a login needs.
 ## Neighbours on the dev stack
 
 The same compose project also publishes `wyrhta-dev-kithledger-1` on **4002**
-and `wyrhta-dev-db-1` on **5432**. `kith-testdb` on **55432** is separate and
-holds `heorth_dev` plus the `heorth_test` database the backend suite requires
-(`tests/setup.ts` refuses any DB whose name does not end in `_test`).
+and `wyrhta-dev-db-1` on **5432**. The backend suite needs a **separate**
+`heorth_test` database — `tests/setup.ts` refuses any DB whose name does not end
+in `_test`, because it truncates every table between tests. Point `DATABASE_URL`
+at a primary database and you will lose its contents.

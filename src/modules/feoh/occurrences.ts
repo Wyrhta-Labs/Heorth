@@ -1,4 +1,5 @@
 import { db } from '../../db/index.js';
+import { isPgError } from '../../db/pg-errors.js';
 import { recurringBills, recurringOccurrences, transactions, type RecurringBill } from './schema.js';
 import { eq, and, isNull } from 'drizzle-orm';
 import { isCadence, projectDueDates, isProjectedDate, addPeriods, type Cadence } from './cadence.js';
@@ -89,7 +90,7 @@ async function resolveTarget(billId: string, dueDate: string) {
  *  same (billId, dueDate) — the unique index then raises 23505. Map that to
  *  the state error a re-read would have produced instead of leaking a 500. */
 function mapOccurrenceConflict(e: unknown, row: { skipped: boolean } | null): never {
-  if (e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === '23505') {
+  if (isPgError(e, '23505')) {
     throw new Error(row?.skipped ? 'ALREADY_SKIPPED' : 'ALREADY_PAID');
   }
   throw e;

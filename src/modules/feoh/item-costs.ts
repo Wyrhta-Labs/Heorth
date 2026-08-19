@@ -1,4 +1,5 @@
 import { db } from '../../db/index.js';
+import { isPgError } from '../../db/pg-errors.js';
 import { feohItemCosts, recurringBills, recurringOccurrences, transactions, type FeohItemCost, type Transaction, type RecurringBill } from './schema.js';
 import { inventoryItems, type InventoryItem } from '../inventory/schema.js';
 import { eq, and, isNotNull, inArray } from 'drizzle-orm';
@@ -36,7 +37,7 @@ export async function createItemCost(i: { transactionId: string; itemId: string;
     const [row] = await db.insert(feohItemCosts).values(i).returning();
     return row!;
   } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === '23505') {
+    if (isPgError(e, '23505')) {
       throw new Error('DUPLICATE_LINK');
     }
     throw e;

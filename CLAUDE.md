@@ -12,6 +12,9 @@ architecture and API surface.
   container that is a pure REST client. Never add an in-process MCP tool here —
   anything a tool needs must be reachable over `/api/v1`, and the REST surface
   is now the only path those tools have.
+  Since `@wyrhta/core` v0.3.0 (task A9) core no longer ships an `./mcp` entry
+  point and `@modelcontextprotocol/sdk` is not in Heorth's dependency tree at
+  all — an MCP import here would not even resolve.
 - **Modules** implement `HeorthModule` (`register(app)`) and are listed in
   `src/modules/index.ts` → `ALL_MODULES`. Routes mount under `/api/v1/<area>`;
   responses use `ok`/`err` from `@wyrhta/core/http`; auth via `requireAuth` /

@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`@wyrhta/core` pinned to v0.3.0 — the MCP SDK is gone from the dependency
+  tree** (task A9, Wyrhta-Labs/wyrhta-labs#1; ADR 0008). Core v0.3.0 removes the
+  `./mcp` scaffold (`createMcpServer`, `McpTool`, `AuthAdapter`,
+  `McpPrincipal`) and drops `@modelcontextprotocol/sdk` entirely. Heorth stopped
+  importing any of it in task A7, so this is a pin bump with no code change —
+  but it is the observable payoff of the migration: `npm ls
+  @modelcontextprotocol/sdk` is now empty and `package-lock.json` no longer
+  mentions the SDK at all (3 references before, 0 after). Backend suite
+  55 files / 373 tests and web suite 52 files / 262 tests are unchanged.
+
 - **The KithLedger reminders feed now presents a `household` key, not a member
   key** (task B8, Wyrhta-Labs/wyrhta-labs#1; ADR 0004 §2). KithLedger split
   ADR 0004's three principals into three separate credentials, so a `kl_` key

@@ -579,12 +579,40 @@ Integration tests hit a real PostgreSQL database (`tests/setup.ts` runs
 migrations and truncates every table before each test) and run in a single
 fork to avoid parallel DB conflicts. **`DATABASE_URL` must be exported into
 the shell manually before `npm test`** — it is not picked up from `.env`
-automatically by the test run:
+automatically by the test run.
+
+**The database name must end in `_test`.** The suite `TRUNCATE`s every
+application table between tests, so `tests/setup.ts` enforces an allowlist and
+refuses anything else — including your primary `heorth` database. This is not a
+style preference: the check replaced an earlier one that let a name like
+`heorth` through, and pointing `DATABASE_URL` at a live database silently wiped
+it.
+
+You do **not** need your development database for this. Because `tests/setup.ts`
+runs the migrations itself, an empty throwaway Postgres is enough, and it keeps
+the suite's `TRUNCATE`s away from anything you care about:
 
 ```bash
-export DATABASE_URL=postgres://heorth:<password>@localhost:5432/heorth
+docker run -d --rm --name heorth-test-db \
+  -e POSTGRES_USER=heorth -e POSTGRES_PASSWORD=testpw -e POSTGRES_DB=heorth_test \
+  -p 55499:5432 postgres:18-alpine
+until docker exec heorth-test-db pg_isready -U heorth -d heorth_test; do sleep 1; done
+
+DATABASE_URL=postgres://heorth:testpw@localhost:55499/heorth_test npm test
+
+docker rm -f heorth-test-db
+```
+
+Port 55499 is arbitrary — pick anything free that is not your development
+cluster's port. To reuse an existing server instead, create a separate database
+on it and point at that:
+
+```bash
+export DATABASE_URL=postgres://heorth:<password>@localhost:5432/heorth_test
 npm test
 ```
+
+The web suite (`cd web && npm test`) is jsdom-only and needs no database.
 
 `tests/setup.ts` also defaults `JWT_SECRET`/`HOUSEHOLD_NAME`/`ADMIN_EMAIL`/
 `ADMIN_PASSWORD` if unset, so only the database connection needs to be

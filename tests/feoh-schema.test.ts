@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { envelopes, transactions, expenseSplits } from '../src/modules/feoh/schema.js';
 import { identity } from '../src/wiring.js';
+import { pgErrorCode } from '../src/db/pg-errors.js';
 
 describe('feoh schema', () => {
   it('stores an envelope with a numeric budget', async () => {
@@ -23,9 +24,11 @@ describe('feoh schema', () => {
     // Explicit `onDelete: 'restrict'` (schema.ts) raises Postgres's
     // restrict_violation (23001), not foreign_key_violation (23503) — that
     // code is what Postgres's implicit NO ACTION default would have produced.
+    // Read the code through `pgErrorCode`, never off the thrown error: drizzle
+    // wraps it in a `DrizzleQueryError` that carries no `code` of its own.
     await expect(
       db.execute(sql`DELETE FROM users WHERE id = ${member.id}`),
-    ).rejects.toMatchObject({ code: '23001' });
+    ).rejects.toSatisfy((e: unknown) => pgErrorCode(e) === '23001');
   });
 
   it('restricts deleting a member referenced by an expense split (FK RESTRICT, 23001)', async () => {
@@ -43,8 +46,10 @@ describe('feoh schema', () => {
     // Explicit `onDelete: 'restrict'` (schema.ts) raises Postgres's
     // restrict_violation (23001), not foreign_key_violation (23503) — that
     // code is what Postgres's implicit NO ACTION default would have produced.
+    // Read the code through `pgErrorCode`, never off the thrown error: drizzle
+    // wraps it in a `DrizzleQueryError` that carries no `code` of its own.
     await expect(
       db.execute(sql`DELETE FROM users WHERE id = ${member.id}`),
-    ).rejects.toMatchObject({ code: '23001' });
+    ).rejects.toSatisfy((e: unknown) => pgErrorCode(e) === '23001');
   });
 });

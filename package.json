@@ -24,10 +24,10 @@
     "docker:reset": "docker compose down -v && docker compose up -d"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "@wyrhta/core": "^0.3.1",
-    "drizzle-orm": "^0.39.3",
-    "hono": "^4.7.4",
+    "@hono/node-server": "^1.19.17",
+    "@wyrhta/core": "^0.4.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.3",
     "postgres": "^3.4.5",
     "zod": "^3.24.2"
   },
@@ -35,7 +35,7 @@
     "@types/node": "^22.13.10",
     "@vitest/coverage-v8": "^3.0.8",
     "concurrently": "^9.2.1",
-    "drizzle-kit": "^0.30.4",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vitest": "^3.0.8"

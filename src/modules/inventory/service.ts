@@ -1,4 +1,5 @@
 import { db } from '../../db/index.js';
+import { isPgError } from '../../db/pg-errors.js';
 import { inventoryItems, type InventoryItem } from './schema.js';
 import { eq, and, isNull, isNotNull, ilike, or, sql } from 'drizzle-orm';
 import type { CreateItemInput, UpdateItemInput, DecommissionInput } from './validators.js';
@@ -88,8 +89,7 @@ export async function deleteItem(id: string): Promise<InventoryItem | null> {
     // raises either for ON DELETE RESTRICT — tests/feoh-schema.test.ts
     // documents both in this repo): feoh_item_costs.item_id or
     // recurring_bills.inventory_item_id — finance history exists.
-    if (e && typeof e === 'object' && 'code' in e
-        && ['23503', '23001'].includes((e as { code: string }).code)) {
+    if (isPgError(e, '23503', '23001')) {
       throw new Error('HAS_FINANCE_LINKS');
     }
     throw e;

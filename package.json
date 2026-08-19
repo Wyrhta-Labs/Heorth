@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "@wyrhta/core": "github:Wyrhta-Labs/wyrhta-core#v0.3.0",
+    "@wyrhta/core": "^0.3.1",
     "drizzle-orm": "^0.39.3",
     "hono": "^4.7.4",
     "postgres": "^3.4.5",
@@ -39,8 +39,5 @@
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vitest": "^3.0.8"
-  },
-  "allowScripts": {
-    "github:Wyrhta-Labs/wyrhta-core#87618273a8effe61f30668fb4d3a197f74a639cd": true
   }
 }

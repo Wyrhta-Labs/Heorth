@@ -23,6 +23,12 @@ architecture and API surface.
   `src/db/schema/drizzle-schema.ts` (drizzle-kit, no `.js`) and
   `src/db/schema/index.js` (runtime barrel, `.js`). Generate migrations with
   `npm run db:generate -- --name <name>` — never hand-edit snapshots.
+  **Never classify a query failure by reading `e.code`** — since drizzle-orm
+  0.44 every failed query is wrapped in a `DrizzleQueryError` whose own `code`
+  is `undefined` and whose `cause` is the `postgres.PostgresError`, so a direct
+  `e.code === '23505'` silently reads `undefined`, falls through, and turns a
+  mapped 409 into a raw 500. Go through `pgErrorCode` / `isPgError`
+  (`src/db/pg-errors.ts`), which walk the cause chain — in src *and* in tests.
 - **Tests** hit a real Postgres and truncate every table per test. `DATABASE_URL`
   MUST point at a database whose **name ends in `_test`** — `tests/setup.ts`
   enforces this as an allowlist and refuses anything else, including the primary

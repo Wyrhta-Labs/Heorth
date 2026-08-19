@@ -138,3 +138,11 @@ and `wyrhta-dev-db-1` on **5432**. The backend suite needs a **separate**
 `heorth_test` database — `tests/setup.ts` refuses any DB whose name does not end
 in `_test`, because it truncates every table between tests. Point `DATABASE_URL`
 at a primary database and you will lose its contents.
+
+**Do not reach for the dev stack to run the suite at all.** Nothing on this page
+is a prerequisite for `npm test`: `tests/setup.ts` runs the migrations itself, so
+a disposable container is enough, and it cannot truncate anything you care about.
+The command is in `README.md` → **Testing**. Use it when the cluster on 5432 is
+down, when you do not have `deploy/.env`, or by default — starting the dev stack
+to run tests buys nothing and puts a real database one typo away from the
+allowlist. This page is for **manual** testing: driving the running app.

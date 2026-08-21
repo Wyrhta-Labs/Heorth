@@ -557,6 +557,7 @@
       }
     },
     "empty": "No items yet.",
+    "loadMore": "Load more",
     "delete": "Delete",
     "deleteConfirm": "Delete {{name}}?",
     "deleted": "Item deleted",

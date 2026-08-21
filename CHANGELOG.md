@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A bad `events.recurrence` no longer takes down the calendar range view.**
+  `recurrence` is an ISO 8601 duration (`P1W`), but `createEventSchema` accepted
+  any string — so an RRULE (`FREQ=WEEKLY;BYDAY=TU`), the shape most people reach
+  for by habit, was stored happily. `GET /api/v1/events?from&to` expands every
+  event in the window, so that one row made the range view return **500 for the
+  whole household, on every request, permanently** — a write-time typo whose
+  cost landed on all readers until someone found and deleted the row.
+
+  Fixed at both ends. `createEventSchema`/`updateEventSchema` now reject an
+  unusable recurrence with a 400 naming the field, and `expandEvent` degrades an
+  unusable one to "not recurring" instead of throwing, so rows written before
+  the validator existed cost a lost expansion rather than an outage.
+
+  Also closes a second case the old regex allowed: `P`, `PT`, `P0D` and `PT0S`
+  all parsed but advanced the cursor by nothing, looping to the expander's 2000
+  iteration guard and emitting duplicate occurrences. Validation now requires a
+  duration that actually advances. `src/lib/duration.ts` grows
+  `parseDuration`/`isPositiveDuration` for this; `addDuration`'s behaviour is
+  unchanged.
+
 ### Removed
 
 - **The embedded MCP server is gone — Heorth is REST-only** (ADR 0008, task

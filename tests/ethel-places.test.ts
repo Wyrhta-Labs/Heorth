@@ -3,6 +3,11 @@ import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { ethelPlaces } from '../src/modules/ethel/schema.js';
 import * as places from '../src/modules/ethel/places.js';
+import { seedTestHousehold, authHeaders } from './helpers.js';
+import { createApp } from '../src/app.js';
+import { ALL_MODULES } from '../src/modules/index.js';
+
+const app = createApp(ALL_MODULES);
 
 describe('ethel_places schema', () => {
   it('inserts a root place', async () => {
@@ -120,5 +125,83 @@ describe('place service invariants', () => {
     const ids = await chain(3);
     const found = await places.descendantPlaceIds(ids[0]!);
     expect(found.sort()).toEqual(ids.sort());
+  });
+});
+
+describe('place routes', () => {
+  it('creates, lists flat with parentId, patches, and deletes', async () => {
+    const { adult } = await seedTestHousehold();
+    const h = authHeaders(adult.jwt);
+
+    const created = await app.request('/api/v1/ethel/places', {
+      method: 'POST', headers: h, body: JSON.stringify({ name: 'House', kind: 'building' }),
+    });
+    expect(created.status).toBe(201);
+    const { data: house } = await created.json() as { data: { id: string } };
+
+    const child = await app.request('/api/v1/ethel/places', {
+      method: 'POST', headers: h,
+      body: JSON.stringify({ name: 'Kitchen', kind: 'room', parentId: house.id }),
+    });
+    expect(child.status).toBe(201);
+
+    // Inserted last but alphabetically first: House, then Kitchen, then Attic
+    // went into the table in that order, so if listPlaces() ever regressed to
+    // "no ORDER BY" (or ORDER BY insertion order), the assertion below would
+    // fail - it only passes because of the explicit ORDER BY name.
+    const attic = await app.request('/api/v1/ethel/places', {
+      method: 'POST', headers: h, body: JSON.stringify({ name: 'Attic', kind: 'storage' }),
+    });
+    expect(attic.status).toBe(201);
+
+    const list = await app.request('/api/v1/ethel/places', { headers: h });
+    const body = await list.json() as { data: Array<{ name: string; parentId: string | null }> };
+    expect(body.data.map((p) => p.name)).toEqual(['Attic', 'House', 'Kitchen']); // sorted by name
+    expect(body.data.find((p) => p.name === 'Kitchen')!.parentId).toBe(house.id);
+
+    const patched = await app.request(`/api/v1/ethel/places/${house.id}`, {
+      method: 'PATCH', headers: h, body: JSON.stringify({ name: 'The House' }),
+    });
+    expect(patched.status).toBe(200);
+  });
+
+  it('surfaces the four domain errors with their codes', async () => {
+    const { adult } = await seedTestHousehold();
+    const h = authHeaders(adult.jwt);
+    const mk = async (body: unknown) => {
+      const res = await app.request('/api/v1/ethel/places', { method: 'POST', headers: h, body: JSON.stringify(body) });
+      return { status: res.status, body: await res.json() as { data?: { id: string }; error?: { code: string } } };
+    };
+
+    const a = await mk({ name: 'A', kind: 'building' });
+    const b = await mk({ name: 'B', kind: 'room', parentId: a.body.data!.id });
+
+    const dup = await mk({ name: 'b', kind: 'room', parentId: a.body.data!.id });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error!.code).toBe('PLACE_NAME_TAKEN');
+
+    const cycle = await app.request(`/api/v1/ethel/places/${a.body.data!.id}`, {
+      method: 'PATCH', headers: h, body: JSON.stringify({ parentId: b.body.data!.id }),
+    });
+    expect(cycle.status).toBe(400);
+    expect((await cycle.json() as { error: { code: string } }).error.code).toBe('PLACE_CYCLE');
+
+    const del = await app.request(`/api/v1/ethel/places/${a.body.data!.id}`, { method: 'DELETE', headers: h });
+    expect(del.status).toBe(409);
+    expect((await del.json() as { error: { code: string } }).error.code).toBe('PLACE_HAS_CHILDREN');
+
+    const orphan = await mk({ name: 'Orphan', kind: 'room', parentId: '00000000-0000-0000-0000-000000000000' });
+    expect(orphan.status).toBe(400);
+    expect(orphan.body.error!.code).toBe('PLACE_NOT_FOUND');
+  });
+
+  it('refuses a write from a child member and a read from nobody', async () => {
+    const { child } = await seedTestHousehold();
+    const write = await app.request('/api/v1/ethel/places', {
+      method: 'POST', headers: authHeaders(child.jwt), body: JSON.stringify({ name: 'X', kind: 'room' }),
+    });
+    expect(write.status).toBe(403);
+    const anon = await app.request('/api/v1/ethel/places');
+    expect(anon.status).toBe(401);
   });
 });

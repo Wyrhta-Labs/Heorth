@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.17",
-    "@wyrhta/core": "^0.4.0",
+    "@wyrhta/core": "^0.5.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.3",
     "postgres": "^3.4.5",

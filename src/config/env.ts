@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
+import { baseEnvSchema, emptyToUndefined, parseEnvOrExit } from '@wyrhta/core/config';
 
 // Load .env from the working directory for local dev (`npm run dev` etc.).
 // Never overrides variables already present in the environment — exported
@@ -24,22 +25,13 @@ if (process.env['VITEST'] === undefined) {
   }
 }
 
-/** Treat an empty string as "not provided" (undefined), then apply `inner`. */
-function emptyToUndefined<T extends z.ZodTypeAny>(inner: T) {
-  return z.preprocess((v) => (v === '' ? undefined : v), inner.optional());
-}
-
 export function buildEnvSchema() {
-  return z.object({
-    DATABASE_URL: z.string().url(),
+  return baseEnvSchema.extend({
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters for HS256 security'),
     HOUSEHOLD_NAME: z.string().min(1),
     ADMIN_EMAIL: z.string().email(),
     ADMIN_PASSWORD: z.string().min(1),
     API_PORT: z.coerce.number().int().positive().default(3000),
-    JWT_TTL_SECONDS: z.coerce.number().int().positive().default(604800),
-    CORS_ORIGIN: z.string().default('*'),
-    DB_POOL_MAX: z.coerce.number().int().positive().default(10),
     TRAKT_CLIENT_ID: z.string().min(1).optional(),
     TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
     LIBRARY_ENCRYPTION_KEY: z.string().min(1).optional(),
@@ -246,64 +238,58 @@ export function buildEnvSchema() {
   });
 }
 
-const parsed = buildEnvSchema().safeParse(process.env);
-
-if (!parsed.success) {
-  console.error('Invalid environment variables:');
-  console.error(parsed.error.flatten().fieldErrors);
-  process.exit(1);
-}
+const parsed = parseEnvOrExit(buildEnvSchema());
 
 export const config = {
-  databaseUrl: parsed.data.DATABASE_URL,
-  jwtSecret: parsed.data.JWT_SECRET,
-  householdName: parsed.data.HOUSEHOLD_NAME,
-  adminEmail: parsed.data.ADMIN_EMAIL,
-  adminPassword: parsed.data.ADMIN_PASSWORD,
-  port: parsed.data.API_PORT,
-  jwtTtlSeconds: parsed.data.JWT_TTL_SECONDS,
-  corsOrigin: parsed.data.CORS_ORIGIN,
-  dbPoolMax: parsed.data.DB_POOL_MAX,
-  traktClientId: parsed.data.TRAKT_CLIENT_ID,
-  traktClientSecret: parsed.data.TRAKT_CLIENT_SECRET,
-  libraryEncryptionKey: parsed.data.LIBRARY_ENCRYPTION_KEY,
+  databaseUrl: parsed.DATABASE_URL,
+  jwtSecret: parsed.JWT_SECRET,
+  householdName: parsed.HOUSEHOLD_NAME,
+  adminEmail: parsed.ADMIN_EMAIL,
+  adminPassword: parsed.ADMIN_PASSWORD,
+  port: parsed.API_PORT,
+  jwtTtlSeconds: parsed.JWT_TTL_SECONDS,
+  corsOrigin: parsed.CORS_ORIGIN,
+  dbPoolMax: parsed.DB_POOL_MAX,
+  traktClientId: parsed.TRAKT_CLIENT_ID,
+  traktClientSecret: parsed.TRAKT_CLIENT_SECRET,
+  libraryEncryptionKey: parsed.LIBRARY_ENCRYPTION_KEY,
   // Mirror poll interval (seconds). Independent optional tuning knob; the
   // scheduler floors it at 60s and only runs when the integration is enabled.
-  m365SyncIntervalSeconds: parsed.data.M365_SYNC_INTERVAL_SECONDS,
+  m365SyncIntervalSeconds: parsed.M365_SYNC_INTERVAL_SECONDS,
   // Resolved M365 config, or null when the integration is disabled (env absent).
   // The env schema guarantees this is all-or-nothing, so the presence of
   // M365_TENANT_ID implies the whole group is present.
   m365:
-    parsed.data.M365_TENANT_ID
+    parsed.M365_TENANT_ID
       ? {
-          tenantId: parsed.data.M365_TENANT_ID,
-          clientId: parsed.data.M365_CLIENT_ID!,
-          clientSecret: parsed.data.M365_CLIENT_SECRET!,
-          redirectUri: parsed.data.M365_REDIRECT_URI!,
-          familyMailbox: parsed.data.M365_FAMILY_MAILBOX!,
-          sharedTodoList: parsed.data.M365_SHARED_TODO_LIST!,
+          tenantId: parsed.M365_TENANT_ID,
+          clientId: parsed.M365_CLIENT_ID!,
+          clientSecret: parsed.M365_CLIENT_SECRET!,
+          redirectUri: parsed.M365_REDIRECT_URI!,
+          familyMailbox: parsed.M365_FAMILY_MAILBOX!,
+          sharedTodoList: parsed.M365_SHARED_TODO_LIST!,
         }
       : null,
   // Resolved KithLedger config, or null when the integration is disabled
   // (env absent). All-or-nothing like m365 above: KITH_BASE_URL present
   // implies KITH_API_KEY is present too.
   kith:
-    parsed.data.KITH_BASE_URL
+    parsed.KITH_BASE_URL
       ? {
-          baseUrl: parsed.data.KITH_BASE_URL,
+          baseUrl: parsed.KITH_BASE_URL,
           /**
            * The household dashboard credential (ADR 0004 §2.2) — read-only,
            * member-less, and limited to the `household`-visible slice. Never
            * a member key: see `keyKind`.
            */
-          apiKey: parsed.data.KITH_API_KEY!,
+          apiKey: parsed.KITH_API_KEY!,
           /**
            * Always `'household'` — the schema refuses any other declaration.
            * Carried in the config (rather than left implicit) so the one call
            * path that uses the key states which principal it presents, and so
            * a future member-scoped call path cannot quietly reuse this one.
            */
-          keyKind: (parsed.data.KITH_API_KEY_KIND ?? 'household') as 'household',
+          keyKind: (parsed.KITH_API_KEY_KIND ?? 'household') as 'household',
         }
       : null,
   // Resolved satellite signing config, or null when no key is configured
@@ -314,21 +300,21 @@ export const config = {
   // NOTE: this holds PRIVATE key material. Never log it, never return it over
   // the API — only the derived public half is ever published (src/satellite).
   satellite:
-    parsed.data.SATELLITE_SIGNING_KEY
+    parsed.SATELLITE_SIGNING_KEY
       ? {
           /** The ACTIVE key: the only one tokens are ever signed with. */
           active: {
-            material: parsed.data.SATELLITE_SIGNING_KEY,
-            kid: parsed.data.SATELLITE_SIGNING_KID!,
-            alg: parsed.data.SATELLITE_SIGNING_ALG ?? ('EdDSA' as const),
+            material: parsed.SATELLITE_SIGNING_KEY,
+            kid: parsed.SATELLITE_SIGNING_KID!,
+            alg: parsed.SATELLITE_SIGNING_ALG ?? ('EdDSA' as const),
           },
           /** Publish-only rotation-overlap key, or null when not rotating. */
           secondary:
-            parsed.data.SATELLITE_SIGNING_KEY_SECONDARY
+            parsed.SATELLITE_SIGNING_KEY_SECONDARY
               ? {
-                  material: parsed.data.SATELLITE_SIGNING_KEY_SECONDARY,
-                  kid: parsed.data.SATELLITE_SIGNING_KID_SECONDARY!,
-                  alg: parsed.data.SATELLITE_SIGNING_ALG_SECONDARY ?? ('EdDSA' as const),
+                  material: parsed.SATELLITE_SIGNING_KEY_SECONDARY,
+                  kid: parsed.SATELLITE_SIGNING_KID_SECONDARY!,
+                  alg: parsed.SATELLITE_SIGNING_ALG_SECONDARY ?? ('EdDSA' as const),
                 }
               : null,
         }
@@ -339,7 +325,7 @@ export const config = {
    * minted optimistically, so the exchange endpoint stays inert until an
    * operator names a satellite here.
    */
-  satelliteAudiences: (parsed.data.SATELLITE_AUDIENCES ?? []) as readonly string[],
+  satelliteAudiences: (parsed.SATELLITE_AUDIENCES ?? []) as readonly string[],
 } as const;
 
 /** The resolved Microsoft 365 config shape (present only when enabled). */

@@ -92,7 +92,8 @@ export const LEDGER_PAGE_SIZE = 50;
  * Inventory list page size. Must stay within the server's `limit` cap of 100
  * (`src/modules/inventory/validators.ts`) — the page previously asked for 200
  * and every load 400ed. `web/src/pages/inventory.contract.test.tsx` validates
- * the page's real requests against that schema, so a drift breaks loudly.
+ * the page's real requests against the mirrored schema
+ * (`web/src/api/inventory-query.ts`), so a drift breaks loudly.
  */
 export const INVENTORY_PAGE_SIZE = 50;
 

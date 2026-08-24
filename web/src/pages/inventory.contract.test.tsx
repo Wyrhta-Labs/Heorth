@@ -7,19 +7,22 @@
  * the page asked for `limit=200` against a schema capped at 100 and every load
  * 400ed with VALIDATION_ERROR while the suite stayed green.
  *
- * So this file imports the real server-side Zod schema — the one cross-project
- * import in the web suite, and a deliberate one: nothing weaker catches param
- * drift, because it takes whatever the page ACTUALLY sends rather than a
- * hand-copied literal. It replays each captured params object through the real
- * `qs()` serializer, so what is validated is the query string as it would go on
- * the wire (strings, `''`/`undefined` already dropped), not the typed object.
+ * The server's schema cannot be imported here: web/ and the backend are
+ * independent dependency trees — the web image stage and the CI web job see
+ * neither backend source nor backend node_modules. The contract is therefore
+ * mirrored in `@/api/inventory-query` and pinned on both sides: this test
+ * validates whatever the page ACTUALLY sends against the mirror, and
+ * `tests/inventory-routes.test.ts` pins the server half. It replays each
+ * captured params object through the real `qs()` serializer, so what is
+ * validated is the query string as it would go on the wire (strings,
+ * `''`/`undefined` already dropped), not the typed object.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { InventoryItem } from '@/lib/types';
 import { qs } from '@/api/client';
-import { listItemsQuerySchema } from '../../../src/modules/inventory/validators';
+import { listItemsQuerySchema } from '@/api/inventory-query';
 
 const listItems = vi.fn();
 const createItem = vi.fn();

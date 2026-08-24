@@ -153,6 +153,7 @@ describe('place routes', () => {
       method: 'POST', headers: h, body: JSON.stringify({ name: 'Attic', kind: 'storage' }),
     });
     expect(attic.status).toBe(201);
+    const { data: atticPlace } = await attic.json() as { data: { id: string } };
 
     const list = await app.request('/api/v1/ethel/places', { headers: h });
     const body = await list.json() as { data: Array<{ name: string; parentId: string | null }> };
@@ -163,6 +164,17 @@ describe('place routes', () => {
       method: 'PATCH', headers: h, body: JSON.stringify({ name: 'The House' }),
     });
     expect(patched.status).toBe(200);
+
+    // Attic is a childless leaf, so it deletes cleanly (unlike House, which
+    // still has Kitchen and would hit PLACE_HAS_CHILDREN).
+    const deleted = await app.request(`/api/v1/ethel/places/${atticPlace.id}`, {
+      method: 'DELETE', headers: h,
+    });
+    expect(deleted.status).toBe(200);
+
+    const listAfterDelete = await app.request('/api/v1/ethel/places', { headers: h });
+    const bodyAfterDelete = await listAfterDelete.json() as { data: Array<{ name: string }> };
+    expect(bodyAfterDelete.data.map((p) => p.name)).toEqual(['Kitchen', 'The House']);
   });
 
   it('surfaces the four domain errors with their codes', async () => {

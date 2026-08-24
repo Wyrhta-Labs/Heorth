@@ -214,6 +214,41 @@ export interface EthelPlace {
   notes: string | null;
 }
 
+// ---- Ethel details (hand-synced from src/modules/ethel/schema.ts) ----
+export interface EthelVehicle {
+  assetId: string;
+  registration: string | null;
+  vin: string | null;
+  firstRegisteredOn: string | null;
+  odometer: number | null;
+  odometerReadAt: string | null;
+  /** Documentation only: the manufacturer's stated interval. Nothing schedules
+   *  from it and nothing derives a due date - the routine that acts on it is
+   *  Weorc's (ADR 0014). */
+  serviceIntervalMonths: number | null;
+}
+
+export type FacilityKind = 'heating' | 'water' | 'electrical' | 'solar' | 'sewage' | 'ventilation' | 'network' | 'other';
+
+export interface EthelFacility {
+  assetId: string;
+  kind: FacilityKind;
+  commissionedOn: string | null;
+  /** Same as EthelVehicle.serviceIntervalMonths: documentation, never a trigger. */
+  serviceIntervalMonths: number | null;
+  servesPlaceIds: string[];
+}
+
+/** GET /ethel/assets/:id inlines both details; the LIST does not.
+ *
+ *  At most ONE of the two is ever non-null: the server answers 409
+ *  ASSET_DETAIL_CONFLICT for a second detail row on the same asset, so the
+ *  presence of one is what tells the UI to hide the other's action. */
+export interface EthelAssetDetail extends EthelAsset {
+  vehicle: EthelVehicle | null;
+  facility: EthelFacility | null;
+}
+
 // ---- Feoh occurrences / item-costs / ledger (hand-synced from src/modules/feoh) ----
 export type OccurrenceStatus = 'planned' | 'paid' | 'overdue' | 'skipped' | 'unknown';
 

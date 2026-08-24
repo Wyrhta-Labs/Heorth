@@ -1,5 +1,5 @@
-import { apiGet, apiPost, apiPatch, apiDelete, qs } from './client';
-import type { ListResponse, SingleResponse, EthelAsset, EthelPlace, PlaceKind, DecommissionReason } from '@/lib/types';
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete, qs } from './client';
+import type { ListResponse, SingleResponse, EthelAsset, EthelAssetDetail, EthelVehicle, EthelFacility, EthelPlace, PlaceKind, FacilityKind, DecommissionReason } from '@/lib/types';
 
 export interface AssetInput {
   name: string;
@@ -33,6 +33,10 @@ export function listAssets(
     q?: string;
     placeId?: string;
     includeDescendants?: 'true' | 'false';
+    // Same string-enum reasoning as includeDescendants. Unlike it, this one
+    // stands alone - it needs no placeId.
+    hasFacility?: 'true';
+    servesPlaceId?: string;
     limit?: number;
     offset?: number;
   } = {},
@@ -40,10 +44,42 @@ export function listAssets(
   return apiGet(`/ethel/assets${qs(params)}`);
 }
 export function createAsset(input: AssetInput): Promise<SingleResponse<EthelAsset>> { return apiPost('/ethel/assets', input); }
-export function getAsset(id: string): Promise<SingleResponse<EthelAsset>> { return apiGet(`/ethel/assets/${id}`); }
+/** The single-asset read inlines `vehicle` and `facility`; the LIST does not. */
+export function getAsset(id: string): Promise<SingleResponse<EthelAssetDetail>> { return apiGet(`/ethel/assets/${id}`); }
 export function updateAsset(id: string, input: Partial<AssetInput>): Promise<SingleResponse<EthelAsset>> { return apiPatch(`/ethel/assets/${id}`, input); }
 export function decommissionAsset(id: string, input: DecommissionInput): Promise<SingleResponse<EthelAsset>> { return apiPost(`/ethel/assets/${id}/decommission`, input); }
 export function deleteAsset(id: string): Promise<SingleResponse<{ id: string }>> { return apiDelete(`/ethel/assets/${id}`); }
+
+export interface VehicleInput {
+  registration?: string | null;
+  vin?: string | null;
+  firstRegisteredOn?: string | null;
+  // The server has a CHECK, mirrored in its validator, that these two are set
+  // together: a mileage with no reading date is not a fact. The form enables
+  // them together so this pair can never be half-filled on the wire.
+  odometer?: number | null;
+  odometerReadAt?: string | null;
+  serviceIntervalMonths?: number | null;
+}
+
+export interface FacilityInput {
+  kind: FacilityKind;
+  commissionedOn?: string | null;
+  serviceIntervalMonths?: number | null;
+  /** Sent in FULL every time: the server replaces the served set wholesale
+   *  rather than merging, so an omitted id is a removal. Duplicates are
+   *  harmless - the server's validator dedupes them. */
+  servesPlaceIds?: string[];
+}
+
+/** PUT, not POST: one detail row per asset, so the write is idempotent. The
+ *  server answers 201 on create and 200 on update, and 409
+ *  ASSET_DETAIL_CONFLICT when the asset already has the OTHER kind of
+ *  detail - which the UI avoids by hiding the other action. */
+export function upsertVehicle(id: string, input: VehicleInput): Promise<SingleResponse<EthelVehicle>> { return apiPut(`/ethel/assets/${id}/vehicle`, input); }
+export function deleteVehicle(id: string): Promise<SingleResponse<{ assetId: string }>> { return apiDelete(`/ethel/assets/${id}/vehicle`); }
+export function upsertFacility(id: string, input: FacilityInput): Promise<SingleResponse<EthelFacility>> { return apiPut(`/ethel/assets/${id}/facility`, input); }
+export function deleteFacility(id: string): Promise<SingleResponse<{ assetId: string }>> { return apiDelete(`/ethel/assets/${id}/facility`); }
 
 export interface PlaceInput {
   name: string;

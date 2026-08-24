@@ -30,6 +30,11 @@ export default function EthelPage() {
   const [q, setQ] = useState('');
   const [placeId, setPlaceId] = useState<string | null>(null);
   const [includeDescendants, setIncludeDescendants] = useState(false);
+  const [hasFacility, setHasFacility] = useState(false);
+  // Set from the place manager's "systems serving this place" link. Unlike
+  // placeId this is not "where the asset lives" but "what it serves", so the
+  // two are independent filters and can be combined.
+  const [servesPlaceId, setServesPlaceId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [selected, setSelected] = useState<EthelAsset | null>(null);
@@ -53,6 +58,10 @@ export default function EthelPage() {
     // includeDescendants without placeId, and the toggle below is disabled in
     // that state so the combination cannot be constructed at all.
     includeDescendants: placeId && includeDescendants ? 'true' : undefined,
+    // Only ever the string 'true' - an unset filter is omitted rather than
+    // sent as 'false', so the query string carries no dead params.
+    hasFacility: hasFacility ? 'true' : undefined,
+    servesPlaceId: servesPlaceId ?? undefined,
     limit: ETHEL_PAGE_SIZE,
     offset,
   });
@@ -68,7 +77,7 @@ export default function EthelPage() {
     appendedOffsets.current = new Set();
     lastDataUpdatedAt.current = 0;
     setOffset(0);
-  }, [status, q, placeId, includeDescendants]);
+  }, [status, q, placeId, includeDescendants, hasFacility, servesPlaceId]);
 
   useEffect(() => {
     const data = assetsQuery.data;
@@ -185,6 +194,26 @@ export default function EthelPage() {
           />
           {t('ethel.places.includeContents')}
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={hasFacility}
+            onChange={(e) => setHasFacility(e.target.checked)}
+          />
+          {t('ethel.filterFacilities')}
+        </label>
+        {servesPlaceId && (
+          // Clicking it clears the filter: the chip is both the statement that
+          // the filter is on and the way out of it, so a member who followed
+          // the link from the place manager is not stranded in a filtered list.
+          <button
+            type="button"
+            onClick={() => setServesPlaceId(null)}
+            className="rounded-full bg-ember px-3 py-1 text-sm font-medium text-white"
+          >
+            {t('ethel.places.servingThis')}: {placePath(places, servesPlaceId)} ×
+          </button>
+        )}
       </div>
 
       {assets.length === 0 ? (
@@ -228,7 +257,14 @@ export default function EthelPage() {
 
       <AssetDetail asset={displayedAsset} places={places} onClose={() => setSelected(null)} />
 
-      <PlaceManager open={placesOpen} onClose={() => setPlacesOpen(false)} />
+      <PlaceManager
+        open={placesOpen}
+        onClose={() => setPlacesOpen(false)}
+        onShowServing={(id) => {
+          setServesPlaceId(id);
+          setPlacesOpen(false);
+        }}
+      />
     </div>
   );
 }

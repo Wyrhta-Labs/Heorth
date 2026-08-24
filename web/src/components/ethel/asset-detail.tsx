@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useFormatters } from '@/hooks/use-formatters';
 import { useItemCosts, useCreateItemCost, useTransactions } from '@/hooks/use-feoh';
-import { useDeleteAsset } from '@/hooks/use-ethel';
+import { useDeleteAsset, useAsset } from '@/hooks/use-ethel';
 import { ApiError } from '@/api/client';
 import DecommissionDialog from './decommission-dialog';
+import VehicleDetails from './vehicle-details';
+import FacilityDetails from './facility-details';
 import { lifecycleLine } from './lifecycle';
 import { placePath } from '@/lib/place-tree';
 import type { EthelAsset, EthelPlace, ItemCostKind } from '@/lib/types';
@@ -36,6 +38,18 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkTransactionId, setLinkTransactionId] = useState('');
   const [linkKind, setLinkKind] = useState<ItemCostKind>('repair');
+  // Which detail panel the member has OPENED for an asset that has neither.
+  // An existing detail row shows its panel regardless of this.
+  const [adding, setAdding] = useState<'vehicle' | 'facility' | null>(null);
+  // The LIST row carries no details, so the panel reads the single-asset
+  // endpoint, which inlines both. `asset` stays the source of the lifecycle
+  // fields the list already refreshes.
+  const detailQuery = useAsset(asset?.id ?? '');
+
+  // A different asset starts with no panel open: `adding` is about the asset
+  // in front of the member, and this component is kept mounted across
+  // selections.
+  useEffect(() => setAdding(null), [asset?.id]);
 
   if (!asset) return null;
 
@@ -43,6 +57,15 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
   const links = costsQuery.data?.data.links ?? [];
   const transactions = transactionsQuery.data?.data ?? [];
   const lifecycle = lifecycleLine(asset, t, formatDate, formatMoney);
+  const vehicle = detailQuery.data?.data.vehicle ?? null;
+  const facility = detailQuery.data?.data.facility ?? null;
+  // An asset carries AT MOST ONE detail row - the server answers 409
+  // ASSET_DETAIL_CONFLICT for the second - so once either exists, the other's
+  // action goes away. That is the server rule expressed as UI rather than as
+  // an error a member has to read. Note what this does NOT consult:
+  // `asset.category`. Category is free text and always was, so the detail
+  // row's presence is the only signal of what kind of thing this is.
+  const canAddDetail = !vehicle && !facility;
 
   const submitLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,6 +171,28 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
                 )}
               </CardContent>
             </Card>
+
+            {(vehicle || adding === 'vehicle') && (
+              <VehicleDetails assetId={asset.id} vehicle={vehicle} onRemoved={() => setAdding(null)} />
+            )}
+            {(facility || adding === 'facility') && (
+              <FacilityDetails assetId={asset.id} facility={facility} places={places} onRemoved={() => setAdding(null)} />
+            )}
+
+            {/* Both actions, or neither. Opening one form also withdraws the
+                other action: two open forms would let the member fill in both
+                and meet the 409 on the second save, which is exactly the
+                error this arrangement exists to prevent. */}
+            {canAddDetail && adding === null && (
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setAdding('vehicle')}>
+                  {t('ethel.vehicle.add')}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setAdding('facility')}>
+                  {t('ethel.facility.add')}
+                </Button>
+              </div>
+            )}
 
             <div className="flex justify-between pt-2">
               <Button type="button" variant="outline" onClick={() => setDecommissionOpen(true)} disabled={!!asset.decommissionedAt}>

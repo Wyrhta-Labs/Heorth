@@ -16,6 +16,10 @@ export const PLACE_KINDS: PlaceKind[] = ['building', 'floor', 'room', 'outdoor',
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Filter the asset list to the facilities SERVING this place
+   *  (`?servesPlaceId=`). Optional: the manager is useful without it, and a
+   *  caller with nowhere to send the member should not render the link. */
+  onShowServing?: (placeId: string) => void;
 }
 
 /** Maps the module's place error codes to plain language. A raw
@@ -36,7 +40,7 @@ function usePlaceError(): (e: unknown) => string {
 }
 
 /** Manage the place tree: rename, re-kind, reparent, delete, add. */
-export default function PlaceManager({ open, onClose }: Props) {
+export default function PlaceManager({ open, onClose, onShowServing }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const describeError = usePlaceError();
@@ -134,6 +138,19 @@ export default function PlaceManager({ open, onClose }: Props) {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
+                  {onShowServing && (
+                    // "What serves this place", which is NOT "what lives in
+                    // this place": a boiler in the cellar serves the whole
+                    // house, so servesPlaceId is a different question from
+                    // placeId and gets its own entry point.
+                    <button
+                      type="button"
+                      onClick={() => onShowServing(place.id)}
+                      className="text-xs text-ember underline"
+                    >
+                      {t('ethel.places.servingThis')}
+                    </button>
+                  )}
                   <PlacePicker
                     id={`place-parent-${place.id}`}
                     places={places}

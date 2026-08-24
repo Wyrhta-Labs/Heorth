@@ -523,6 +523,7 @@
       "tooDeep": "Places may not nest more than 6 deep.",
       "nameTaken": "A place with that name already exists here.",
       "notFound": "That place no longer exists.",
+      "servingThis": "Systems serving this place",
       "kinds": {
         "building": "Building",
         "floor": "Floor",
@@ -543,6 +544,42 @@
       "purchasePrice": "Purchase price",
       "purchaseDate": "Purchase date"
     },
+    "vehicle": {
+      "title": "Vehicle",
+      "add": "Add vehicle details",
+      "registration": "Registration",
+      "vin": "VIN",
+      "firstRegisteredOn": "First registered",
+      "odometer": "Odometer (km)",
+      "odometerReadAt": "Odometer read on",
+      "registrationTaken": "That registration is already recorded on another asset.",
+      "vinTaken": "That VIN is already recorded on another asset."
+    },
+    "facility": {
+      "title": "Facility",
+      "add": "Add facility details",
+      "kind": "Facility kind",
+      "commissionedOn": "Commissioned on",
+      "serves": "Serves these places",
+      "placeNotFound": "One of the selected places no longer exists.",
+      "kinds": {
+        "heating": "Heating",
+        "water": "Water",
+        "electrical": "Electrical",
+        "solar": "Solar",
+        "sewage": "Sewage",
+        "ventilation": "Ventilation",
+        "network": "Network",
+        "other": "Other"
+      }
+    },
+    "details": {
+      "interval": "Service interval (months)",
+      "intervalHelp": "From the manual. Recording a routine that acts on it comes later.",
+      "remove": "Remove details",
+      "removeConfirm": "Remove these details?"
+    },
+    "filterFacilities": "Facilities",
     "lifecycle": {
       "purchased": "Purchased {{date}} for {{price}}",
       "warranty": "Warranty until {{date}}",

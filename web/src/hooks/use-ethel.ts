@@ -46,6 +46,59 @@ export function useDeleteAsset() {
   });
 }
 
+/** The single-asset read, which inlines the vehicle/facility details the LIST
+ *  omits. Skipped for an empty id so the closed detail panel makes no request. */
+export function useAsset(id: string) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.ethel, 'asset', id],
+    queryFn: () => api.getAsset(id),
+    enabled: !!id,
+  });
+}
+
+/** Every detail mutation invalidates the whole `ethel` key, not just this
+ *  asset: the list's `hasFacility` / `servesPlaceId` filters change the moment
+ *  a detail row appears or goes, so a loaded page is stale either way. The
+ *  asset key is a child of `ethel`, so the prefix invalidation covers it -
+ *  it is named explicitly all the same, because that is the key the open
+ *  panel actually reads. */
+function invalidateDetail(qc: ReturnType<typeof useQueryClient>, id: string): void {
+  qc.invalidateQueries({ queryKey: [...QUERY_KEYS.ethel, 'asset', id] });
+  qc.invalidateQueries({ queryKey: QUERY_KEYS.ethel });
+}
+
+export function useUpsertVehicle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: api.VehicleInput }) => api.upsertVehicle(id, input),
+    onSuccess: (_, vars) => invalidateDetail(qc, vars.id),
+  });
+}
+
+export function useDeleteVehicle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteVehicle(id),
+    onSuccess: (_, id) => invalidateDetail(qc, id),
+  });
+}
+
+export function useUpsertFacility() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: api.FacilityInput }) => api.upsertFacility(id, input),
+    onSuccess: (_, vars) => invalidateDetail(qc, vars.id),
+  });
+}
+
+export function useDeleteFacility() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteFacility(id),
+    onSuccess: (_, id) => invalidateDetail(qc, id),
+  });
+}
+
 export function usePlaces() {
   return useQuery({ queryKey: QUERY_KEYS.ethelPlaces, queryFn: () => api.listPlaces() });
 }

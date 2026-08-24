@@ -11,6 +11,10 @@ const getAsset = vi.fn();
 const updateAsset = vi.fn();
 const decommissionAsset = vi.fn();
 const deleteAsset = vi.fn();
+const upsertVehicle = vi.fn();
+const deleteVehicle = vi.fn();
+const upsertFacility = vi.fn();
+const deleteFacility = vi.fn();
 
 const listPlaces = vi.fn((..._args: unknown[]) => Promise.resolve({ data: [] }));
 const createPlace = vi.fn();
@@ -24,6 +28,10 @@ vi.mock('@/api/ethel', () => ({
   updateAsset: (...args: unknown[]) => updateAsset(...args),
   decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
   deleteAsset: (...args: unknown[]) => deleteAsset(...args),
+  upsertVehicle: (...args: unknown[]) => upsertVehicle(...args),
+  deleteVehicle: (...args: unknown[]) => deleteVehicle(...args),
+  upsertFacility: (...args: unknown[]) => upsertFacility(...args),
+  deleteFacility: (...args: unknown[]) => deleteFacility(...args),
   listPlaces: (...args: unknown[]) => listPlaces(...args),
   createPlace: (...args: unknown[]) => createPlace(...args),
   updatePlace: (...args: unknown[]) => updatePlace(...args),
@@ -74,6 +82,7 @@ beforeEach(async () => {
   // AssetDetail/DecommissionDialog always call useTransactions() for the "link
   // sale" picker, even before an asset is selected.
   listTransactions.mockResolvedValue({ data: [], meta: { total: 0 } });
+  getAsset.mockResolvedValue({ data: { ...asset1, vehicle: null, facility: null } });
 });
 
 afterEach(async () => {
@@ -132,7 +141,7 @@ describe('EthelPage in German', () => {
     listAssets.mockResolvedValue({ data: [asset1], meta: { total: 1 } });
     getItemCosts.mockResolvedValue({
       data: {
-        asset: asset1,
+        item: asset1,
         links: [],
         recurringBills: [],
         totals: { capital: 120, tier2: 0, recurring: 0, proceeds: 0, total: 120, perYear: 40, lifetimeDays: 1095 },

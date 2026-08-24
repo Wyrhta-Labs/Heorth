@@ -30,6 +30,10 @@ const getAsset = vi.fn();
 const updateAsset = vi.fn();
 const decommissionAsset = vi.fn();
 const deleteAsset = vi.fn();
+const upsertVehicle = vi.fn();
+const deleteVehicle = vi.fn();
+const upsertFacility = vi.fn();
+const deleteFacility = vi.fn();
 
 const listPlaces = vi.fn();
 const createPlace = vi.fn();
@@ -43,6 +47,10 @@ vi.mock('@/api/ethel', () => ({
   updateAsset: (...args: unknown[]) => updateAsset(...args),
   decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
   deleteAsset: (...args: unknown[]) => deleteAsset(...args),
+  upsertVehicle: (...args: unknown[]) => upsertVehicle(...args),
+  deleteVehicle: (...args: unknown[]) => deleteVehicle(...args),
+  upsertFacility: (...args: unknown[]) => upsertFacility(...args),
+  deleteFacility: (...args: unknown[]) => deleteFacility(...args),
   listPlaces: (...args: unknown[]) => listPlaces(...args),
   createPlace: (...args: unknown[]) => createPlace(...args),
   updatePlace: (...args: unknown[]) => updatePlace(...args),
@@ -66,6 +74,7 @@ const KITCHEN = '22222222-2222-4222-8222-222222222222';
 
 beforeEach(() => {
   listTransactions.mockResolvedValue({ data: [], meta: { total: 0 } });
+  getAsset.mockResolvedValue({ data: { ...asset('i1', 'Drill'), vehicle: null, facility: null } });
   listPlaces.mockResolvedValue({
     data: [
       { id: HOUSE, createdAt: '', updatedAt: '', name: 'House', kind: 'building', parentId: null, notes: null },
@@ -220,6 +229,35 @@ describe('EthelPage → server query contract', () => {
       const p = (params ?? {}) as Record<string, unknown>;
       if (p.includeDescendants !== undefined) expect(p.placeId).toBeTruthy();
     }
+    assertEveryRequestAccepted();
+  });
+
+  it('sends the facilities filter that the server accepts', async () => {
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
+    renderPage();
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByLabelText('Facilities'));
+    // The string 'true', never a boolean and never 'false': the mirror is a
+    // z.enum, and an unset filter is omitted rather than sent as 'false'.
+    await waitFor(() => expect(listAssets.mock.calls.some(([p]) => p?.hasFacility === 'true')).toBe(true));
+    assertEveryRequestAccepted();
+  });
+
+  it('sends the serves-this-place filter from the place manager, as a uuid the server accepts', async () => {
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
+    renderPage();
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Manage places'));
+    const links = await screen.findAllByText('Systems serving this place');
+    fireEvent.click(links[0]!);
+
+    // servesPlaceId is z.string().uuid() on both sides, so a non-uuid id would
+    // be a 400 the mirror catches here rather than in production.
+    await waitFor(() => expect(listAssets.mock.calls.some(([p]) => typeof p?.servesPlaceId === 'string')).toBe(true));
+    // The dialog closes, so the member lands on the filtered list.
+    await waitFor(() => expect(screen.queryByText('Systems serving this place')).toBeNull());
     assertEveryRequestAccepted();
   });
 });

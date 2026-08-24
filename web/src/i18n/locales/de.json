@@ -523,6 +523,7 @@
       "tooDeep": "Orte dürfen nicht tiefer als 6 Ebenen verschachtelt sein.",
       "nameTaken": "Hier gibt es schon einen Ort mit diesem Namen.",
       "notFound": "Dieser Ort existiert nicht mehr.",
+      "servingThis": "Anlagen, die diesen Ort versorgen",
       "kinds": {
         "building": "Gebäude",
         "floor": "Etage",
@@ -543,6 +544,42 @@
       "purchasePrice": "Kaufpreis",
       "purchaseDate": "Kaufdatum"
     },
+    "vehicle": {
+      "title": "Fahrzeug",
+      "add": "Fahrzeugdaten hinzufügen",
+      "registration": "Kennzeichen",
+      "vin": "FIN",
+      "firstRegisteredOn": "Erstzulassung",
+      "odometer": "Kilometerstand (km)",
+      "odometerReadAt": "Stand abgelesen am",
+      "registrationTaken": "Dieses Kennzeichen ist schon bei einem anderen Gegenstand erfasst.",
+      "vinTaken": "Diese FIN ist schon bei einem anderen Gegenstand erfasst."
+    },
+    "facility": {
+      "title": "Anlage",
+      "add": "Anlagendaten hinzufügen",
+      "kind": "Anlagenart",
+      "commissionedOn": "In Betrieb seit",
+      "serves": "Versorgt diese Orte",
+      "placeNotFound": "Einer der ausgewählten Orte existiert nicht mehr.",
+      "kinds": {
+        "heating": "Heizung",
+        "water": "Wasser",
+        "electrical": "Elektrik",
+        "solar": "Solar",
+        "sewage": "Abwasser",
+        "ventilation": "Lüftung",
+        "network": "Netzwerk",
+        "other": "Sonstiges"
+      }
+    },
+    "details": {
+      "interval": "Wartungsintervall (Monate)",
+      "intervalHelp": "Aus der Anleitung. Eine Routine, die darauf reagiert, kommt später.",
+      "remove": "Details entfernen",
+      "removeConfirm": "Diese Details entfernen?"
+    },
+    "filterFacilities": "Anlagen",
     "lifecycle": {
       "purchased": "Gekauft am {{date}} für {{price}}",
       "warranty": "Garantie bis {{date}}",

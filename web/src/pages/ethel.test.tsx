@@ -10,6 +10,11 @@ const updateAsset = vi.fn();
 const decommissionAsset = vi.fn();
 const deleteAsset = vi.fn();
 
+const listPlaces = vi.fn((..._args: unknown[]) => Promise.resolve({ data: [] }));
+const createPlace = vi.fn();
+const updatePlace = vi.fn();
+const deletePlace = vi.fn();
+
 vi.mock('@/api/ethel', () => ({
   listAssets: (...args: unknown[]) => listAssets(...args),
   createAsset: (...args: unknown[]) => createAsset(...args),
@@ -17,6 +22,10 @@ vi.mock('@/api/ethel', () => ({
   updateAsset: (...args: unknown[]) => updateAsset(...args),
   decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
   deleteAsset: (...args: unknown[]) => deleteAsset(...args),
+  listPlaces: (...args: unknown[]) => listPlaces(...args),
+  createPlace: (...args: unknown[]) => createPlace(...args),
+  updatePlace: (...args: unknown[]) => updatePlace(...args),
+  deletePlace: (...args: unknown[]) => deletePlace(...args),
 }));
 
 const getItemCosts = vi.fn();

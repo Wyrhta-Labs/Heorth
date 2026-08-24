@@ -12,6 +12,11 @@ const updateAsset = vi.fn();
 const decommissionAsset = vi.fn();
 const deleteAsset = vi.fn();
 
+const listPlaces = vi.fn((..._args: unknown[]) => Promise.resolve({ data: [] }));
+const createPlace = vi.fn();
+const updatePlace = vi.fn();
+const deletePlace = vi.fn();
+
 vi.mock('@/api/ethel', () => ({
   listAssets: (...args: unknown[]) => listAssets(...args),
   createAsset: (...args: unknown[]) => createAsset(...args),
@@ -19,6 +24,10 @@ vi.mock('@/api/ethel', () => ({
   updateAsset: (...args: unknown[]) => updateAsset(...args),
   decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
   deleteAsset: (...args: unknown[]) => deleteAsset(...args),
+  listPlaces: (...args: unknown[]) => listPlaces(...args),
+  createPlace: (...args: unknown[]) => createPlace(...args),
+  updatePlace: (...args: unknown[]) => updatePlace(...args),
+  deletePlace: (...args: unknown[]) => deletePlace(...args),
 }));
 
 const getItemCosts = vi.fn();
@@ -132,7 +141,7 @@ describe('EthelPage in German', () => {
     renderWithClient(<EthelPage />);
 
     expect(screen.getByText('Ethel')).toBeInTheDocument();
-    expect(screen.getByText('Neues Objekt')).toBeInTheDocument();
+    expect(screen.getByText('Neuer Gegenstand')).toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByText('Drill')).toBeInTheDocument());
     fireEvent.click(screen.getByText('Drill'));

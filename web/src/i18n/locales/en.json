@@ -506,6 +506,31 @@
     "filterAll": "All",
     "filterActive": "Active",
     "filterDecommissioned": "Decommissioned",
+    "places": {
+      "title": "Places",
+      "place": "Place",
+      "manage": "Manage places",
+      "add": "Add place",
+      "none": "No place",
+      "empty": "No places yet.",
+      "kind": "Kind",
+      "parent": "Inside",
+      "includeContents": "Include contents",
+      "deleteConfirm": "Delete {{name}}?",
+      "deleteUnassigns": "Assets in this place will be unassigned.",
+      "hasChildren": "Move or delete the places inside it first.",
+      "cycle": "A place cannot be inside itself.",
+      "tooDeep": "Places may not nest more than 6 deep.",
+      "nameTaken": "A place with that name already exists here.",
+      "notFound": "That place no longer exists.",
+      "kinds": {
+        "building": "Building",
+        "floor": "Floor",
+        "room": "Room",
+        "outdoor": "Outdoors",
+        "storage": "Storage"
+      }
+    },
     "fields": {
       "name": "Name",
       "category": "Category",

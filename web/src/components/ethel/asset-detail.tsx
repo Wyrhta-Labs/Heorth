@@ -10,16 +10,21 @@ import { useDeleteAsset } from '@/hooks/use-ethel';
 import { ApiError } from '@/api/client';
 import DecommissionDialog from './decommission-dialog';
 import { lifecycleLine } from './lifecycle';
-import type { EthelAsset, ItemCostKind } from '@/lib/types';
+import { placePath } from '@/lib/place-tree';
+import type { EthelAsset, EthelPlace, ItemCostKind } from '@/lib/types';
 
 const COST_KINDS: ItemCostKind[] = ['purchase', 'disposal', 'repair', 'maintenance', 'accessory'];
 
 interface Props {
   asset: EthelAsset | null;
+  /** The flat place set, so the panel can render the asset's place PATH. The
+   *  payload carries `placeId` only — no denormalised name — so renaming a
+   *  place rewrites no asset rows. */
+  places?: EthelPlace[];
   onClose: () => void;
 }
 
-export default function AssetDetail({ asset, onClose }: Props) {
+export default function AssetDetail({ asset, places = [], onClose }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { formatDate, formatMoney } = useFormatters();
@@ -76,6 +81,7 @@ export default function AssetDetail({ asset, onClose }: Props) {
               <p className="text-muted-foreground">
                 {[asset.category, asset.manufacturer, asset.model].filter(Boolean).join(' · ') || '—'}
               </p>
+              {asset.placeId && <p>{t('ethel.places.place')}: {placePath(places, asset.placeId)}</p>}
               {asset.locationNote && <p>{t('ethel.fields.locationNote')}: {asset.locationNote}</p>}
               {asset.serialNumber && <p>{t('ethel.fields.serialNumber')}: {asset.serialNumber}</p>}
               {asset.notes && <p className="text-muted-foreground">{asset.notes}</p>}

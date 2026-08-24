@@ -31,6 +31,11 @@ const updateAsset = vi.fn();
 const decommissionAsset = vi.fn();
 const deleteAsset = vi.fn();
 
+const listPlaces = vi.fn();
+const createPlace = vi.fn();
+const updatePlace = vi.fn();
+const deletePlace = vi.fn();
+
 vi.mock('@/api/ethel', () => ({
   listAssets: (...args: unknown[]) => listAssets(...args),
   createAsset: (...args: unknown[]) => createAsset(...args),
@@ -38,6 +43,10 @@ vi.mock('@/api/ethel', () => ({
   updateAsset: (...args: unknown[]) => updateAsset(...args),
   decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
   deleteAsset: (...args: unknown[]) => deleteAsset(...args),
+  listPlaces: (...args: unknown[]) => listPlaces(...args),
+  createPlace: (...args: unknown[]) => createPlace(...args),
+  updatePlace: (...args: unknown[]) => updatePlace(...args),
+  deletePlace: (...args: unknown[]) => deletePlace(...args),
 }));
 
 const listTransactions = vi.fn();
@@ -52,14 +61,24 @@ vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }
 
 import EthelPage from './ethel';
 
+const HOUSE = '11111111-1111-4111-8111-111111111111';
+const KITCHEN = '22222222-2222-4222-8222-222222222222';
+
 beforeEach(() => {
   listTransactions.mockResolvedValue({ data: [], meta: { total: 0 } });
+  listPlaces.mockResolvedValue({
+    data: [
+      { id: HOUSE, createdAt: '', updatedAt: '', name: 'House', kind: 'building', parentId: null, notes: null },
+      { id: KITCHEN, createdAt: '', updatedAt: '', name: 'Kitchen', kind: 'room', parentId: HOUSE, notes: null },
+    ],
+  });
 });
 
 afterEach(() => {
   cleanup();
   listAssets.mockReset();
   listTransactions.mockReset();
+  listPlaces.mockReset();
 });
 
 function renderPage() {
@@ -155,6 +174,52 @@ describe('EthelPage → server query contract', () => {
     fireEvent.click(loadMore!);
 
     await waitFor(() => expect(listAssets.mock.calls.length).toBeGreaterThan(1));
+    assertEveryRequestAccepted();
+  });
+
+  it('sends a place filter, and the include-contents variant, that the server accepts', async () => {
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
+    renderPage();
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Place')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Place'), { target: { value: KITCHEN } });
+    await waitFor(() => expect(listAssets.mock.calls.some(([p]) => p?.placeId === KITCHEN)).toBe(true));
+
+    fireEvent.click(screen.getByLabelText('Include contents'));
+    await waitFor(() =>
+      expect(listAssets.mock.calls.some(([p]) => p?.includeDescendants === 'true')).toBe(true),
+    );
+    assertEveryRequestAccepted();
+  });
+
+  it('cannot send includeDescendants without a placeId - the toggle is disabled', async () => {
+    // Not a style preference: the server answers 400 VALIDATION_ERROR for
+    // includeDescendants without placeId, so the combination must be
+    // unreachable in the UI rather than merely unlikely.
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
+    renderPage();
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
+
+    const toggle = screen.getByLabelText('Include contents') as HTMLInputElement;
+    expect(toggle.disabled).toBe(true);
+
+    // Wait for the place options to exist: setting a <select> to a value it
+    // does not offer yet is a no-op, which would make this test pass for the
+    // wrong reason.
+    await waitFor(() => expect(screen.getByRole('option', { name: /Kitchen/ })).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Place'), { target: { value: KITCHEN } });
+    await waitFor(() => expect((screen.getByLabelText('Include contents') as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(screen.getByLabelText('Include contents'));
+    await waitFor(() => expect(listAssets.mock.calls.some(([p]) => p?.includeDescendants === 'true')).toBe(true));
+
+    // Clearing the place must not leave includeDescendants behind.
+    fireEvent.change(screen.getByLabelText('Place'), { target: { value: '' } });
+    await waitFor(() => expect((screen.getByLabelText('Include contents') as HTMLInputElement).disabled).toBe(true));
+    for (const [params] of listAssets.mock.calls) {
+      const p = (params ?? {}) as Record<string, unknown>;
+      if (p.includeDescendants !== undefined) expect(p.placeId).toBeTruthy();
+    }
     assertEveryRequestAccepted();
   });
 });

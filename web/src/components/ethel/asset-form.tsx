@@ -3,24 +3,29 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { EthelAsset } from '@/lib/types';
+import PlacePicker from './place-picker';
+import type { EthelAsset, EthelPlace } from '@/lib/types';
 import type { AssetInput } from '@/api/ethel';
 
 interface Props {
   asset?: EthelAsset | null;
+  /** The whole place set, loaded once by the page — the picker assembles the
+   *  tree from it client-side. */
+  places?: EthelPlace[];
   onSubmit: (input: AssetInput) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
 /** Create/edit form over the Ethel asset fields (`createAssetSchema`). */
-export default function AssetForm({ asset, onSubmit, onCancel, isLoading }: Props) {
+export default function AssetForm({ asset, places = [], onSubmit, onCancel, isLoading }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState(asset?.name ?? '');
   const [category, setCategory] = useState(asset?.category ?? '');
   const [manufacturer, setManufacturer] = useState(asset?.manufacturer ?? '');
   const [model, setModel] = useState(asset?.model ?? '');
   const [serialNumber, setSerialNumber] = useState(asset?.serialNumber ?? '');
+  const [placeId, setPlaceId] = useState<string | null>(asset?.placeId ?? null);
   const [locationNote, setLocationNote] = useState(asset?.locationNote ?? '');
   const [notes, setNotes] = useState(asset?.notes ?? '');
   const [warrantyUntil, setWarrantyUntil] = useState(asset?.warrantyUntil ?? '');
@@ -35,6 +40,7 @@ export default function AssetForm({ asset, onSubmit, onCancel, isLoading }: Prop
       manufacturer: manufacturer || null,
       model: model || null,
       serialNumber: serialNumber || null,
+      placeId,
       locationNote: locationNote || null,
       notes: notes || null,
       warrantyUntil: warrantyUntil || null,
@@ -55,9 +61,20 @@ export default function AssetForm({ asset, onSubmit, onCancel, isLoading }: Prop
           <Input id="asset-category" value={category ?? ''} onChange={(e) => setCategory(e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="asset-location-note">{t('ethel.fields.locationNote')}</Label>
-          <Input id="asset-location-note" value={locationNote ?? ''} onChange={(e) => setLocationNote(e.target.value)} />
+          <PlacePicker
+            id="asset-place"
+            places={places}
+            value={placeId}
+            onChange={setPlaceId}
+            label={t('ethel.places.place')}
+          />
         </div>
+      </div>
+      <div className="space-y-1">
+        {/* Kept alongside the picker: the note says WHERE IN the place
+            ("top shelf"), which the tree deliberately does not model. */}
+        <Label htmlFor="asset-location-note">{t('ethel.fields.locationNote')}</Label>
+        <Input id="asset-location-note" value={locationNote ?? ''} onChange={(e) => setLocationNote(e.target.value)} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">

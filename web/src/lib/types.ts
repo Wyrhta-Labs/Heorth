@@ -201,6 +201,19 @@ export interface EthelAsset {
   disposalProceeds: string | null; // numeric -> string
 }
 
+// ---- Ethel places (hand-synced from src/modules/ethel/schema.ts) ----
+export type PlaceKind = 'building' | 'floor' | 'room' | 'outdoor' | 'storage';
+
+export interface EthelPlace {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  name: string;
+  kind: PlaceKind;
+  parentId: string | null;
+  notes: string | null;
+}
+
 // ---- Feoh occurrences / item-costs / ledger (hand-synced from src/modules/feoh) ----
 export type OccurrenceStatus = 'planned' | 'paid' | 'overdue' | 'skipped' | 'unknown';
 

@@ -501,11 +501,36 @@
   },
   "ethel": {
     "title": "Ethel",
-    "addAsset": "Neues Objekt",
-    "search": "Objekte suchen",
+    "addAsset": "Neuer Gegenstand",
+    "search": "Gegenstände suchen",
     "filterAll": "Alle",
     "filterActive": "Aktiv",
     "filterDecommissioned": "Ausgemustert",
+    "places": {
+      "title": "Orte",
+      "place": "Ort",
+      "manage": "Orte verwalten",
+      "add": "Ort hinzufügen",
+      "none": "Kein Ort",
+      "empty": "Noch keine Orte.",
+      "kind": "Art",
+      "parent": "Gehört zu",
+      "includeContents": "Inhalt einschließen",
+      "deleteConfirm": "{{name}} löschen?",
+      "deleteUnassigns": "Gegenstände an diesem Ort verlieren ihre Ortszuordnung.",
+      "hasChildren": "Zuerst die Orte darin verschieben oder löschen.",
+      "cycle": "Ein Ort kann nicht in sich selbst liegen.",
+      "tooDeep": "Orte dürfen nicht tiefer als 6 Ebenen verschachtelt sein.",
+      "nameTaken": "Hier gibt es schon einen Ort mit diesem Namen.",
+      "notFound": "Dieser Ort existiert nicht mehr.",
+      "kinds": {
+        "building": "Gebäude",
+        "floor": "Etage",
+        "room": "Raum",
+        "outdoor": "Außenbereich",
+        "storage": "Lager"
+      }
+    },
     "fields": {
       "name": "Name",
       "category": "Kategorie",
@@ -556,7 +581,7 @@
         "accessory": "Zubehör"
       }
     },
-    "empty": "Noch keine Objekte.",
+    "empty": "Noch keine Gegenstände.",
     "loadMore": "Mehr laden",
     "delete": "Löschen",
     "deleteConfirm": "{{name}} löschen?",

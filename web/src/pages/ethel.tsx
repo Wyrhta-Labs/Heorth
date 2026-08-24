@@ -11,9 +11,12 @@ import { retryOf } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
 import { ETHEL_PAGE_SIZE } from '@/lib/constants';
 import { useFormatters } from '@/hooks/use-formatters';
-import { useEthelAssets, useCreateAsset } from '@/hooks/use-ethel';
+import { useEthelAssets, useCreateAsset, usePlaces } from '@/hooks/use-ethel';
 import AssetForm from '@/components/ethel/asset-form';
 import AssetDetail from '@/components/ethel/asset-detail';
+import PlacePicker from '@/components/ethel/place-picker';
+import PlaceManager from '@/components/ethel/place-manager';
+import { placePath } from '@/lib/place-tree';
 import { lifecycleLine } from '@/components/ethel/lifecycle';
 import type { EthelAsset } from '@/lib/types';
 
@@ -25,7 +28,10 @@ export default function EthelPage() {
   const { formatDate, formatMoney } = useFormatters();
   const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>('');
   const [q, setQ] = useState('');
+  const [placeId, setPlaceId] = useState<string | null>(null);
+  const [includeDescendants, setIncludeDescendants] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [placesOpen, setPlacesOpen] = useState(false);
   const [selected, setSelected] = useState<EthelAsset | null>(null);
   const [offset, setOffset] = useState(0);
   const [assets, setAssets] = useState<EthelAsset[]>([]);
@@ -42,10 +48,17 @@ export default function EthelPage() {
   const assetsQuery = useEthelAssets({
     status: status || undefined,
     q: q || undefined,
+    placeId: placeId ?? undefined,
+    // Sent only WITH a place: the server answers 400 VALIDATION_ERROR for
+    // includeDescendants without placeId, and the toggle below is disabled in
+    // that state so the combination cannot be constructed at all.
+    includeDescendants: placeId && includeDescendants ? 'true' : undefined,
     limit: ETHEL_PAGE_SIZE,
     offset,
   });
   const createAsset = useCreateAsset();
+  const placesQuery = usePlaces();
+  const places = placesQuery.data?.data ?? [];
   const retry = retryOf(assetsQuery);
 
   // A changed filter is a different result set: drop the accumulated pages and
@@ -55,7 +68,7 @@ export default function EthelPage() {
     appendedOffsets.current = new Set();
     lastDataUpdatedAt.current = 0;
     setOffset(0);
-  }, [status, q]);
+  }, [status, q, placeId, includeDescendants]);
 
   useEffect(() => {
     const data = assetsQuery.data;
@@ -122,7 +135,10 @@ export default function EthelPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{t('ethel.title')}</h1>
-        <Button onClick={() => setFormOpen(true)}><Plus className="h-4 w-4 mr-1" /> {t('ethel.addAsset')}</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setPlacesOpen(true)}>{t('ethel.places.manage')}</Button>
+          <Button onClick={() => setFormOpen(true)}><Plus className="h-4 w-4 mr-1" /> {t('ethel.addAsset')}</Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
@@ -142,6 +158,33 @@ export default function EthelPage() {
             </button>
           ))}
         </div>
+        <div className="w-56">
+          <PlacePicker
+            id="ethel-filter-place"
+            places={places}
+            value={placeId}
+            onChange={(id) => {
+              setPlaceId(id);
+              // Clearing the place clears the toggle too, so the next
+              // selection does not silently inherit a stale "include
+              // contents" from a place the member has left.
+              if (!id) setIncludeDescendants(false);
+            }}
+            label={t('ethel.places.place')}
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={includeDescendants}
+            // Disabled without a place: the server 400s
+            // includeDescendants-without-placeId, so the UI must not be able
+            // to send it.
+            disabled={!placeId}
+            onChange={(e) => setIncludeDescendants(e.target.checked)}
+          />
+          {t('ethel.places.includeContents')}
+        </label>
       </div>
 
       {assets.length === 0 ? (
@@ -153,7 +196,7 @@ export default function EthelPage() {
               <CardContent className="p-4 space-y-1">
                 <p className="font-medium">{asset.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {[asset.category, asset.locationNote].filter(Boolean).join(' · ') || '—'}
+                  {[asset.category, asset.placeId ? placePath(places, asset.placeId) : null].filter(Boolean).join(' · ') || '—'}
                 </p>
                 {(() => {
                   const line = lifecycleLine(asset, t, formatDate, formatMoney);
@@ -179,11 +222,13 @@ export default function EthelPage() {
             <DialogTitle>{t('ethel.addAsset')}</DialogTitle>
             <DialogClose onClose={() => setFormOpen(false)} />
           </DialogHeader>
-          <AssetForm onSubmit={submitCreate} onCancel={() => setFormOpen(false)} isLoading={createAsset.isPending} />
+          <AssetForm places={places} onSubmit={submitCreate} onCancel={() => setFormOpen(false)} isLoading={createAsset.isPending} />
         </DialogContent>
       </Dialog>
 
-      <AssetDetail asset={displayedAsset} onClose={() => setSelected(null)} />
+      <AssetDetail asset={displayedAsset} places={places} onClose={() => setSelected(null)} />
+
+      <PlaceManager open={placesOpen} onClose={() => setPlacesOpen(false)} />
     </div>
   );
 }

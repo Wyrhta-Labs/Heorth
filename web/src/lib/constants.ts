@@ -28,6 +28,7 @@ export const QUERY_KEYS = {
   bills: ['bills'] as const,
   summary: (month: string) => ['summary', month] as const,
   ethel: ['ethel'] as const,
+  ethelPlaces: ['ethel', 'places'] as const,
   occurrences: ['occurrences'] as const,
   itemCosts: (itemId: string) => ['itemCosts', itemId] as const,
   ledger: (accountId: string) => ['ledger', accountId] as const,

@@ -45,3 +45,40 @@ export function useDeleteAsset() {
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.ethel }),
   });
 }
+
+export function usePlaces() {
+  return useQuery({ queryKey: QUERY_KEYS.ethelPlaces, queryFn: () => api.listPlaces() });
+}
+
+/** Every place mutation invalidates the ASSET list too: deleting a place
+ *  unassigns the assets in it (ON DELETE SET NULL), and a rename changes the
+ *  path the asset card renders, so the loaded asset pages are stale either
+ *  way. */
+function invalidatePlaces(qc: ReturnType<typeof useQueryClient>): void {
+  qc.invalidateQueries({ queryKey: QUERY_KEYS.ethelPlaces });
+  qc.invalidateQueries({ queryKey: QUERY_KEYS.ethel });
+}
+
+export function useCreatePlace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: api.PlaceInput) => api.createPlace(input),
+    onSuccess: () => invalidatePlaces(qc),
+  });
+}
+
+export function useUpdatePlace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<api.PlaceInput> }) => api.updatePlace(id, input),
+    onSuccess: () => invalidatePlaces(qc),
+  });
+}
+
+export function useDeletePlace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deletePlace(id),
+    onSuccess: () => invalidatePlaces(qc),
+  });
+}

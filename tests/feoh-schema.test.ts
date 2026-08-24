@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { envelopes, transactions, expenseSplits } from '../src/modules/feoh/schema.js';
 import { identity } from '../src/wiring.js';
-import { pgErrorCode } from '../src/db/pg-errors.js';
+import { pgErrorCode } from '@wyrhta/core/db';
 
 describe('feoh schema', () => {
   it('stores an envelope with a numeric budget', async () => {

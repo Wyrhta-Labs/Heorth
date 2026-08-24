@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach } from 'vitest';
+import { assertTestDatabase } from '@wyrhta/core/testing';
 
 // Set required env BEFORE importing modules that read process.env at load time.
 // The src imports at the bottom are dynamic (`await import`) precisely so these
@@ -25,30 +26,13 @@ for (const k of [
 }
 
 // Destructive-suite guard. This file TRUNCATEs every application table between
-// tests, so it must only ever run against a throwaway database.
+// tests, so it must only ever run against a throwaway database. The allowlist
+// (and why a denylist failed open) lives in @wyrhta/core/testing.
 //
-// This is an ALLOWLIST — the database name has to END IN `_test`. It replaces an
-// earlier denylist that merely rejected names containing `_dev`, which failed
-// open: a primary database name like `heorth` passed the check, so pointing
-// DATABASE_URL at the running dev stack silently wiped real data.
-//
-// Checked AFTER the assignments above so it validates the URL actually in force,
-// whichever source it came from, and BEFORE the dynamic imports below so no
-// database client is constructed against a rejected URL.
-const testDbName = (() => {
-  try {
-    return new URL(process.env['DATABASE_URL'] ?? '').pathname.replace(/^\//, '');
-  } catch {
-    return '';
-  }
-})();
-if (!testDbName.endsWith('_test')) {
-  // Never interpolate the URL itself — it carries a password.
-  throw new Error(
-    `Refusing to run destructive tests against database '${testDbName || '<unparseable DATABASE_URL>'}'. ` +
-      'Export a DATABASE_URL whose database name ends in _test (e.g. heorth_test).',
-  );
-}
+// Checked AFTER the assignments above so it validates the URL actually in
+// force, whichever source it came from, and BEFORE the dynamic imports below
+// so no database client is constructed against a rejected URL.
+assertTestDatabase({ example: 'heorth_test' });
 
 const { migrate } = await import('drizzle-orm/postgres-js/migrator');
 const { db } = await import('../src/db/index.js');

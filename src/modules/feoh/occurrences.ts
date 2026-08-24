@@ -1,5 +1,5 @@
 import { db } from '../../db/index.js';
-import { isPgError } from '../../db/pg-errors.js';
+import { isPgError } from '@wyrhta/core/db';
 import { recurringBills, recurringOccurrences, transactions, type RecurringBill } from './schema.js';
 import { eq, and, isNull } from 'drizzle-orm';
 import { isCadence, projectDueDates, isProjectedDate, addPeriods, type Cadence } from './cadence.js';

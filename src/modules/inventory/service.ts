@@ -1,5 +1,5 @@
 import { db } from '../../db/index.js';
-import { isPgError } from '../../db/pg-errors.js';
+import { isPgError } from '@wyrhta/core/db';
 import { inventoryItems, type InventoryItem } from './schema.js';
 import { eq, and, isNull, isNotNull, ilike, or, sql } from 'drizzle-orm';
 import type { CreateItemInput, UpdateItemInput, DecommissionInput } from './validators.js';

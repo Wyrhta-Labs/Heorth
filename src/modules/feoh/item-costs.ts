@@ -1,5 +1,5 @@
 import { db } from '../../db/index.js';
-import { isPgError } from '../../db/pg-errors.js';
+import { isPgError } from '@wyrhta/core/db';
 import { feohItemCosts, recurringBills, recurringOccurrences, transactions, type FeohItemCost, type Transaction, type RecurringBill } from './schema.js';
 import { inventoryItems, type InventoryItem } from '../inventory/schema.js';
 import { eq, and, isNotNull, inArray } from 'drizzle-orm';

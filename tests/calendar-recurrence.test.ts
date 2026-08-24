@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addDuration, isPositiveDuration } from '../src/lib/duration.js';
+import { addDuration, isPositiveDuration } from '@wyrhta/core/lib';
 import { createEventSchema } from '../src/modules/calendar/validators.js';
 import { expandEvent } from '../src/modules/calendar/recurrence.js';
 import type { Event } from '../src/modules/calendar/schema.js';

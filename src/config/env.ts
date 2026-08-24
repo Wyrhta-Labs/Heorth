@@ -1,29 +1,21 @@
-import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { baseEnvSchema, emptyToUndefined, parseEnvOrExit } from '@wyrhta/core/config';
+import {
+  baseEnvSchema,
+  emptyToUndefined,
+  loadDotEnv,
+  parseEnvOrExit,
+} from '@wyrhta/core/config';
 
 // Load .env from the working directory for local dev (`npm run dev` etc.).
-// Never overrides variables already present in the environment — exported
-// vars always win, so test runs pointing DATABASE_URL at the test database
-// cannot be hijacked by a dev .env. Full-line comments only (no inline `#`).
+// Exported vars always win, so a test run pointing DATABASE_URL at the test
+// database cannot be hijacked by a dev .env.
 //
 // Skipped entirely under Vitest: tests/setup.ts owns the test environment,
 // and gating suites (feoh/kith/M365) DELETE vars before re-importing this
 // module via vi.resetModules() — the "never overrides" guard cannot protect
 // a deleted var, so re-reading .env here would silently re-enable modules
 // from the developer's local .env and break test hermeticity.
-if (process.env['VITEST'] === undefined) {
-  try {
-    for (const line of readFileSync('.env', 'utf8').split(/\r?\n/)) {
-      const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
-      if (m && process.env[m[1]] === undefined) {
-        process.env[m[1]] = m[2].replace(/^(["'])(.*)\1$/, '$2');
-      }
-    }
-  } catch {
-    // no .env file — rely on the real environment (CI, docker, production)
-  }
-}
+loadDotEnv({ skip: process.env['VITEST'] !== undefined });
 
 export function buildEnvSchema() {
   return baseEnvSchema.extend({

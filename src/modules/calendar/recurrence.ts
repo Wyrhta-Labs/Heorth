@@ -1,4 +1,4 @@
-import { addDuration, isPositiveDuration } from '../../lib/duration.js';
+import { addDuration, isPositiveDuration } from '@wyrhta/core/lib';
 import type { Event, EventOccurrence } from './schema.js';
 
 /** Expand a (possibly recurring) event into occurrences overlapping [from, to]. */

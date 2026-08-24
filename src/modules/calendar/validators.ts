@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isPositiveDuration } from '../../lib/duration.js';
+import { isPositiveDuration } from '@wyrhta/core/lib';
 
 /**
  * `recurrence` is an ISO 8601 DURATION (P1W, P1M, PT1H) — the interval the

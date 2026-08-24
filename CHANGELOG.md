@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-25
+
 ### Fixed
 
 - **A bad `events.recurrence` no longer takes down the calendar range view.**
@@ -44,6 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed and **no REST route, response shape, status code, or guard changed**.
   The MCP SDK was never a direct dependency here (it arrives via
   `@wyrhta/core`), so `package.json` is unchanged.
+
+### Changed — BREAKING
+
+- The `inventory` module is now **Ethel** (ADR 0013). `/api/v1/inventory/items`
+  is gone; use `/api/v1/ethel/assets`. Table `inventory_items` is `ethel_assets`,
+  its `location` column is `location_note`, and the finance links are
+  `feoh_item_costs.asset_id` and `recurring_bills.ethel_asset_id`. The web route
+  is `/ethel`. **Renamed MCP tools break saved prompts** — `inventory.*` is now
+  `ethel.*` in heorth-mcp, which must be deployed together with this release.
 
 ### Changed
 
@@ -107,6 +118,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Places**: `ethel_places` as a tree (building/floor/room/outdoor/storage) with
+  a depth cap of 6, cycle rejection, and sibling-unique names. `GET/POST/PATCH/
+  DELETE /api/v1/ethel/places`. An asset carries `placeId` and a free-text
+  `locationNote`; `?placeId=&includeDescendants=true` filters a whole subtree.
+- **Vehicle details**: `PUT/DELETE /api/v1/ethel/assets/:id/vehicle`.
+- **Facility details**: `PUT/DELETE /api/v1/ethel/assets/:id/facility`, with the
+  set of places each system serves, and `?hasFacility=`/`?servesPlaceId=` filters.
 - **Satellite identity: asymmetric signing keys + a public JWKS**
   (task B1c, Wyrhta-Labs/wyrhta-labs#1). Heorth is becoming the household's
   identity provider for satellite services (KithLedger first), and the trust
@@ -186,16 +204,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so REST and MCP share one code path. Additive: omitting both parameters
   leaves the previous response unchanged.
 
-- **Inventory module** (`src/modules/inventory/`) — a standalone, always-on
-  `HeorthModule` for household items: name/category/manufacturer/model/
-  serial/location/notes, purchase price/date, warranty, and a
-  decommission/reactivation lifecycle. REST (`/api/v1/inventory`, with
-  search/status/category filters and pagination) and four MCP tools
-  (`inventory.list_items`/`get_item`/`record_item`/`decommission_item`,
-  `src/modules/inventory/mcp.ts`). No dependency on feoh; the sole
-  inventory→feoh touchpoint is a raw-SQL existence check against
-  `feoh_item_costs` (`hasDisposalLink` in `service.ts`) that blocks
-  reactivating an item with a recorded disposal link.
+- **Ethel module** (`src/modules/ethel/`, ADR 0013) — the property register,
+  replacing the earlier `inventory` module: assets with name/category/
+  manufacturer/model/serial/place/location note/notes, purchase price/date,
+  warranty, and a decommission/reactivation lifecycle. REST only
+  (`/api/v1/ethel/assets`, with search/status/category/place filters and
+  pagination) — a standalone, always-on `HeorthModule`. No dependency on feoh;
+  the sole ethel→feoh touchpoint is a raw-SQL existence check against
+  `feoh_item_costs.asset_id` (`hasDisposalLink` in `service.ts`) that blocks
+  reactivating an asset with a recorded disposal link.
 - **Recurring bill occurrences** (`src/modules/feoh/occurrences.ts`) — a
   bill's cadence projects into due-date entries with derived status
   (`planned`/`overdue`/`paid`/`skipped`/`unknown`); linking, skipping,

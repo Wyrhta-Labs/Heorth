@@ -39,9 +39,9 @@ for why.
 The two are alternatives, not layers. Do not run both against the same
 database.
 
-Finance (`src/modules/feoh/`, ADR 0007) and inventory (`src/modules/inventory/`)
-are both built-in, **always-on** modules — no env var gates them. `feoh` was
-briefly behind a `FEOH_ENABLED` kill switch; that switch was removed
+Finance (`src/modules/feoh/`, ADR 0007) and Ethel (`src/modules/ethel/`,
+ADR 0013) are both built-in, **always-on** modules — no env var gates them.
+`feoh` was briefly behind a `FEOH_ENABLED` kill switch; that switch was removed
 2026-08-17, so `/api/v1/feoh/*` is always mounted.
 
 ```bash
@@ -71,7 +71,7 @@ lists `ALL_MODULES`):
 | `/api/v1/recipes`, `/api/v1/meals` | `src/modules/meals/` | Recipes, weekly meal plan, shopping list |
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |
 | `/api/v1/tasks` | `src/modules/tasks/` | Household tasks backed by Microsoft To Do — list/complete/create + per-member list allowlist (writes need M365 enabled) |
-| `/api/v1/inventory` | `src/modules/inventory/` | Household inventory: items with lifecycle fields (purchase, warranty, decommission/reactivation), search/filter/paginate — a standalone, always-on `HeorthModule`; no dependency on feoh |
+| `/api/v1/ethel/assets`, `/api/v1/ethel/places` | `src/modules/ethel/` | The property register: assets with lifecycle fields (purchase, warranty, decommission/reactivation), search/filter/paginate, plus a `places` tree and per-asset vehicle/facility detail — a standalone, always-on `HeorthModule` (ADR 0013); no dependency on feoh (see [Ethel](#ethel) below) |
 | `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills + occurrences, item costs/TCO, account ledger + reconciliation (ADR 0007) — a `HeorthModule`, always on (see [Finance](#finance) below) |
 | `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
 
@@ -117,6 +117,70 @@ are rejected for a maintenance-admin acting principal
 (`src/household/maintenance-admin.ts`). `transactions.createdBy` and
 expense-split `memberId` reference Heorth's `users` table directly — there is
 no separate parties/roster boundary.
+
+## Ethel
+
+Ethel (`src/modules/ethel/`, ADR 0013) is the household's property register —
+a built-in, **always-on** `HeorthModule`, no env var gates it. It replaced the
+earlier `inventory` module; the noun is **asset**, never "item".
+
+- **Assets** — `GET/POST /api/v1/ethel/assets`, `GET/PATCH/DELETE
+  /api/v1/ethel/assets/:id`, `POST /api/v1/ethel/assets/:id/decommission`.
+  Fields: `name`, `category` (free text), `manufacturer`, `model`,
+  `serialNumber`, `placeId`, `locationNote`, `notes`, `warrantyUntil`,
+  `purchasePrice`, `purchaseDate`, plus the decommission/reactivation lifecycle
+  trio (`decommissionedAt`, `decommissionReason`, `disposalProceeds`) — a
+  reactivation must null all three together, never a partial edit.
+  `GET /assets` query params: `status` (`active`/`decommissioned`),
+  `category`, `q` (search), `placeId`, `includeDescendants` (`true`/`false`,
+  requires `placeId`), `hasFacility` (`true`/`false`), `servesPlaceId`,
+  `limit` (capped at 100 — **101 is rejected with 400, never silently
+  clamped**), `offset`.
+- **Places** — `GET/POST /api/v1/ethel/places`, `PATCH/DELETE
+  /api/v1/ethel/places/:id`. A tree (`building`/`floor`/`room`/`outdoor`/
+  `storage`) with a depth cap of 6, cycle rejection, and sibling-unique names.
+  An asset carries `placeId` (which place it's in) and a free-text
+  `locationNote`; `?placeId=&includeDescendants=true` on `GET /assets` filters
+  a whole subtree.
+- **Vehicle detail** — `PUT/DELETE /api/v1/ethel/assets/:id/vehicle`:
+  `registration`, `vin`, `firstRegisteredOn`, `odometer` +
+  `odometerReadAt` (set together or not at all), `serviceIntervalMonths`.
+- **Facility detail** — `PUT/DELETE /api/v1/ethel/assets/:id/facility`:
+  `kind`, `commissionedOn`, `serviceIntervalMonths`, and `servesPlaceIds` — the
+  set of places the facility serves, replaced wholesale on each `PUT`.
+  `GET /assets` accepts `?hasFacility=` and `?servesPlaceId=` to filter on it.
+- **An asset carries at most one detail row** — vehicle or facility, never
+  both (`409 ASSET_DETAIL_CONFLICT`).
+- **`serviceIntervalMonths`** (on either detail table) is **documentation
+  only** — the manufacturer's stated interval, offered as a default on a
+  routine's form. Nothing in Heorth schedules from it or derives a reminder;
+  the routine that acts on it belongs to Weorc (ADR 0014).
+- **Ethel does not depend on feoh.** The only sanctioned touchpoint is a
+  raw-SQL existence check (`hasDisposalLink`, querying
+  `feoh_item_costs.asset_id` directly, no module import) that blocks
+  reactivating an asset with a recorded disposal link.
+
+Error codes beyond the common `VALIDATION_ERROR` (400) and `NOT_FOUND` (404):
+
+| Code | Status | When |
+|---|---|---|
+| `PLACE_CYCLE` | 400 | A place's new parent would put it inside itself |
+| `PLACE_TOO_DEEP` | 400 | The place tree would exceed a depth of 6 |
+| `PLACE_NOT_FOUND` | 400 | A referenced `placeId`/parent place does not exist |
+| `PLACE_NAME_TAKEN` | 409 | Another place with that name already exists under the same parent |
+| `PLACE_HAS_CHILDREN` | 409 | Deleting a place that still has children |
+| `VEHICLE_REGISTRATION_TAKEN` | 409 | Another vehicle detail already has that registration |
+| `VEHICLE_VIN_TAKEN` | 409 | Another vehicle detail already has that VIN |
+| `ASSET_DETAIL_CONFLICT` | 409 | The asset already has the other kind of detail row |
+
+Existing codes preserved verbatim from the old `inventory` module:
+`DISPOSAL_LINK_EXISTS` (409, blocks reactivation), `HAS_FINANCE_LINKS` (409,
+blocks delete — decommission instead), `ALREADY_DECOMMISSIONED` (409).
+
+Writes (create/update/delete/decommission on assets, places, vehicle, and
+facility detail) require `admin` or `adult` role — the same
+`requireRole('admin', 'adult')` guard as finance, with **no** additional
+maintenance-admin quarantine on Ethel writes.
 
 ## Microsoft 365 (optional integration)
 

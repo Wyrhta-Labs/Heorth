@@ -44,7 +44,7 @@ both files are wrong — fix them.
   `undefined` and whose `cause` is the `postgres.PostgresError`, so a direct
   `e.code === '23505'` silently reads `undefined`, falls through, and turns a
   mapped 409 into a raw 500. Go through `pgErrorCode` / `isPgError`
-  (`src/db/pg-errors.ts`), which walk the cause chain — in src *and* in tests.
+  (`@wyrhta/core/db`), which walk the cause chain — in src *and* in tests.
 - **Never derive a server-local date from `toISOString()`** — that yields the UTC
   date and misclassifies anything near local midnight. Use `localTodayIso()`
   (`src/modules/feoh/dates.ts`).
@@ -56,14 +56,20 @@ both files are wrong — fix them.
 
 ## Module rules
 
-- **Feoh** (`src/modules/feoh/`, ADR 0007) and **inventory**
-  (`src/modules/inventory/`) are **always on**. There is no `FEOH_ENABLED` kill
-  switch and no `GET /api/v1/features` check to consult — both mount
-  unconditionally in `ALL_MODULES`. Do not reintroduce a gate.
-- **Inventory does not depend on feoh.** The *only* sanctioned inventory→feoh
-  touchpoint is a raw-SQL existence check (`hasDisposalLink` in `service.ts`,
-  querying `feoh_item_costs` directly — **no module import**) that blocks
-  reactivating an item with a recorded disposal link.
+- **Feoh** (`src/modules/feoh/`, ADR 0007) and **Ethel** (`src/modules/ethel/`,
+  ADR 0013) are **always on**. There is no `FEOH_ENABLED` kill switch and no
+  `GET /api/v1/features` check to consult — both mount unconditionally in
+  `ALL_MODULES`. Do not reintroduce a gate.
+- **Ethel does not depend on feoh.** The *only* sanctioned ethel→feoh touchpoint
+  is a raw-SQL existence check (`hasDisposalLink` in `service.ts`, querying
+  `feoh_item_costs.asset_id` directly — **no module import**) that blocks
+  reactivating an asset with a recorded disposal link.
+- **An asset carries at most one detail row** — `ethel_vehicles` or
+  `ethel_facilities`, never both (`409 ASSET_DETAIL_CONFLICT`). "The detail row
+  exists" is the only signal of what kind of thing an asset is; `category` is
+  free text. **`serviceIntervalMonths` on either table is documentation** — the
+  interval the manufacturer states. Nothing in Heorth schedules from it; the
+  routine that acts on it is Weorc's (ADR 0014).
 - **KithLedger reminders** (`src/modules/kith/`) is a **stateless live proxy**
   (no DB) presenting the **`household`** credential — read-only and member-less.
   `requireAuth` authenticates the Heorth caller, but **that identity is NEVER

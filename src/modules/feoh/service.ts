@@ -186,7 +186,7 @@ export async function createBill(i: CreateBillInput): Promise<RecurringBill> {
   const [row] = await db.insert(recurringBills).values({
     payee: i.payee, amount: String(i.amount), cadence: i.cadence,
     nextDue: i.nextDue, envelopeId: i.envelopeId ?? null,
-    inventoryItemId: i.inventoryItemId ?? null,
+    ethelAssetId: i.ethelAssetId ?? null,
   }).returning();
   return row!;
 }
@@ -198,7 +198,7 @@ export async function updateBill(id: string, i: Partial<CreateBillInput>): Promi
   if (i.cadence !== undefined) patch['cadence'] = i.cadence;
   if (i.nextDue !== undefined) patch['nextDue'] = i.nextDue;
   if (i.envelopeId !== undefined) patch['envelopeId'] = i.envelopeId;
-  if (i.inventoryItemId !== undefined) patch['inventoryItemId'] = i.inventoryItemId;
+  if (i.ethelAssetId !== undefined) patch['ethelAssetId'] = i.ethelAssetId;
   const [row] = await db.update(recurringBills).set(patch).where(eq(recurringBills.id, id)).returning();
   return row ?? null;
 }

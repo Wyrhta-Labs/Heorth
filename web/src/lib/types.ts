@@ -160,7 +160,7 @@ export interface RecurringBill {
   cadence: string;          // ISO-8601 duration
   nextDue: string;          // YYYY-MM-DD
   envelopeId: string | null;
-  inventoryItemId: string | null;
+  ethelAssetId: string | null;
 }
 
 // /feoh/summary — computed numbers (NOT strings).

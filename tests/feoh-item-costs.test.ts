@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { seedTestHousehold } from './helpers.js';
 import * as service from '../src/modules/feoh/service.js';
 import * as occurrences from '../src/modules/feoh/occurrences.js';
-import * as inventoryService from '../src/modules/inventory/service.js';
+import * as ethelService from '../src/modules/ethel/service.js';
 import * as itemCosts from '../src/modules/feoh/item-costs.js';
 
 async function setup() {
@@ -65,7 +65,7 @@ function yearsAgoIso(years: number): string {
 describe('feoh item costs / TCO', () => {
   it('counts a tier-2 link on an expense into the TCO totals and perYear', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({
+    const item = await ethelService.createAsset({
       name: 'Laptop', purchasePrice: 599, purchaseDate: yearsAgoIso(2),
     });
     const repairTx = await expenseTx(adult.user.id, envelope.id, account.id, 180, { payee: 'Repair shop' });
@@ -81,7 +81,7 @@ describe('feoh item costs / TCO', () => {
 
   it('ignores transactions.amount and uses the actual posting size', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Fridge' });
+    const item = await ethelService.createAsset({ name: 'Fridge' });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 50, { recordedAmount: 999 });
     await itemCosts.createItemCost({ transactionId: txn.id, itemId: item.id, kind: 'repair' });
 
@@ -91,7 +91,7 @@ describe('feoh item costs / TCO', () => {
 
   it('rejects tier-2 links on transactions with no cost size, but allows provenance-exempt purchase/disposal', async () => {
     const { adult, account, account2, envelope, envelope2 } = await setup();
-    const item = await inventoryService.createItem({ name: 'Camera' });
+    const item = await ethelService.createAsset({ name: 'Camera' });
 
     const transfer = await transferTx(adult.user.id, account.id, account2.id, 300);
     await expect(itemCosts.createItemCost({ transactionId: transfer.id, itemId: item.id, kind: 'repair' }))
@@ -100,7 +100,7 @@ describe('feoh item costs / TCO', () => {
     const purchaseLink = await itemCosts.createItemCost({ transactionId: transfer.id, itemId: item.id, kind: 'purchase' });
     expect(purchaseLink.kind).toBe('purchase');
 
-    const item2 = await inventoryService.createItem({ name: 'Camera 2' });
+    const item2 = await ethelService.createAsset({ name: 'Camera 2' });
     const realloc = await reallocTx(adult.user.id, envelope.id, envelope2.id, 40);
     await expect(itemCosts.createItemCost({ transactionId: realloc.id, itemId: item2.id, kind: 'repair' }))
       .rejects.toThrow('NOT_A_COST');
@@ -108,7 +108,7 @@ describe('feoh item costs / TCO', () => {
 
   it('rejects duplicate (transactionId, itemId) links and duplicate capital links per item', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Drone' });
+    const item = await ethelService.createAsset({ name: 'Drone' });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 100);
     await itemCosts.createItemCost({ transactionId: txn.id, itemId: item.id, kind: 'repair' });
     await expect(itemCosts.createItemCost({ transactionId: txn.id, itemId: item.id, kind: 'maintenance' }))
@@ -123,8 +123,8 @@ describe('feoh item costs / TCO', () => {
 
   it('rejects new tier-2 links on a decommissioned item, but allows disposal', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Mower' });
-    await inventoryService.decommissionItem(item.id, { date: '2026-08-01', reason: 'sold', proceeds: 50 });
+    const item = await ethelService.createAsset({ name: 'Mower' });
+    await ethelService.decommissionAsset(item.id, { date: '2026-08-01', reason: 'sold', proceeds: 50 });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 30);
     await expect(itemCosts.createItemCost({ transactionId: txn.id, itemId: item.id, kind: 'repair' }))
       .rejects.toThrow('ITEM_DECOMMISSIONED');
@@ -134,9 +134,9 @@ describe('feoh item costs / TCO', () => {
 
   it('counts a paid recurring occurrence once, attributed to tier2 when also cost-linked', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Boiler' });
+    const item = await ethelService.createAsset({ name: 'Boiler' });
     const bill = await service.createBill({
-      payee: 'Boiler service', amount: 12, cadence: 'monthly', nextDue: '2026-09-01', inventoryItemId: item.id,
+      payee: 'Boiler service', amount: 12, cadence: 'monthly', nextDue: '2026-09-01', ethelAssetId: item.id,
     });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 12, { date: bill.nextDue, payee: 'Boiler service' });
     await occurrences.linkOccurrence({ billId: bill.id, dueDate: bill.nextDue, transactionId: txn.id });
@@ -148,8 +148,8 @@ describe('feoh item costs / TCO', () => {
   });
 
   it('subtracts disposalProceeds from the total', async () => {
-    const item = await inventoryService.createItem({ name: 'Old Sofa', purchasePrice: 100 });
-    await inventoryService.decommissionItem(item.id, { date: '2026-08-01', reason: 'sold', proceeds: 30 });
+    const item = await ethelService.createAsset({ name: 'Old Sofa', purchasePrice: 100 });
+    await ethelService.decommissionAsset(item.id, { date: '2026-08-01', reason: 'sold', proceeds: 30 });
     const breakdown = await itemCosts.getItemCosts(item.id);
     expect(breakdown!.totals.proceeds).toBe(30);
     expect(breakdown!.totals.total).toBe(70);
@@ -157,7 +157,7 @@ describe('feoh item costs / TCO', () => {
 
   it('returns null perYear/lifetimeDays when the item has no purchaseDate', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Toaster' });
+    const item = await ethelService.createAsset({ name: 'Toaster' });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 20);
     await itemCosts.createItemCost({ transactionId: txn.id, itemId: item.id, kind: 'repair' });
     const breakdown = await itemCosts.getItemCosts(item.id);
@@ -167,7 +167,7 @@ describe('feoh item costs / TCO', () => {
 
   it('createItemCost throws NOT_FOUND_TRANSACTION / NOT_FOUND_ITEM; deleteItemCost removes a link; getItemCosts returns null for an unknown item', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Blender' });
+    const item = await ethelService.createAsset({ name: 'Blender' });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 15);
     await expect(itemCosts.createItemCost({ transactionId: '00000000-0000-0000-0000-000000000000', itemId: item.id, kind: 'repair' }))
       .rejects.toThrow('NOT_FOUND_TRANSACTION');

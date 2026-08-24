@@ -49,7 +49,7 @@ export const createBillSchema = z.object({
   cadence: z.enum(['weekly', 'monthly', 'quarterly', 'semiannual', 'yearly']),
   nextDue: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   envelopeId: z.string().uuid().optional().nullable(),
-  inventoryItemId: z.string().uuid().optional().nullable(),
+  ethelAssetId: z.string().uuid().optional().nullable(),
 });
 export const updateBillSchema = createBillSchema.partial();
 

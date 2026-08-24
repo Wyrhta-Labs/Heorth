@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 import * as service from '../src/modules/feoh/service.js';
-import * as inventoryService from '../src/modules/inventory/service.js';
+import * as ethelService from '../src/modules/ethel/service.js';
 import { createApp } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 
@@ -47,7 +47,7 @@ async function transferTx(adultId: string, accountId: string, account2Id: string
 describe('feoh item-cost routes', () => {
   it('GET returns the TCO breakdown, 404 for an unknown item', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Laptop', purchasePrice: 500 });
+    const item = await ethelService.createAsset({ name: 'Laptop', purchasePrice: 500 });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 100, 'Repair');
 
     const postRes = await app.request('/api/v1/feoh/item-costs', {
@@ -69,7 +69,7 @@ describe('feoh item-cost routes', () => {
 
   it('POST rejects a duplicate link with 409 DUPLICATE_LINK', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Drone' });
+    const item = await ethelService.createAsset({ name: 'Drone' });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 100);
     const first = await app.request('/api/v1/feoh/item-costs', {
       method: 'POST', headers: authHeaders(adult.jwt),
@@ -89,7 +89,7 @@ describe('feoh item-cost routes', () => {
     const { adult, account, envelope } = await setup();
     const account2 = await service.createAccount({ name: 'Savings', kind: 'asset', openingBalance: 0 });
     void envelope;
-    const item = await inventoryService.createItem({ name: 'Camera' });
+    const item = await ethelService.createAsset({ name: 'Camera' });
     const transfer = await transferTx(adult.user.id, account.id, account2.id, 300);
 
     const res = await app.request('/api/v1/feoh/item-costs', {
@@ -102,8 +102,8 @@ describe('feoh item-cost routes', () => {
 
   it('POST rejects a repair link on a decommissioned item with 409 ITEM_DECOMMISSIONED', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Mower' });
-    await inventoryService.decommissionItem(item.id, { date: '2026-08-01', reason: 'sold', proceeds: 50 });
+    const item = await ethelService.createAsset({ name: 'Mower' });
+    await ethelService.decommissionAsset(item.id, { date: '2026-08-01', reason: 'sold', proceeds: 50 });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 30);
 
     const res = await app.request('/api/v1/feoh/item-costs', {
@@ -116,7 +116,7 @@ describe('feoh item-cost routes', () => {
 
   it('DELETE removes a link (200) and 404s for an unknown id', async () => {
     const { adult, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Blender' });
+    const item = await ethelService.createAsset({ name: 'Blender' });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 15);
     const postRes = await app.request('/api/v1/feoh/item-costs', {
       method: 'POST', headers: authHeaders(adult.jwt),
@@ -138,7 +138,7 @@ describe('feoh item-cost routes', () => {
 
   it('rejects POST/DELETE for a child role with 403', async () => {
     const { adult, child, account, envelope } = await setup();
-    const item = await inventoryService.createItem({ name: 'Toaster' });
+    const item = await ethelService.createAsset({ name: 'Toaster' });
     const txn = await expenseTx(adult.user.id, envelope.id, account.id, 15);
 
     const postRes = await app.request('/api/v1/feoh/item-costs', {

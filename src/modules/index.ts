@@ -3,7 +3,7 @@ import { householdModule } from '../household/index.js';
 import { calendarModule } from './calendar/index.js';
 import { mealsModule } from './meals/index.js';
 import { libraryModule } from './library/index.js';
-import { inventoryModule } from './inventory/index.js';
+import { ethelModule } from './ethel/index.js';
 import { tasksModule } from './tasks/index.js';
 import { m365Module } from '../m365/index.js';
 import { feohModule } from './feoh/index.js';
@@ -14,8 +14,8 @@ export const ALL_MODULES: HeorthModule[] = [
   calendarModule,
   mealsModule,
   libraryModule,
-  // Inventory: household items + lifecycle; finance links live feoh-side.
-  inventoryModule,
+  // Ethel: the property register — assets and places; finance links live feoh-side.
+  ethelModule,
   // Tasks: household task surface backed by Microsoft To Do (mirror always present).
   tasksModule,
   // M365 is a no-op when its env is absent (integration disabled) — see src/m365.

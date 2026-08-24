@@ -5,13 +5,13 @@ export type DecommissionReason = (typeof decommissionReasons)[number];
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-const baseItem = z.object({
+const baseAsset = z.object({
   name: z.string().min(1),
   category: z.string().optional().nullable(),
   manufacturer: z.string().optional().nullable(),
   model: z.string().optional().nullable(),
   serialNumber: z.string().optional().nullable(),
-  location: z.string().optional().nullable(),
+  locationNote: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   warrantyUntil: dateStr.optional().nullable(),
   purchasePrice: z.number().nonnegative().optional().nullable(),
@@ -19,11 +19,11 @@ const baseItem = z.object({
 });
 
 /** Create rejects all lifecycle state — only decommission sets it. */
-export const createItemSchema = baseItem;
+export const createAssetSchema = baseAsset;
 
 /** Patch additionally accepts the lifecycle trio ONLY as explicit null for
  *  all three at once (reactivation). Partial lifecycle edits are rejected. */
-export const updateItemSchema = baseItem.partial().extend({
+export const updateAssetSchema = baseAsset.partial().extend({
   decommissionedAt: z.null().optional(),
   decommissionReason: z.null().optional(),
   disposalProceeds: z.null().optional(),
@@ -41,7 +41,7 @@ export const decommissionSchema = z.object({
   proceeds: z.number().nonnegative().optional(),
 });
 
-export const listItemsQuerySchema = z.object({
+export const listAssetsQuerySchema = z.object({
   status: z.enum(['active', 'decommissioned']).optional(),
   category: z.string().optional(),
   q: z.string().optional(),
@@ -49,6 +49,6 @@ export const listItemsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 
-export type CreateItemInput = z.infer<typeof createItemSchema>;
-export type UpdateItemInput = z.infer<typeof updateItemSchema>;
+export type CreateAssetInput = z.infer<typeof createAssetSchema>;
+export type UpdateAssetInput = z.infer<typeof updateAssetSchema>;
 export type DecommissionInput = z.infer<typeof decommissionSchema>;

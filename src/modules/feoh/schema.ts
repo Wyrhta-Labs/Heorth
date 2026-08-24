@@ -1,7 +1,7 @@
 import { pgTable, text, uuid, timestamp, numeric, date, check, index, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from '@wyrhta/core/identity';
-import { inventoryItems } from '../inventory/schema.js';
+import { ethelAssets } from '../ethel/schema.js';
 
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -59,10 +59,10 @@ export const recurringBills = pgTable('recurring_bills', {
   cadence: text('cadence').notNull(),
   nextDue: date('next_due').notNull(),
   envelopeId: uuid('envelope_id').references(() => envelopes.id, { onDelete: 'set null' }),
-  // Bill tied to an inventory item: booked occurrences count into the item's
+  // Bill tied to an ethel asset: booked occurrences count into the asset's
   // TCO. restrict: clearing the link is an explicit bill edit, never a side
-  // effect of item deletion.
-  inventoryItemId: uuid('inventory_item_id').references(() => inventoryItems.id, { onDelete: 'restrict' }),
+  // effect of asset deletion.
+  ethelAssetId: uuid('ethel_asset_id').references(() => ethelAssets.id, { onDelete: 'restrict' }),
 }, (t) => [index('recurring_bills_envelope_id_idx').on(t.envelopeId)]);
 
 // `memberId` references Heorth's `users` table directly — the parties
@@ -80,19 +80,19 @@ export const expenseSplits = pgTable('expense_splits', {
   index('expense_splits_member_id_idx').on(t.memberId),
 ]);
 
-/** The ONLY place finance knows about inventory items (incl. purchase/disposal
- *  provenance links — the item's own price fields stay authoritative for TCO). */
+/** The ONLY place finance knows about ethel assets (incl. purchase/disposal
+ *  provenance links — the asset's own price fields stay authoritative for TCO). */
 export const feohItemCosts = pgTable('feoh_item_costs', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   transactionId: uuid('transaction_id').notNull().references(() => transactions.id, { onDelete: 'cascade' }),
-  itemId: uuid('item_id').notNull().references(() => inventoryItems.id, { onDelete: 'restrict' }),
+  assetId: uuid('asset_id').notNull().references(() => ethelAssets.id, { onDelete: 'restrict' }),
   kind: text('kind').notNull(),
 }, (t) => [
   check('item_cost_kind_check', sql`${t.kind} IN ('purchase', 'disposal', 'repair', 'maintenance', 'accessory')`),
-  uniqueIndex('item_cost_tx_item_unique').on(t.transactionId, t.itemId),
-  uniqueIndex('item_cost_capital_unique').on(t.itemId, t.kind).where(sql`${t.kind} IN ('purchase', 'disposal')`),
-  index('item_cost_item_id_idx').on(t.itemId),
+  uniqueIndex('item_cost_tx_asset_unique').on(t.transactionId, t.assetId),
+  uniqueIndex('item_cost_capital_unique').on(t.assetId, t.kind).where(sql`${t.kind} IN ('purchase', 'disposal')`),
+  index('item_cost_asset_id_idx').on(t.assetId),
 ]);
 
 /** Persisted ONLY when touched (linked / skipped / amount override); planned

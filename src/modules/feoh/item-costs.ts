@@ -1,7 +1,7 @@
 import { db } from '../../db/index.js';
 import { isPgError } from '@wyrhta/core/db';
 import { feohItemCosts, recurringBills, recurringOccurrences, transactions, type FeohItemCost, type Transaction, type RecurringBill } from './schema.js';
-import { inventoryItems, type InventoryItem } from '../inventory/schema.js';
+import { ethelAssets, type EthelAsset } from '../ethel/schema.js';
 import { eq, and, isNotNull, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { localTodayIso } from './dates.js';
@@ -29,12 +29,21 @@ async function costSizeCents(transactionId: string): Promise<number> {
 export async function createItemCost(i: { transactionId: string; itemId: string; kind: CostKind }): Promise<FeohItemCost> {
   const [txn] = await db.select().from(transactions).where(eq(transactions.id, i.transactionId)).limit(1);
   if (!txn) throw new Error('NOT_FOUND_TRANSACTION');
-  const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, i.itemId)).limit(1);
-  if (!item) throw new Error('NOT_FOUND_ITEM');
-  if (item.decommissionedAt && i.kind !== 'disposal') throw new Error('ITEM_DECOMMISSIONED');
+  // Parameter name is feoh's (an item cost); the column is Ethel's (an asset).
+  // The rename stops at this line - see AGENTS.md, "Module rules".
+  const [asset] = await db.select().from(ethelAssets).where(eq(ethelAssets.id, i.itemId)).limit(1);
+  if (!asset) throw new Error('NOT_FOUND_ITEM');
+  if (asset.decommissionedAt && i.kind !== 'disposal') throw new Error('ITEM_DECOMMISSIONED');
   if (TIER2.includes(i.kind) && (await costSizeCents(i.transactionId)) === 0) throw new Error('NOT_A_COST');
   try {
-    const [row] = await db.insert(feohItemCosts).values(i).returning();
+    // NOT `.values(i)`: the input key is itemId and the column is assetId, so
+    // the spread that worked while the two names agreed no longer compiles.
+    // Mapping field by field is also what makes the boundary visible.
+    const [row] = await db.insert(feohItemCosts).values({
+      transactionId: i.transactionId,
+      assetId: i.itemId,
+      kind: i.kind,
+    }).returning();
     return row!;
   } catch (e: unknown) {
     if (isPgError(e, '23505')) {
@@ -50,22 +59,22 @@ export async function deleteItemCost(id: string): Promise<FeohItemCost | null> {
 }
 
 export interface ItemCostsBreakdown {
-  item: InventoryItem;
+  item: EthelAsset;
   links: Array<FeohItemCost & { transaction: Transaction }>;
   recurringBills: RecurringBill[];
   totals: { capital: number; tier2: number; recurring: number; proceeds: number; total: number; perYear: number | null; lifetimeDays: number | null };
 }
 
 export async function getItemCosts(itemId: string): Promise<ItemCostsBreakdown | null> {
-  const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId)).limit(1);
+  const [item] = await db.select().from(ethelAssets).where(eq(ethelAssets.id, itemId)).limit(1);
   if (!item) return null;
 
   const linkRows = await db.select().from(feohItemCosts)
     .innerJoin(transactions, eq(feohItemCosts.transactionId, transactions.id))
-    .where(eq(feohItemCosts.itemId, itemId));
+    .where(eq(feohItemCosts.assetId, itemId));
   const links = linkRows.map((r) => ({ ...r.feoh_item_costs, transaction: r.transactions }));
 
-  const bills = await db.select().from(recurringBills).where(eq(recurringBills.inventoryItemId, itemId));
+  const bills = await db.select().from(recurringBills).where(eq(recurringBills.ethelAssetId, itemId));
   const billIds = bills.map((b) => b.id);
   const paidTxIds = billIds.length
     ? (await db.select({ txId: recurringOccurrences.transactionId }).from(recurringOccurrences)

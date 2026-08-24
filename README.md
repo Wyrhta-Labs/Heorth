@@ -103,9 +103,11 @@ Beyond the core ledger primitives, three surfaces round out the feature:
   earliest non-paid/skipped date) is **not** returned by the API — it's
   cheap to derive client-side from the listing.
 - **Item costs / TCO** — `POST /api/v1/feoh/item-costs` links a transaction
-  to an inventory item as a cost (purchase/disposal/repair/maintenance/
+  to an Ethel asset as a cost (purchase/disposal/repair/maintenance/
   accessory); `GET /api/v1/feoh/item-costs/:itemId` returns the rolled-up
-  total-cost-of-ownership breakdown plus a per-year rate.
+  total-cost-of-ownership breakdown plus a per-year rate. The `/feoh/item-costs`
+  path and its `itemId` field keep their names — the feoh→ethel boundary is a
+  rename of the *thing*, not of feoh's own API surface.
 - **Account ledger + Kassensturz** — `GET /api/v1/feoh/accounts/:id/ledger`
   is a paginated, running-balance ledger per account; `POST
   /api/v1/feoh/accounts/:id/reconcile` books an adjusting transaction between

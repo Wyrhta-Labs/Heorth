@@ -221,10 +221,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   untouched again. Off-schedule (edited) rows always surface even past the
   listing's horizon.
 - **Item cost links + total-cost-of-ownership** (`src/modules/feoh/
-  item-costs.ts`) — links a transaction to an inventory item as a cost
-  (purchase/disposal/repair/maintenance/accessory) and rolls up a per-item
+  item-costs.ts`) — links a transaction to an Ethel asset as a cost
+  (purchase/disposal/repair/maintenance/accessory) and rolls up a per-asset
   TCO breakdown (capital + tier2 + recurring − proceeds, plus a per-year
-  rate over the item's lifetime).
+  rate over the asset's lifetime).
 - **Account ledger + Kassensturz reconciliation** (`src/modules/feoh/
   ledger.ts`) — a per-account running-balance ledger (Postgres window
   function over the full unfiltered history, so paginated balances stay
@@ -232,9 +232,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   between a physically counted balance and the ledger balance through a
   given date (asset accounts only, guarded against later postings that
   would silently shift).
-- **German locale coverage** for the new inventory, occurrences, and ledger/
+- **German locale coverage** for the new Ethel, occurrences, and ledger/
   Kassensturz UI surfaces.
-- Migration `0015` for the inventory + occurrences + item-cost tables.
+- Migration `0015_feoh-inventory-lifecycle.sql` for the Ethel + occurrences +
+  item-cost tables.
 
 ### Fixed
 
@@ -242,11 +243,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (billId, dueDate) now maps the underlying `23505` conflict to a
   classified error, matching the existing link/skip behavior, instead of
   leaking a raw 500.
-- `inventory.list_items` MCP tool now accepts `limit`/`offset`, matching the
+- `ethel.list_assets` MCP tool now accepts `limit`/`offset`, matching the
   REST endpoint's pagination.
-- Inventory search escapes `%`/`_` in the ILIKE pattern so a literal wildcard
-  character in a search term (e.g. `100%`) no longer wildcard-matches
-  unrelated items.
+- Ethel's asset search escapes `%`/`_` in the ILIKE pattern so a literal
+  wildcard character in a search term (e.g. `100%`) no longer wildcard-matches
+  unrelated assets.
 - Kassensturz reconciliation now also invalidates the month-summary query on
   the web client, since a booked difference posts to an envelope.
 - `item-costs.ts` and `ledger.ts` now derive "today" from the same shared

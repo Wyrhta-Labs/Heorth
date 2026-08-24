@@ -333,7 +333,7 @@
     "captureTab": "Erfassen",
     "more": "Mehr",
     "signOut": "Abmelden",
-    "inventory": "Inventar"
+    "ethel": "Ethel"
   },
   "pwa": {
     "updateReady": "Eine neue Version von Heorth ist bereit.",
@@ -499,10 +499,10 @@
       "viewSource": "Zur Quelle"
     }
   },
-  "inventory": {
-    "title": "Inventar",
-    "addItem": "Gegenstand hinzufügen",
-    "search": "Gegenstände durchsuchen",
+  "ethel": {
+    "title": "Ethel",
+    "addAsset": "Neues Objekt",
+    "search": "Objekte suchen",
     "filterAll": "Alle",
     "filterActive": "Aktiv",
     "filterDecommissioned": "Ausgemustert",
@@ -512,7 +512,7 @@
       "manufacturer": "Hersteller",
       "model": "Modell",
       "serialNumber": "Seriennummer",
-      "location": "Ort",
+      "locationNote": "Standort-Notiz",
       "notes": "Notizen",
       "warrantyUntil": "Garantie bis",
       "purchasePrice": "Kaufpreis",
@@ -556,7 +556,7 @@
         "accessory": "Zubehör"
       }
     },
-    "empty": "Noch keine Gegenstände.",
+    "empty": "Noch keine Objekte.",
     "loadMore": "Mehr laden",
     "delete": "Löschen",
     "deleteConfirm": "{{name}} löschen?",

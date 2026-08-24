@@ -27,7 +27,7 @@ export const QUERY_KEYS = {
   transactions: ['transactions'] as const,
   bills: ['bills'] as const,
   summary: (month: string) => ['summary', month] as const,
-  inventory: ['inventory'] as const,
+  ethel: ['ethel'] as const,
   occurrences: ['occurrences'] as const,
   itemCosts: (itemId: string) => ['itemCosts', itemId] as const,
   ledger: (accountId: string) => ['ledger', accountId] as const,
@@ -89,13 +89,13 @@ export const ROLE_OPTIONS = [
 export const LEDGER_PAGE_SIZE = 50;
 
 /**
- * Inventory list page size. Must stay within the server's `limit` cap of 100
- * (`src/modules/inventory/validators.ts`) — the page previously asked for 200
- * and every load 400ed. `web/src/pages/inventory.contract.test.tsx` validates
+ * Ethel asset list page size. Must stay within the server's `limit` cap of 100
+ * (`src/modules/ethel/validators.ts`) — the page previously asked for 200
+ * and every load 400ed. `web/src/pages/ethel.contract.test.tsx` validates
  * the page's real requests against the mirrored schema
- * (`web/src/api/inventory-query.ts`), so a drift breaks loudly.
+ * (`web/src/api/ethel-query.ts`), so a drift breaks loudly.
  */
-export const INVENTORY_PAGE_SIZE = 50;
+export const ETHEL_PAGE_SIZE = 50;
 
 export const RECURRENCE_OPTIONS = [
   { value: '', labelKey: 'options.recurrence.none' },

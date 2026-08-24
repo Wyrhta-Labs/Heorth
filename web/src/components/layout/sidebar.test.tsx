@@ -17,7 +17,7 @@ function renderAt(path = '/') {
     ),
   });
   const leaf = (p: string) => createRoute({ getParentRoute: () => rootRoute, path: p, component: () => null });
-  const routeTree = rootRoute.addChildren([leaf('/'), leaf('/calendar'), leaf('/inventory')]);
+  const routeTree = rootRoute.addChildren([leaf('/'), leaf('/calendar'), leaf('/ethel')]);
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
   const utils = render(<RouterProvider router={router} />);
   return { ...utils, router };
@@ -51,7 +51,7 @@ describe('Sidebar', () => {
     await screen.findByText('Calendar');
     expect(activeLabel()).toBe('Calendar');
 
-    await router.navigate({ to: '/inventory' });
-    await waitFor(() => expect(activeLabel()).toBe('Inventory'));
+    await router.navigate({ to: '/ethel' });
+    await waitFor(() => expect(activeLabel()).toBe('Ethel'));
   });
 });

@@ -1,22 +1,22 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { InventoryItem, Transaction } from '@/lib/types';
+import type { EthelAsset, Transaction } from '@/lib/types';
 
-const listItems = vi.fn();
-const createItem = vi.fn();
-const getItem = vi.fn();
-const updateItem = vi.fn();
-const decommissionItem = vi.fn();
-const deleteItem = vi.fn();
+const listAssets = vi.fn();
+const createAsset = vi.fn();
+const getAsset = vi.fn();
+const updateAsset = vi.fn();
+const decommissionAsset = vi.fn();
+const deleteAsset = vi.fn();
 
-vi.mock('@/api/inventory', () => ({
-  listItems: (...args: unknown[]) => listItems(...args),
-  createItem: (...args: unknown[]) => createItem(...args),
-  getItem: (...args: unknown[]) => getItem(...args),
-  updateItem: (...args: unknown[]) => updateItem(...args),
-  decommissionItem: (...args: unknown[]) => decommissionItem(...args),
-  deleteItem: (...args: unknown[]) => deleteItem(...args),
+vi.mock('@/api/ethel', () => ({
+  listAssets: (...args: unknown[]) => listAssets(...args),
+  createAsset: (...args: unknown[]) => createAsset(...args),
+  getAsset: (...args: unknown[]) => getAsset(...args),
+  updateAsset: (...args: unknown[]) => updateAsset(...args),
+  decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
+  deleteAsset: (...args: unknown[]) => deleteAsset(...args),
 }));
 
 const getItemCosts = vi.fn();
@@ -34,11 +34,11 @@ vi.mock('@/api/feoh', () => ({
 const toast = vi.fn();
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast }) }));
 
-import InventoryPage from './inventory';
+import EthelPage from './ethel';
 
 beforeEach(() => {
-  // ItemDetail/DecommissionDialog always call useTransactions() for the "link
-  // sale" picker, even before an item is selected — give it a default so
+  // AssetDetail/DecommissionDialog always call useTransactions() for the "link
+  // sale" picker, even before an asset is selected — give it a default so
   // react-query doesn't warn about an undefined resolved value in the tests
   // that don't care about transactions.
   listTransactions.mockResolvedValue({ data: [], meta: { total: 0 } });
@@ -46,12 +46,12 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
-  listItems.mockReset();
-  createItem.mockReset();
-  getItem.mockReset();
-  updateItem.mockReset();
-  decommissionItem.mockReset();
-  deleteItem.mockReset();
+  listAssets.mockReset();
+  createAsset.mockReset();
+  getAsset.mockReset();
+  updateAsset.mockReset();
+  decommissionAsset.mockReset();
+  deleteAsset.mockReset();
   getItemCosts.mockReset();
   createItemCost.mockReset();
   deleteItemCost.mockReset();
@@ -63,12 +63,12 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <InventoryPage />
+      <EthelPage />
     </QueryClientProvider>,
   );
 }
 
-const item1: InventoryItem = {
+const asset1: EthelAsset = {
   id: 'i1',
   createdAt: '2025-01-01T00:00:00Z',
   updatedAt: '2025-01-01T00:00:00Z',
@@ -77,7 +77,8 @@ const item1: InventoryItem = {
   manufacturer: null,
   model: null,
   serialNumber: null,
-  location: 'Garage',
+  placeId: null,
+  locationNote: 'Garage',
   notes: null,
   warrantyUntil: null,
   purchasePrice: '120',
@@ -98,30 +99,30 @@ const tx1: Transaction = {
   createdBy: 'm1',
 };
 
-describe('InventoryPage', () => {
-  it('renders items from the mocked listItems client', async () => {
-    listItems.mockResolvedValue({ data: [item1], meta: { total: 1 } });
+describe('EthelPage', () => {
+  it('renders assets from the mocked listAssets client', async () => {
+    listAssets.mockResolvedValue({ data: [asset1], meta: { total: 1 } });
     renderPage();
     await waitFor(() => expect(screen.getByText('Drill')).toBeInTheDocument());
   });
 
   it('refetches with status=decommissioned when the filter chip is clicked', async () => {
-    listItems.mockResolvedValue({ data: [], meta: { total: 0 } });
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0 } });
     renderPage();
-    await waitFor(() => expect(listItems).toHaveBeenCalled());
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText('Decommissioned'));
 
     await waitFor(() =>
-      expect(listItems).toHaveBeenCalledWith(expect.objectContaining({ status: 'decommissioned' })),
+      expect(listAssets).toHaveBeenCalledWith(expect.objectContaining({ status: 'decommissioned' })),
     );
   });
 
-  it('shows the TCO panel with the per-year total when an item is opened', async () => {
-    listItems.mockResolvedValue({ data: [item1], meta: { total: 1 } });
+  it('shows the TCO panel with the per-year total when an asset is opened', async () => {
+    listAssets.mockResolvedValue({ data: [asset1], meta: { total: 1 } });
     getItemCosts.mockResolvedValue({
       data: {
-        item: item1,
+        asset: asset1,
         links: [],
         recurringBills: [],
         totals: { capital: 120, tier2: 0, recurring: 0, proceeds: 0, total: 120, perYear: 40, lifetimeDays: 1095 },
@@ -138,26 +139,26 @@ describe('InventoryPage', () => {
   });
 
   it('refreshes the open detail view and TCO panel after a decommission with no transaction picked', async () => {
-    const decommissioned: InventoryItem = {
-      ...item1,
+    const decommissioned: EthelAsset = {
+      ...asset1,
       decommissionedAt: '2026-08-17',
       decommissionReason: 'broken',
       disposalProceeds: '75',
     };
-    // First list load returns the active item; after decommission invalidates
-    // the inventory query, the refetch returns the now-decommissioned row.
-    listItems
-      .mockResolvedValueOnce({ data: [item1], meta: { total: 1 } })
+    // First list load returns the active asset; after decommission invalidates
+    // the ethel query, the refetch returns the now-decommissioned row.
+    listAssets
+      .mockResolvedValueOnce({ data: [asset1], meta: { total: 1 } })
       .mockResolvedValue({ data: [decommissioned], meta: { total: 1 } });
     getItemCosts.mockResolvedValue({
       data: {
-        item: item1,
+        asset: asset1,
         links: [],
         recurringBills: [],
         totals: { capital: 120, tier2: 0, recurring: 0, proceeds: 0, total: 120, perYear: 40, lifetimeDays: 1095 },
       },
     });
-    decommissionItem.mockResolvedValue({ data: decommissioned });
+    decommissionAsset.mockResolvedValue({ data: decommissioned });
 
     renderPage();
     await waitFor(() => expect(screen.getByText('Drill')).toBeInTheDocument());
@@ -170,7 +171,7 @@ describe('InventoryPage', () => {
     const submitButton = screen.getByRole('button', { name: 'Decommission' });
     fireEvent.click(submitButton);
 
-    await waitFor(() => expect(decommissionItem).toHaveBeenCalledWith('i1', expect.any(Object)));
+    await waitFor(() => expect(decommissionAsset).toHaveBeenCalledWith('i1', expect.any(Object)));
     // No transaction was picked, so createItemCost must not run.
     expect(createItemCost).not.toHaveBeenCalled();
 
@@ -179,7 +180,7 @@ describe('InventoryPage', () => {
     await waitFor(() => expect(getItemCosts.mock.calls.length).toBeGreaterThanOrEqual(2));
     // Bug 2: the open detail view must reflect the refreshed (decommissioned)
     // row instead of the stale `selected` snapshot.
-    await waitFor(() => expect(listItems).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(listAssets).toHaveBeenCalledTimes(2));
     // "Decommissioned" also names the status filter chip, so match the
     // specific lifecycle line rather than the bare word.
     await waitFor(() =>
@@ -188,18 +189,18 @@ describe('InventoryPage', () => {
     expect(screen.getByRole('button', { name: 'Decommission' })).toBeDisabled();
   });
 
-  it('decommissions the item then links the picked sale transaction, tolerating a link failure', async () => {
-    listItems.mockResolvedValue({ data: [item1], meta: { total: 1 } });
+  it('decommissions the asset then links the picked sale transaction, tolerating a link failure', async () => {
+    listAssets.mockResolvedValue({ data: [asset1], meta: { total: 1 } });
     getItemCosts.mockResolvedValue({
       data: {
-        item: item1,
+        asset: asset1,
         links: [],
         recurringBills: [],
         totals: { capital: 120, tier2: 0, recurring: 0, proceeds: 0, total: 120, perYear: 40, lifetimeDays: 1095 },
       },
     });
     listTransactions.mockResolvedValue({ data: [tx1], meta: { total: 1 } });
-    decommissionItem.mockResolvedValue({ data: { ...item1, decommissionedAt: '2026-08-17', decommissionReason: 'sold' } });
+    decommissionAsset.mockResolvedValue({ data: { ...asset1, decommissionedAt: '2026-08-17', decommissionReason: 'sold' } });
     createItemCost.mockRejectedValue(new Error('boom'));
 
     renderPage();
@@ -215,26 +216,26 @@ describe('InventoryPage', () => {
     const submitButton = screen.getByRole('button', { name: 'Decommission' });
     fireEvent.click(submitButton);
 
-    await waitFor(() => expect(decommissionItem).toHaveBeenCalledWith('i1', expect.objectContaining({ proceeds: 50 })));
+    await waitFor(() => expect(decommissionAsset).toHaveBeenCalledWith('i1', expect.objectContaining({ proceeds: 50 })));
     await waitFor(() =>
       expect(createItemCost).toHaveBeenCalledWith({ transactionId: 't1', itemId: 'i1', kind: 'disposal' }),
     );
-    expect(decommissionItem.mock.invocationCallOrder[0]).toBeLessThan(createItemCost.mock.invocationCallOrder[0]);
+    expect(decommissionAsset.mock.invocationCallOrder[0]).toBeLessThan(createItemCost.mock.invocationCallOrder[0]);
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.stringContaining('linking the transaction failed'), 'error'),
     );
   });
 
-  it('create form posts createItem', async () => {
-    listItems.mockResolvedValue({ data: [], meta: { total: 0 } });
-    createItem.mockResolvedValue({ data: item1 });
+  it('create form posts createAsset', async () => {
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0 } });
+    createAsset.mockResolvedValue({ data: asset1 });
     renderPage();
-    await waitFor(() => expect(listItems).toHaveBeenCalled());
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByText('Add item'));
+    fireEvent.click(screen.getByText('Add asset'));
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Drill' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(createItem).toHaveBeenCalledWith(expect.objectContaining({ name: 'Drill' })));
+    await waitFor(() => expect(createAsset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Drill' })));
   });
 });

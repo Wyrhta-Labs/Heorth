@@ -21,7 +21,7 @@ export type NavLabelKey =
   | 'nav.household'
   | 'nav.hearth'
   | 'nav.profile'
-  | 'nav.inventory';
+  | 'nav.ethel';
 
 interface NavItem {
   to: string;
@@ -52,7 +52,7 @@ export const navItems: NavItem[] = [
   { to: '/capture', labelKey: 'nav.quickCapture', icon: PlusCircle },
   { to: '/meals', labelKey: 'nav.meals', icon: UtensilsCrossed },
   { to: '/feoh', labelKey: 'nav.feoh', icon: Wallet },
-  { to: '/inventory', labelKey: 'nav.inventory', icon: Package },
+  { to: '/ethel', labelKey: 'nav.ethel', icon: Package },
   { to: '/library', labelKey: 'nav.library', icon: Library },
   { to: '/household/members', labelKey: 'nav.household', icon: Home, activePrefix: '/household' },
   { to: '/hearth', labelKey: 'nav.hearth', icon: Tv },

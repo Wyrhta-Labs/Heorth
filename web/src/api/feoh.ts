@@ -15,7 +15,7 @@ export interface TransactionInput {
 export type Cadence = 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 export interface BillInput {
   payee: string; amount: number; cadence: Cadence; nextDue: string;
-  envelopeId?: string | null; inventoryItemId?: string | null;
+  envelopeId?: string | null; ethelAssetId?: string | null;
 }
 
 export interface LinkOccurrenceInput { billId: string; dueDate: string; transactionId: string; }

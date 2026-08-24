@@ -2,23 +2,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from '@/i18n';
-import type { InventoryItem, OccurrenceEntry, Account, Envelope, LedgerEntry, LedgerMeta } from '@/lib/types';
+import type { EthelAsset, OccurrenceEntry, Account, Envelope, LedgerEntry, LedgerMeta } from '@/lib/types';
 
-// --- Inventory page mocks (mirrors inventory.test.tsx) ---
-const listItems = vi.fn();
-const createItem = vi.fn();
-const getItem = vi.fn();
-const updateItem = vi.fn();
-const decommissionItem = vi.fn();
-const deleteItem = vi.fn();
+// --- Ethel page mocks (mirrors ethel.test.tsx) ---
+const listAssets = vi.fn();
+const createAsset = vi.fn();
+const getAsset = vi.fn();
+const updateAsset = vi.fn();
+const decommissionAsset = vi.fn();
+const deleteAsset = vi.fn();
 
-vi.mock('@/api/inventory', () => ({
-  listItems: (...args: unknown[]) => listItems(...args),
-  createItem: (...args: unknown[]) => createItem(...args),
-  getItem: (...args: unknown[]) => getItem(...args),
-  updateItem: (...args: unknown[]) => updateItem(...args),
-  decommissionItem: (...args: unknown[]) => decommissionItem(...args),
-  deleteItem: (...args: unknown[]) => deleteItem(...args),
+vi.mock('@/api/ethel', () => ({
+  listAssets: (...args: unknown[]) => listAssets(...args),
+  createAsset: (...args: unknown[]) => createAsset(...args),
+  getAsset: (...args: unknown[]) => getAsset(...args),
+  updateAsset: (...args: unknown[]) => updateAsset(...args),
+  decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
+  deleteAsset: (...args: unknown[]) => deleteAsset(...args),
 }));
 
 const getItemCosts = vi.fn();
@@ -56,25 +56,25 @@ vi.mock('@/api/feoh', () => ({
 const toast = vi.fn();
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast }) }));
 
-import InventoryPage from './inventory';
+import EthelPage from './ethel';
 import OccurrenceStrip from '@/components/feoh/occurrence-strip';
 import AccountsPanel from '@/components/feoh/accounts-panel';
 
 beforeEach(async () => {
   await i18n.changeLanguage('de');
-  // ItemDetail/DecommissionDialog always call useTransactions() for the "link
-  // sale" picker, even before an item is selected.
+  // AssetDetail/DecommissionDialog always call useTransactions() for the "link
+  // sale" picker, even before an asset is selected.
   listTransactions.mockResolvedValue({ data: [], meta: { total: 0 } });
 });
 
 afterEach(async () => {
   cleanup();
-  listItems.mockReset();
-  createItem.mockReset();
-  getItem.mockReset();
-  updateItem.mockReset();
-  decommissionItem.mockReset();
-  deleteItem.mockReset();
+  listAssets.mockReset();
+  createAsset.mockReset();
+  getAsset.mockReset();
+  updateAsset.mockReset();
+  decommissionAsset.mockReset();
+  deleteAsset.mockReset();
   getItemCosts.mockReset();
   createItemCost.mockReset();
   deleteItemCost.mockReset();
@@ -98,7 +98,7 @@ function renderWithClient(ui: React.ReactElement) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-const item1: InventoryItem = {
+const asset1: EthelAsset = {
   id: 'i1',
   createdAt: '2025-01-01T00:00:00Z',
   updatedAt: '2025-01-01T00:00:00Z',
@@ -107,7 +107,8 @@ const item1: InventoryItem = {
   manufacturer: null,
   model: null,
   serialNumber: null,
-  location: 'Garage',
+  placeId: null,
+  locationNote: 'Garage',
   notes: null,
   warrantyUntil: null,
   purchasePrice: '120',
@@ -117,21 +118,21 @@ const item1: InventoryItem = {
   disposalProceeds: null,
 };
 
-describe('InventoryPage in German', () => {
-  it('renders the page title, add-item button, and item detail (decommission action, TCO) in German', async () => {
-    listItems.mockResolvedValue({ data: [item1], meta: { total: 1 } });
+describe('EthelPage in German', () => {
+  it('renders the page title, add-asset button, and asset detail (decommission action, TCO) in German', async () => {
+    listAssets.mockResolvedValue({ data: [asset1], meta: { total: 1 } });
     getItemCosts.mockResolvedValue({
       data: {
-        item: item1,
+        asset: asset1,
         links: [],
         recurringBills: [],
         totals: { capital: 120, tier2: 0, recurring: 0, proceeds: 0, total: 120, perYear: 40, lifetimeDays: 1095 },
       },
     });
-    renderWithClient(<InventoryPage />);
+    renderWithClient(<EthelPage />);
 
-    expect(screen.getByText('Inventar')).toBeInTheDocument();
-    expect(screen.getByText('Gegenstand hinzufügen')).toBeInTheDocument();
+    expect(screen.getByText('Ethel')).toBeInTheDocument();
+    expect(screen.getByText('Neues Objekt')).toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByText('Drill')).toBeInTheDocument());
     fireEvent.click(screen.getByText('Drill'));

@@ -6,27 +6,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
-import { useDecommissionItem } from '@/hooks/use-inventory';
+import { useDecommissionAsset } from '@/hooks/use-ethel';
 import { useCreateItemCost, useTransactions } from '@/hooks/use-feoh';
-import type { InventoryItem, DecommissionReason } from '@/lib/types';
+import type { EthelAsset, DecommissionReason } from '@/lib/types';
 
 const REASONS: DecommissionReason[] = ['broken', 'sold', 'given_away', 'worn_out', 'lost', 'other'];
 
 interface Props {
-  item: InventoryItem | null;
+  asset: EthelAsset | null;
   onClose: () => void;
 }
 
 /**
- * Decommission = decommissionItem, then (only if a sale transaction was
+ * Decommission = decommissionAsset, then (only if a sale transaction was
  * picked) createItemCost({kind:'disposal'}). The second call is non-fatal:
- * the item stays decommissioned even if linking the transaction fails, and we
+ * the asset stays decommissioned even if linking the transaction fails, and we
  * just toast `linkFailed` so the household can retry the link later.
  */
-export default function DecommissionDialog({ item, onClose }: Props) {
+export default function DecommissionDialog({ asset, onClose }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const decommission = useDecommissionItem();
+  const decommission = useDecommissionAsset();
   const createCost = useCreateItemCost();
   const transactionsQuery = useTransactions({ limit: 20 });
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -45,11 +45,11 @@ export default function DecommissionDialog({ item, onClose }: Props) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!item) return;
+    if (!asset) return;
     setError('');
     try {
       await decommission.mutateAsync({
-        id: item.id,
+        id: asset.id,
         input: { date, reason, proceeds: proceeds ? Number(proceeds) : undefined },
       });
     } catch (e) {
@@ -59,46 +59,46 @@ export default function DecommissionDialog({ item, onClose }: Props) {
     onClose();
     if (transactionId) {
       try {
-        await createCost.mutateAsync({ transactionId, itemId: item.id, kind: 'disposal' });
+        await createCost.mutateAsync({ transactionId, itemId: asset.id, kind: 'disposal' });
       } catch {
-        toast(t('inventory.decommission.linkFailed'), 'error');
+        toast(t('ethel.decommission.linkFailed'), 'error');
       }
     }
   };
 
   return (
-    <Dialog open={!!item} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={!!asset} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        {item && (
+        {asset && (
           <>
             <DialogHeader>
-              <DialogTitle>{t('inventory.decommission.action')}</DialogTitle>
+              <DialogTitle>{t('ethel.decommission.action')}</DialogTitle>
               <DialogClose onClose={onClose} />
             </DialogHeader>
             <form onSubmit={submit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label htmlFor="decom-date">{t('inventory.decommission.date')}</Label>
+                  <Label htmlFor="decom-date">{t('ethel.decommission.date')}</Label>
                   <Input id="decom-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="decom-reason">{t('inventory.decommission.reason')}</Label>
+                  <Label htmlFor="decom-reason">{t('ethel.decommission.reason')}</Label>
                   <select
                     id="decom-reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value as DecommissionReason)}
                     className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
                   >
-                    {REASONS.map((r) => <option key={r} value={r}>{t(`inventory.reasons.${r}`)}</option>)}
+                    {REASONS.map((r) => <option key={r} value={r}>{t(`ethel.reasons.${r}`)}</option>)}
                   </select>
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="decom-proceeds">{t('inventory.decommission.proceeds')}</Label>
+                <Label htmlFor="decom-proceeds">{t('ethel.decommission.proceeds')}</Label>
                 <Input id="decom-proceeds" type="number" step="0.01" min="0" value={proceeds} onChange={(e) => setProceeds(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="decom-tx">{t('inventory.decommission.linkSale')}</Label>
+                <Label htmlFor="decom-tx">{t('ethel.decommission.linkSale')}</Label>
                 <select
                   id="decom-tx"
                   value={transactionId}
@@ -115,7 +115,7 @@ export default function DecommissionDialog({ item, onClose }: Props) {
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
                 <Button type="submit" disabled={decommission.isPending}>
-                  {decommission.isPending ? t('common.loading') : t('inventory.decommission.action')}
+                  {decommission.isPending ? t('common.loading') : t('ethel.decommission.action')}
                 </Button>
               </div>
             </form>

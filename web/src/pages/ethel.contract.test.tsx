@@ -1,18 +1,18 @@
 /**
- * Contract guard: every list request the inventory page makes must satisfy the
+ * Contract guard: every list request the Ethel page makes must satisfy the
  * SERVER's query schema.
  *
- * This is the test that was missing when the page shipped. `inventory.test.tsx`
- * mocks `@/api/inventory` wholesale, so the params never meet the validator —
+ * This is the test that was missing when the page shipped. `ethel.test.tsx`
+ * mocks `@/api/ethel` wholesale, so the params never meet the validator —
  * the page asked for `limit=200` against a schema capped at 100 and every load
  * 400ed with VALIDATION_ERROR while the suite stayed green.
  *
  * The server's schema cannot be imported here: web/ and the backend are
  * independent dependency trees — the web image stage and the CI web job see
  * neither backend source nor backend node_modules. The contract is therefore
- * mirrored in `@/api/inventory-query` and pinned on both sides: this test
+ * mirrored in `@/api/ethel-query` and pinned on both sides: this test
  * validates whatever the page ACTUALLY sends against the mirror, and
- * `tests/inventory-routes.test.ts` pins the server half. It replays each
+ * `tests/ethel-routes.test.ts` pins the server half. It replays each
  * captured params object through the real `qs()` serializer, so what is
  * validated is the query string as it would go on the wire (strings,
  * `''`/`undefined` already dropped), not the typed object.
@@ -20,24 +20,24 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { InventoryItem } from '@/lib/types';
+import type { EthelAsset } from '@/lib/types';
 import { qs } from '@/api/client';
-import { listItemsQuerySchema } from '@/api/inventory-query';
+import { listAssetsQuerySchema } from '@/api/ethel-query';
 
-const listItems = vi.fn();
-const createItem = vi.fn();
-const getItem = vi.fn();
-const updateItem = vi.fn();
-const decommissionItem = vi.fn();
-const deleteItem = vi.fn();
+const listAssets = vi.fn();
+const createAsset = vi.fn();
+const getAsset = vi.fn();
+const updateAsset = vi.fn();
+const decommissionAsset = vi.fn();
+const deleteAsset = vi.fn();
 
-vi.mock('@/api/inventory', () => ({
-  listItems: (...args: unknown[]) => listItems(...args),
-  createItem: (...args: unknown[]) => createItem(...args),
-  getItem: (...args: unknown[]) => getItem(...args),
-  updateItem: (...args: unknown[]) => updateItem(...args),
-  decommissionItem: (...args: unknown[]) => decommissionItem(...args),
-  deleteItem: (...args: unknown[]) => deleteItem(...args),
+vi.mock('@/api/ethel', () => ({
+  listAssets: (...args: unknown[]) => listAssets(...args),
+  createAsset: (...args: unknown[]) => createAsset(...args),
+  getAsset: (...args: unknown[]) => getAsset(...args),
+  updateAsset: (...args: unknown[]) => updateAsset(...args),
+  decommissionAsset: (...args: unknown[]) => decommissionAsset(...args),
+  deleteAsset: (...args: unknown[]) => deleteAsset(...args),
 }));
 
 const listTransactions = vi.fn();
@@ -50,7 +50,7 @@ vi.mock('@/api/feoh', () => ({
 
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
-import InventoryPage from './inventory';
+import EthelPage from './ethel';
 
 beforeEach(() => {
   listTransactions.mockResolvedValue({ data: [], meta: { total: 0 } });
@@ -58,7 +58,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
-  listItems.mockReset();
+  listAssets.mockReset();
   listTransactions.mockReset();
 });
 
@@ -66,12 +66,12 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <InventoryPage />
+      <EthelPage />
     </QueryClientProvider>,
   );
 }
 
-const item = (id: string, name: string): InventoryItem => ({
+const asset = (id: string, name: string): EthelAsset => ({
   id,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
@@ -80,7 +80,8 @@ const item = (id: string, name: string): InventoryItem => ({
   manufacturer: null,
   model: null,
   serialNumber: null,
-  location: 'Garage',
+  placeId: null,
+  locationNote: 'Garage',
   notes: null,
   warrantyUntil: null,
   purchasePrice: null,
@@ -93,7 +94,7 @@ const item = (id: string, name: string): InventoryItem => ({
 /** Serialize like the browser, then validate like the server. */
 function assertServerAccepts(params: Record<string, unknown>) {
   const query = Object.fromEntries(new URLSearchParams(qs(params).replace(/^\?/, '')));
-  const parsed = listItemsQuerySchema.safeParse(query);
+  const parsed = listAssetsQuerySchema.safeParse(query);
   expect(
     parsed.success,
     `server would reject ?${new URLSearchParams(query).toString()}: ${
@@ -103,43 +104,43 @@ function assertServerAccepts(params: Record<string, unknown>) {
 }
 
 function assertEveryRequestAccepted() {
-  expect(listItems.mock.calls.length).toBeGreaterThan(0);
-  for (const [params] of listItems.mock.calls) assertServerAccepts((params ?? {}) as Record<string, unknown>);
+  expect(listAssets.mock.calls.length).toBeGreaterThan(0);
+  for (const [params] of listAssets.mock.calls) assertServerAccepts((params ?? {}) as Record<string, unknown>);
 }
 
-describe('InventoryPage → server query contract', () => {
+describe('EthelPage → server query contract', () => {
   it('sends a first-load request the server accepts', async () => {
-    listItems.mockResolvedValue({ data: [item('i1', 'Drill')], meta: { total: 1, limit: 50, offset: 0 } });
+    listAssets.mockResolvedValue({ data: [asset('i1', 'Drill')], meta: { total: 1, limit: 50, offset: 0 } });
     renderPage();
-    await waitFor(() => expect(listItems).toHaveBeenCalled());
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
     assertEveryRequestAccepted();
   });
 
   it('sends requests the server accepts for every status filter', async () => {
-    listItems.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
     renderPage();
-    await waitFor(() => expect(listItems).toHaveBeenCalled());
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
 
     for (const label of ['Decommissioned', 'Active', 'All']) {
       fireEvent.click(screen.getByText(label));
-      await waitFor(() => expect(listItems).toHaveBeenCalled());
+      await waitFor(() => expect(listAssets).toHaveBeenCalled());
     }
     assertEveryRequestAccepted();
   });
 
   it('sends a search request the server accepts', async () => {
-    listItems.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, limit: 50, offset: 0 } });
     renderPage();
-    await waitFor(() => expect(listItems).toHaveBeenCalled());
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByPlaceholderText('Search items'), { target: { value: 'drill' } });
-    await waitFor(() => expect(listItems).toHaveBeenCalled());
+    fireEvent.change(screen.getByPlaceholderText('Search assets'), { target: { value: 'drill' } });
+    await waitFor(() => expect(listAssets).toHaveBeenCalled());
     assertEveryRequestAccepted();
   });
 
   it('sends a load-more request the server accepts', async () => {
-    listItems.mockResolvedValue({
-      data: [item('i1', 'Drill')],
+    listAssets.mockResolvedValue({
+      data: [asset('i1', 'Drill')],
       meta: { total: 2, limit: 1, offset: 0 },
     });
     renderPage();
@@ -147,13 +148,13 @@ describe('InventoryPage → server query contract', () => {
 
     const loadMore = screen.queryByText('Load more');
     expect(loadMore, 'the page must offer load-more while meta.total exceeds the loaded rows').not.toBeNull();
-    listItems.mockResolvedValue({
-      data: [item('i2', 'Saw')],
+    listAssets.mockResolvedValue({
+      data: [asset('i2', 'Saw')],
       meta: { total: 2, limit: 1, offset: 1 },
     });
     fireEvent.click(loadMore!);
 
-    await waitFor(() => expect(listItems.mock.calls.length).toBeGreaterThan(1));
+    await waitFor(() => expect(listAssets.mock.calls.length).toBeGreaterThan(1));
     assertEveryRequestAccepted();
   });
 });

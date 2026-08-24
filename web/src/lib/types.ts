@@ -178,10 +178,10 @@ export interface MonthSummary {
   totals: { budget: number; spent: number; remaining: number };
 }
 
-// ---- Inventory (physical items; hand-synced from src/modules/inventory/schema.ts) ----
+// ---- Ethel (physical assets; hand-synced from src/modules/ethel/schema.ts) ----
 export type DecommissionReason = 'broken' | 'sold' | 'given_away' | 'worn_out' | 'lost' | 'other';
 
-export interface InventoryItem {
+export interface EthelAsset {
   id: string;
   createdAt: string;
   updatedAt: string;
@@ -190,7 +190,8 @@ export interface InventoryItem {
   manufacturer: string | null;
   model: string | null;
   serialNumber: string | null;
-  location: string | null;
+  placeId: string | null;
+  locationNote: string | null;
   notes: string | null;
   warrantyUntil: string | null;
   purchasePrice: string | null;   // numeric -> string
@@ -226,7 +227,7 @@ export interface FeohItemCost {
 }
 
 export interface ItemCostsBreakdown {
-  item: InventoryItem;
+  item: EthelAsset;
   links: Array<FeohItemCost & { transaction: Transaction }>;
   recurringBills: RecurringBill[];
   totals: {

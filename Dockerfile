@@ -3,7 +3,7 @@
 # The web SPA has its own package-lock and dependency tree (this repo is not an
 # npm workspace), so its deps must be installed from web/ — a root `npm ci`
 # does not provide them.
-FROM node:22-alpine AS web-builder
+FROM node:24-alpine AS web-builder
 
 WORKDIR /app/web
 
@@ -14,7 +14,7 @@ COPY web/ ./
 RUN npm run build
 
 # Stage 2: Build backend
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ COPY src/ ./src/
 RUN npm run build
 
 # Stage 3: Run
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 

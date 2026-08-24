@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { placeKinds } from './schema.js';
 
 export const decommissionReasons = ['broken', 'sold', 'given_away', 'worn_out', 'lost', 'other'] as const;
 export type DecommissionReason = (typeof decommissionReasons)[number];
@@ -52,3 +53,16 @@ export const listAssetsQuerySchema = z.object({
 export type CreateAssetInput = z.infer<typeof createAssetSchema>;
 export type UpdateAssetInput = z.infer<typeof updateAssetSchema>;
 export type DecommissionInput = z.infer<typeof decommissionSchema>;
+
+const basePlace = z.object({
+  name: z.string().min(1),
+  kind: z.enum(placeKinds),
+  parentId: z.string().uuid().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export const createPlaceSchema = basePlace;
+export const updatePlaceSchema = basePlace.partial();
+
+export type CreatePlaceInput = z.infer<typeof createPlaceSchema>;
+export type UpdatePlaceInput = z.infer<typeof updatePlaceSchema>;

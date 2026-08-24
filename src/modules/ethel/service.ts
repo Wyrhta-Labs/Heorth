@@ -1,6 +1,6 @@
 import { db } from '../../db/index.js';
 import { isPgError, pgErrorCode } from '@wyrhta/core/db';
-import { ethelAssets, type EthelAsset, type EthelVehicle, type EthelFacility } from './schema.js';
+import { ethelAssets, ethelFacilities, ethelFacilityPlaces, type EthelAsset, type EthelVehicle, type EthelFacility } from './schema.js';
 import { eq, and, isNull, isNotNull, ilike, or, inArray, sql } from 'drizzle-orm';
 import { descendantPlaceIds, lockPlaceTree } from './places.js';
 import { getVehicle, getFacility } from './details.js';
@@ -8,7 +8,8 @@ import type { CreateAssetInput, UpdateAssetInput, DecommissionInput } from './va
 
 export async function listAssets(q: {
   status?: 'active' | 'decommissioned'; category?: string; q?: string;
-  placeId?: string; includeDescendants?: boolean; limit?: number; offset?: number;
+  placeId?: string; includeDescendants?: boolean; hasFacility?: boolean;
+  servesPlaceId?: string; limit?: number; offset?: number;
 }): Promise<{ rows: EthelAsset[]; total: number; limit: number; offset: number }> {
   const conditions = [];
   if (q.status === 'active') conditions.push(isNull(ethelAssets.decommissionedAt));
@@ -19,6 +20,19 @@ export async function listAssets(q: {
     // Recursive CTE returns place ids; the row query stays drizzle-typed via
     // inArray. Bounded by the depth cap.
     conditions.push(inArray(ethelAssets.placeId, ids));
+  }
+  if (q.hasFacility) {
+    conditions.push(inArray(ethelAssets.id, db.select({ id: ethelFacilities.assetId }).from(ethelFacilities)));
+  }
+  if (q.servesPlaceId) {
+    // Direct links only - deliberately does NOT walk the place tree. A
+    // system serving a room is a different claim from one serving the floor
+    // that room is on; see the pinning test in ethel-facilities.test.ts.
+    conditions.push(inArray(
+      ethelAssets.id,
+      db.select({ id: ethelFacilityPlaces.facilityId }).from(ethelFacilityPlaces)
+        .where(eq(ethelFacilityPlaces.placeId, q.servesPlaceId)),
+    ));
   }
   if (q.q) {
     // Escape LIKE/ILIKE wildcards in user input (Postgres' default ESCAPE

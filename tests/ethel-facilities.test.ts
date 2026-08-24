@@ -127,4 +127,66 @@ describe('facility detail', () => {
     expect(res.status).toBe(409);
     expect((await res.json() as { error: { code: string } }).error.code).toBe('ASSET_DETAIL_CONFLICT');
   });
+
+  it('DELETEs the detail row, keeps the asset, and drops the served-place links', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = await fixture(adult.jwt);
+    await app.request(`/api/v1/ethel/assets/${f.boiler}/facility`, {
+      method: 'PUT', headers: f.h, body: JSON.stringify({ kind: 'heating', servesPlaceIds: [f.kitchen] }),
+    });
+
+    expect((await app.request(`/api/v1/ethel/assets/${f.boiler}/facility`, { method: 'DELETE', headers: f.h })).status).toBe(200);
+
+    const got = await app.request(`/api/v1/ethel/assets/${f.boiler}`, { headers: f.h });
+    const detail = await got.json() as { data: { name: string; facility: unknown } };
+    expect(detail.data.facility).toBeNull();
+    expect(detail.data.name).toBe('Vaillant boiler');
+
+    // The links go by cascade, not by a second statement - prove it here.
+    const serving = await app.request(`/api/v1/ethel/assets?servesPlaceId=${f.kitchen}`, { headers: f.h });
+    expect((await serving.json() as { data: unknown[] }).data.length).toBe(0);
+  });
+});
+
+describe('facility list filters', () => {
+  it('lists the systems of the house, and what serves one room', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = await fixture(adult.jwt);
+    const inverter = await f.asset('PV inverter');
+    await app.request(`/api/v1/ethel/assets/${f.boiler}/facility`, {
+      method: 'PUT', headers: f.h, body: JSON.stringify({ kind: 'heating', servesPlaceIds: [f.kitchen, f.study] }),
+    });
+    await app.request(`/api/v1/ethel/assets/${inverter}/facility`, {
+      method: 'PUT', headers: f.h, body: JSON.stringify({ kind: 'solar', servesPlaceIds: [] }),
+    });
+    await f.asset('Bosch drill'); // not a facility
+
+    const facilities = await app.request('/api/v1/ethel/assets?hasFacility=true', { headers: f.h });
+    const names = (await facilities.json() as { data: Array<{ name: string }> }).data.map((a) => a.name);
+    expect(names.sort()).toEqual(['PV inverter', 'Vaillant boiler']);
+
+    const serving = await app.request(`/api/v1/ethel/assets?servesPlaceId=${f.study}`, { headers: f.h });
+    const servingNames = (await serving.json() as { data: Array<{ name: string }> }).data.map((a) => a.name);
+    expect(servingNames).toEqual(['Vaillant boiler']);
+  });
+
+  it('does NOT walk the place tree for servesPlaceId', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = await fixture(adult.jwt);
+    const floorRes = await app.request('/api/v1/ethel/places', {
+      method: 'POST', headers: f.h, body: JSON.stringify({ name: 'Ground floor', kind: 'floor' }),
+    });
+    const floor = (await floorRes.json() as { data: { id: string } }).data.id;
+    await app.request(`/api/v1/ethel/places/${f.kitchen}`, {
+      method: 'PATCH', headers: f.h, body: JSON.stringify({ parentId: floor }),
+    });
+    await app.request(`/api/v1/ethel/assets/${f.boiler}/facility`, {
+      method: 'PUT', headers: f.h, body: JSON.stringify({ kind: 'heating', servesPlaceIds: [f.kitchen] }),
+    });
+
+    // A system serving a ROOM is not a system serving the FLOOR: widening it
+    // would invent a claim the household never made (spec, open risks).
+    const res = await app.request(`/api/v1/ethel/assets?servesPlaceId=${floor}`, { headers: f.h });
+    expect((await res.json() as { data: unknown[] }).data.length).toBe(0);
+  });
 });

@@ -21,6 +21,8 @@ ethelRouter.get('/assets', async (c) => {
     ...q.data,
     // Translated at the boundary: the wire form is the string 'true'/'false'.
     includeDescendants: q.data.includeDescendants === 'true',
+    hasFacility: q.data.hasFacility === 'true',
+    servesPlaceId: q.data.servesPlaceId,
   });
   return ok(c, rows, { total, limit, offset });
 });

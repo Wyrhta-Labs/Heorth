@@ -52,6 +52,8 @@ export const listAssetsQuerySchema = z.object({
   // Spelled as an enum, not z.coerce.boolean(): Boolean('false') is true, so
   // coercion would make includeDescendants=false mean the opposite.
   includeDescendants: z.enum(['true', 'false']).optional(),
+  hasFacility: z.enum(['true', 'false']).optional(),
+  servesPlaceId: z.string().uuid().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });

@@ -557,6 +557,7 @@
       }
     },
     "empty": "Noch keine Gegenstände.",
+    "loadMore": "Mehr laden",
     "delete": "Löschen",
     "deleteConfirm": "{{name}} löschen?",
     "deleted": "Gegenstand gelöscht",

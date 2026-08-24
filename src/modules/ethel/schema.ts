@@ -86,3 +86,35 @@ export const ethelVehicles = pgTable('ethel_vehicles', {
 ]);
 
 export type EthelVehicle = typeof ethelVehicles.$inferSelect;
+
+export const facilityKinds = ['heating', 'water', 'electrical', 'solar', 'sewage', 'ventilation', 'network', 'other'] as const;
+
+/** A building system the household maintains but did not buy off a shelf.
+ *  Same detail-row shape as ethel_vehicles (spec 2026-08-22, Part C). */
+export const ethelFacilities = pgTable('ethel_facilities', {
+  assetId: uuid('asset_id').primaryKey().references(() => ethelAssets.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
+  kind: text('kind').notNull(),
+  // When the system went into service - NOT the purchase date, which the
+  // asset already holds.
+  commissionedOn: date('commissioned_on'),
+  serviceIntervalMonths: integer('service_interval_months'),
+}, (t) => [
+  check('ethel_facilities_kind_check', sql`${t.kind} IN ('heating', 'water', 'electrical', 'solar', 'sewage', 'ventilation', 'network', 'other')`),
+  check('ethel_facilities_interval_check', sql`${t.serviceIntervalMonths} IS NULL OR ${t.serviceIntervalMonths} > 0`),
+]);
+
+/** Which places a facility SERVES. Distinct from assets.place_id, which is
+ *  where the system STANDS: the boiler is in the utility room and heats the
+ *  kitchen and the study. Both sides CASCADE because a row here is a link,
+ *  not data - deleting a place removes what served it and never the facility. */
+export const ethelFacilityPlaces = pgTable('ethel_facility_places', {
+  facilityId: uuid('facility_id').notNull().references(() => ethelFacilities.assetId, { onDelete: 'cascade' }),
+  placeId: uuid('place_id').notNull().references(() => ethelPlaces.id, { onDelete: 'cascade' }),
+}, (t) => [
+  primaryKey({ columns: [t.facilityId, t.placeId] }),
+]);
+
+export type EthelFacility = typeof ethelFacilities.$inferSelect;
+export type FacilityKind = (typeof facilityKinds)[number];

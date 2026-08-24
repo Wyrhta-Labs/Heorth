@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { placeKinds } from './schema.js';
+import { placeKinds, facilityKinds } from './schema.js';
 
 export const decommissionReasons = ['broken', 'sold', 'given_away', 'worn_out', 'lost', 'other'] as const;
 export type DecommissionReason = (typeof decommissionReasons)[number];
@@ -89,3 +89,21 @@ export const vehicleSchema = z.object({
 });
 
 export type VehicleInput = z.infer<typeof vehicleSchema>;
+
+export const facilitySchema = z.object({
+  kind: z.enum(facilityKinds),
+  commissionedOn: dateStr.optional().nullable(),
+  serviceIntervalMonths: z.number().int().positive().optional().nullable(),
+  // Replaces the set wholesale rather than merging, so removing a served
+  // place is one call. Absent is treated as empty.
+  //
+  // Deduped here rather than rejected: ethel_facility_places is keyed
+  // (facility_id, place_id), so a repeated id would violate the composite PK
+  // and arrive as an unmapped 500. A caller naming the same place twice means
+  // the same thing as naming it once, so the fix is to normalise the input,
+  // not to teach the caller a rule that carries no information.
+  servesPlaceIds: z.array(z.string().uuid()).optional()
+    .transform((ids) => (ids ? [...new Set(ids)] : undefined)),
+});
+
+export type FacilityInput = z.infer<typeof facilitySchema>;

@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from '../../wiring.js';
 import * as service from './service.js';
 import * as places from './places.js';
 import * as details from './details.js';
-import { createAssetSchema, updateAssetSchema, decommissionSchema, listAssetsQuerySchema, createPlaceSchema, updatePlaceSchema, vehicleSchema } from './validators.js';
+import { createAssetSchema, updateAssetSchema, decommissionSchema, listAssetsQuerySchema, createPlaceSchema, updatePlaceSchema, vehicleSchema, facilitySchema } from './validators.js';
 
 export const ethelRouter = new Hono();
 ethelRouter.use('*', requireAuth);
@@ -100,6 +100,7 @@ ethelRouter.put('/assets/:id/vehicle', canWrite, async (c) => {
   } catch (e: unknown) {
     if (e instanceof Error && e.message === 'VEHICLE_REGISTRATION_TAKEN') return err(c, 'VEHICLE_REGISTRATION_TAKEN', 'That registration is already recorded', 409);
     if (e instanceof Error && e.message === 'VEHICLE_VIN_TAKEN') return err(c, 'VEHICLE_VIN_TAKEN', 'That VIN is already recorded', 409);
+    if (e instanceof Error && e.message === 'ASSET_DETAIL_CONFLICT') return err(c, 'ASSET_DETAIL_CONFLICT', 'This asset already has facility details', 409);
     throw e;
   }
 });
@@ -107,6 +108,26 @@ ethelRouter.put('/assets/:id/vehicle', canWrite, async (c) => {
 ethelRouter.delete('/assets/:id/vehicle', canWrite, async (c) => {
   const gone = await details.deleteVehicle(c.req.param('id'));
   if (!gone) return err(c, 'NOT_FOUND', 'Vehicle detail not found', 404);
+  return ok(c, { assetId: c.req.param('id') });
+});
+
+ethelRouter.put('/assets/:id/facility', canWrite, async (c) => {
+  const body = facilitySchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  try {
+    const res = await details.upsertFacility(c.req.param('id'), body.data);
+    if (!res) return err(c, 'NOT_FOUND', 'Asset not found', 404);
+    return ok(c, res.row, undefined, res.created ? 201 : 200);
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'PLACE_NOT_FOUND') return err(c, 'PLACE_NOT_FOUND', 'One of the served places does not exist', 400);
+    if (e instanceof Error && e.message === 'ASSET_DETAIL_CONFLICT') return err(c, 'ASSET_DETAIL_CONFLICT', 'This asset already has vehicle details', 409);
+    throw e;
+  }
+});
+
+ethelRouter.delete('/assets/:id/facility', canWrite, async (c) => {
+  const gone = await details.deleteFacility(c.req.param('id'));
+  if (!gone) return err(c, 'NOT_FOUND', 'Facility detail not found', 404);
   return ok(c, { assetId: c.req.param('id') });
 });
 

@@ -4,7 +4,8 @@ import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../../wiring.js';
 import * as service from './service.js';
 import * as places from './places.js';
-import { createAssetSchema, updateAssetSchema, decommissionSchema, listAssetsQuerySchema, createPlaceSchema, updatePlaceSchema } from './validators.js';
+import * as details from './details.js';
+import { createAssetSchema, updateAssetSchema, decommissionSchema, listAssetsQuerySchema, createPlaceSchema, updatePlaceSchema, vehicleSchema } from './validators.js';
 
 export const ethelRouter = new Hono();
 ethelRouter.use('*', requireAuth);
@@ -87,6 +88,26 @@ ethelRouter.delete('/assets/:id', canWrite, async (c) => {
     }
     throw e;
   }
+});
+
+ethelRouter.put('/assets/:id/vehicle', canWrite, async (c) => {
+  const body = vehicleSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  try {
+    const res = await details.upsertVehicle(c.req.param('id'), body.data);
+    if (!res) return err(c, 'NOT_FOUND', 'Asset not found', 404);
+    return ok(c, res.row, undefined, res.created ? 201 : 200);
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'VEHICLE_REGISTRATION_TAKEN') return err(c, 'VEHICLE_REGISTRATION_TAKEN', 'That registration is already recorded', 409);
+    if (e instanceof Error && e.message === 'VEHICLE_VIN_TAKEN') return err(c, 'VEHICLE_VIN_TAKEN', 'That VIN is already recorded', 409);
+    throw e;
+  }
+});
+
+ethelRouter.delete('/assets/:id/vehicle', canWrite, async (c) => {
+  const gone = await details.deleteVehicle(c.req.param('id'));
+  if (!gone) return err(c, 'NOT_FOUND', 'Vehicle detail not found', 404);
+  return ok(c, { assetId: c.req.param('id') });
 });
 
 /** Maps a places-service domain error to its HTTP shape. Returns null when the

@@ -72,3 +72,20 @@ export const updatePlaceSchema = basePlace.partial();
 
 export type CreatePlaceInput = z.infer<typeof createPlaceSchema>;
 export type UpdatePlaceInput = z.infer<typeof updatePlaceSchema>;
+
+export const vehicleSchema = z.object({
+  registration: z.string().min(1).optional().nullable(),
+  vin: z.string().min(1).optional().nullable(),
+  firstRegisteredOn: dateStr.optional().nullable(),
+  odometer: z.number().int().nonnegative().optional().nullable(),
+  odometerReadAt: dateStr.optional().nullable(),
+  serviceIntervalMonths: z.number().int().positive().optional().nullable(),
+}).superRefine((v, ctx) => {
+  // Mirror the CHECK so the 400 explains itself instead of arriving as a 500
+  // from a constraint violation.
+  if ((v.odometer == null) !== (v.odometerReadAt == null)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'odometer and odometerReadAt must be set together' });
+  }
+});
+
+export type VehicleInput = z.infer<typeof vehicleSchema>;

@@ -1,8 +1,9 @@
 import { db } from '../../db/index.js';
 import { isPgError, pgErrorCode } from '@wyrhta/core/db';
-import { ethelAssets, type EthelAsset } from './schema.js';
+import { ethelAssets, type EthelAsset, type EthelVehicle } from './schema.js';
 import { eq, and, isNull, isNotNull, ilike, or, inArray, sql } from 'drizzle-orm';
 import { descendantPlaceIds, lockPlaceTree } from './places.js';
+import { getVehicle } from './details.js';
 import type { CreateAssetInput, UpdateAssetInput, DecommissionInput } from './validators.js';
 
 export async function listAssets(q: {
@@ -66,9 +67,11 @@ export async function createAsset(i: CreateAssetInput): Promise<EthelAsset> {
   });
 }
 
-export async function getAsset(id: string): Promise<EthelAsset | null> {
+export async function getAsset(id: string): Promise<(EthelAsset & { vehicle: EthelVehicle | null }) | null> {
   const [row] = await db.select().from(ethelAssets).where(eq(ethelAssets.id, id)).limit(1);
-  return row ?? null;
+  if (!row) return null;
+  // Inlined so the detail view is ONE request. The LIST does not inline it.
+  return { ...row, vehicle: await getVehicle(id) };
 }
 
 /** The one sanctioned ethel->feoh touchpoint: a table-level existence read

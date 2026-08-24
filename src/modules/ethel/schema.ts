@@ -58,3 +58,31 @@ export const ethelAssets = pgTable('ethel_assets', {
 ]);
 
 export type EthelAsset = typeof ethelAssets.$inferSelect;
+
+/** Vehicle detail: an asset PLUS a detail row, not a parallel entity and not
+ *  columns on the asset table (ADR 0013 §6). One asset table stays the spine,
+ *  so TCO and both feoh links keep working untouched. */
+export const ethelVehicles = pgTable('ethel_vehicles', {
+  // PK and FK in one: the detail row must not outlive its asset.
+  assetId: uuid('asset_id').primaryKey().references(() => ethelAssets.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
+  registration: text('registration'),
+  vin: text('vin'),
+  firstRegisteredOn: date('first_registered_on'),
+  odometer: integer('odometer'),
+  odometerReadAt: date('odometer_read_at'),
+  // Stated interval as DOCUMENTATION (ADR 0013 Amendments 1). Weorc never
+  // reads it as a trigger - it is a default the routine form offers.
+  serviceIntervalMonths: integer('service_interval_months'),
+}, (t) => [
+  check('ethel_vehicles_odometer_check', sql`${t.odometer} IS NULL OR ${t.odometer} >= 0`),
+  // A mileage with no reading date is not a fact - the house style of the
+  // decommission pair check.
+  check('ethel_vehicles_odometer_pair_check', sql`(${t.odometer} IS NULL) = (${t.odometerReadAt} IS NULL)`),
+  check('ethel_vehicles_interval_check', sql`${t.serviceIntervalMonths} IS NULL OR ${t.serviceIntervalMonths} > 0`),
+  uniqueIndex('ethel_vehicles_registration_unique').on(t.registration).where(sql`${t.registration} IS NOT NULL`),
+  uniqueIndex('ethel_vehicles_vin_unique').on(t.vin).where(sql`${t.vin} IS NOT NULL`),
+]);
+
+export type EthelVehicle = typeof ethelVehicles.$inferSelect;

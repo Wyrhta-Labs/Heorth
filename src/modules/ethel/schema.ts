@@ -40,6 +40,10 @@ export const ethelAssets = pgTable('ethel_assets', {
   manufacturer: text('manufacturer'),
   model: text('model'),
   serialNumber: text('serial_number'),
+  // ON DELETE SET NULL, deliberately unlike the module's other destructive
+  // paths, which refuse: reorganising a house means deleting places that are
+  // full, and an unplaced asset is a recoverable state (ADR 0013).
+  placeId: uuid('place_id').references(() => ethelPlaces.id, { onDelete: 'set null' }),
   locationNote: text('location_note'),
   notes: text('notes'),
   warrantyUntil: date('warranty_until'),

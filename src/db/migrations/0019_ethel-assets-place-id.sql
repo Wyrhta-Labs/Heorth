@@ -1,0 +1,2 @@
+ALTER TABLE "ethel_assets" ADD COLUMN "place_id" uuid;--> statement-breakpoint
+ALTER TABLE "ethel_assets" ADD CONSTRAINT "ethel_assets_place_id_ethel_places_id_fk" FOREIGN KEY ("place_id") REFERENCES "public"."ethel_places"("id") ON DELETE set null ON UPDATE no action;

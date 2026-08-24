@@ -182,3 +182,74 @@ describe('ethel asset routes', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('asset place filter', () => {
+  it('filters to one place, then to a whole subtree, and unassigns on place delete', async () => {
+    const { adult } = await seedTestHousehold();
+    const h = authHeaders(adult.jwt);
+    const place = async (body: unknown) => {
+      const res = await app.request('/api/v1/ethel/places', { method: 'POST', headers: h, body: JSON.stringify(body) });
+      return (await res.json() as { data: { id: string } }).data.id;
+    };
+    const asset = async (name: string, placeId: string) => {
+      const res = await app.request('/api/v1/ethel/assets', {
+        method: 'POST', headers: h, body: JSON.stringify({ name, placeId }),
+      });
+      expect(res.status).toBe(201);
+      return (await res.json() as { data: { id: string } }).data.id;
+    };
+
+    const garage = await place({ name: 'Garage', kind: 'outdoor' });
+    const shelf = await place({ name: 'Garage shelf', kind: 'storage', parentId: garage });
+    await asset('Mower', garage);
+    await asset('Drill', shelf);
+
+    const direct = await app.request(`/api/v1/ethel/assets?placeId=${garage}`, { headers: h });
+    expect((await direct.json() as { data: unknown[] }).data.length).toBe(1);
+
+    const subtree = await app.request(`/api/v1/ethel/assets?placeId=${garage}&includeDescendants=true`, { headers: h });
+    expect((await subtree.json() as { data: unknown[] }).data.length).toBe(2);
+
+    const orphaned = await app.request('/api/v1/ethel/assets?includeDescendants=true', { headers: h });
+    expect(orphaned.status).toBe(400);
+    expect((await orphaned.json() as { error: { code: string } }).error.code).toBe('VALIDATION_ERROR');
+
+    // Deleting a place UNASSIGNS its assets - it does not delete or block them.
+    const del = await app.request(`/api/v1/ethel/places/${shelf}`, { method: 'DELETE', headers: h });
+    expect(del.status).toBe(200);
+    const all = await app.request('/api/v1/ethel/assets', { headers: h });
+    const rows = (await all.json() as { data: Array<{ name: string; placeId: string | null }> }).data;
+    expect(rows.find((r) => r.name === 'Drill')!.placeId).toBeNull();
+    expect(rows.find((r) => r.name === 'Mower')!.placeId).toBe(garage);
+  });
+
+  // An unknown placeId is the caller's mistake: unmapped, the FK violation is a
+  // raw 500 - the same hole PLACE_NOT_FOUND closed on the place routes.
+  it('answers 400 PLACE_NOT_FOUND for an unknown placeId on create and on patch', async () => {
+    const { adult } = await seedTestHousehold();
+    const h = authHeaders(adult.jwt);
+    const missing = '00000000-0000-0000-0000-000000000000';
+
+    const created = await app.request('/api/v1/ethel/assets', {
+      method: 'POST', headers: h, body: JSON.stringify({ name: 'Nowhere lamp', placeId: missing }),
+    });
+    expect(created.status).toBe(400);
+    expect((await created.json() as { error: { code: string } }).error.code).toBe('PLACE_NOT_FOUND');
+
+    const real = await app.request('/api/v1/ethel/assets', {
+      method: 'POST', headers: h, body: JSON.stringify({ name: 'Somewhere lamp' }),
+    });
+    const { data: asset } = await real.json() as { data: { id: string } };
+    const patched = await app.request(`/api/v1/ethel/assets/${asset.id}`, {
+      method: 'PATCH', headers: h, body: JSON.stringify({ placeId: missing }),
+    });
+    expect(patched.status).toBe(400);
+    expect((await patched.json() as { error: { code: string } }).error.code).toBe('PLACE_NOT_FOUND');
+  });
+
+  it('rejects limit=101 rather than clamping it', async () => {
+    const { adult } = await seedTestHousehold();
+    const res = await app.request('/api/v1/ethel/assets?limit=101', { headers: authHeaders(adult.jwt) });
+    expect(res.status).toBe(400);
+  });
+});

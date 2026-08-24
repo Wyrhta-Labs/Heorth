@@ -13,14 +13,28 @@ const canWrite = requireRole('admin', 'adult');
 ethelRouter.get('/assets', async (c) => {
   const q = listAssetsQuerySchema.safeParse(c.req.query());
   if (!q.success) return err(c, 'VALIDATION_ERROR', 'Invalid query parameters', 400);
-  const { rows, total, limit, offset } = await service.listAssets(q.data);
+  if (q.data.includeDescendants === 'true' && !q.data.placeId) {
+    return err(c, 'VALIDATION_ERROR', 'includeDescendants requires placeId', 400);
+  }
+  const { rows, total, limit, offset } = await service.listAssets({
+    ...q.data,
+    // Translated at the boundary: the wire form is the string 'true'/'false'.
+    includeDescendants: q.data.includeDescendants === 'true',
+  });
   return ok(c, rows, { total, limit, offset });
 });
 
 ethelRouter.post('/assets', canWrite, async (c) => {
   const body = createAssetSchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
-  return ok(c, await service.createAsset(body.data), undefined, 201);
+  try {
+    return ok(c, await service.createAsset(body.data), undefined, 201);
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'PLACE_NOT_FOUND') {
+      return err(c, 'PLACE_NOT_FOUND', 'That place does not exist', 400);
+    }
+    throw e;
+  }
 });
 
 ethelRouter.get('/assets/:id', async (c) => {
@@ -39,6 +53,9 @@ ethelRouter.patch('/assets/:id', canWrite, async (c) => {
   } catch (e: unknown) {
     if (e instanceof Error && e.message === 'DISPOSAL_LINK_EXISTS') {
       return err(c, 'DISPOSAL_LINK_EXISTS', 'Unlink the disposal transaction before reactivating', 409);
+    }
+    if (e instanceof Error && e.message === 'PLACE_NOT_FOUND') {
+      return err(c, 'PLACE_NOT_FOUND', 'That place does not exist', 400);
     }
     throw e;
   }

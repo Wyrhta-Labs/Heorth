@@ -134,6 +134,13 @@
       "when": 1787603108106,
       "tag": "0018_ethel-places",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787604773273,
+      "tag": "0019_ethel-assets-place-id",
+      "breakpoints": true
     }
   ]
 }

@@ -244,7 +244,7 @@ variables to enable it, or none to leave it fully disabled.
 M365_TENANT_ID=<tenant guid>
 M365_CLIENT_ID=<app registration client id>
 M365_CLIENT_SECRET=<client secret>
-M365_REDIRECT_URI=http://localhost:4000/api/v1/m365/callback
+M365_REDIRECT_URI=http://localhost:14000/api/v1/m365/callback
 M365_FAMILY_MAILBOX=family-calendar@example.com   # shared mailbox (app-only)
 M365_SHARED_TODO_LIST=Household                    # write-target To Do list
 
@@ -342,7 +342,7 @@ partial presence is a startup error.
 
 ```
 # KithLedger — both or neither (partial config is a startup error)
-KITH_BASE_URL=http://kithledger:4002
+KITH_BASE_URL=http://localhost:14002
 KITH_API_KEY=<a HOUSEHOLD-kinded kl_ key — see below>
 
 # Optional within the group; 'household' is the only accepted value.
@@ -722,7 +722,7 @@ cluster's port. To reuse an existing server instead, create a separate database
 on it and point at that:
 
 ```bash
-export DATABASE_URL=postgres://heorth:<password>@localhost:5432/heorth_test
+export DATABASE_URL=postgres://heorth:<password>@localhost:15432/heorth_test
 npm test
 ```
 

@@ -8,7 +8,7 @@ import { assertTestDatabase } from '@wyrhta/core/testing';
 // suite sees ONLY what this file (and individual tests) put into process.env —
 // an unexported DATABASE_URL gets the test default below, never the .env dev
 // value, and gating vars a test deletes stay deleted across vi.resetModules().
-process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:5432/heorth_test';
+process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@localhost:15432/heorth_test';
 process.env['JWT_SECRET'] ??= 'test-secret-test-secret-test-secret-123';
 process.env['HOUSEHOLD_NAME'] ??= 'Test Household';
 process.env['ADMIN_EMAIL'] ??= 'admin@test.local';

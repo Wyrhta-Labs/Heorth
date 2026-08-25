@@ -85,27 +85,40 @@ export async function lastTerminalOccurrence(routineId: string): Promise<WeorcOc
   return row ?? null;
 }
 
+let insertOccurrenceConflictHookForTest: (() => Promise<void> | void) | null = null;
+
+export function setInsertOccurrenceConflictHookForTest(hook: (() => Promise<void> | void) | null): void {
+  insertOccurrenceConflictHookForTest = hook;
+}
+
 /**
  * Materialise one occurrence. `ON CONFLICT DO NOTHING` because the scheduler
  * tick and a REST completion can race: the unique constraints stop a duplicate
  * row, but a bare insert would still turn the loser into a 500. On conflict we
- * re-read whatever occurrence is currently open for the routine and return
- * that, so both callers see the same row and neither errors.
+ * re-read whatever occurrence is currently open for the routine and return that.
+ * If the blocking open row was terminalized between the conflict and the read,
+ * retrying lets the same due date insert once the partial index is free.
  */
 export async function insertOccurrence(routineId: string, dueOn: string): Promise<WeorcOccurrence> {
-  const [row] = await db.insert(weorcOccurrences)
-    .values({ routineId, dueOn })
-    .onConflictDoNothing()
-    .returning();
-  if (row) return row;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const [row] = await db.insert(weorcOccurrences)
+      .values({ routineId, dueOn })
+      .onConflictDoNothing()
+      .returning();
+    if (row) return row;
 
-  const open = await getOpenOccurrence(routineId);
-  if (open) return open;
+    await insertOccurrenceConflictHookForTest?.();
 
-  // The conflict was on (routineId, dueOn) against a terminal row.
-  const [existing] = await db.select().from(weorcOccurrences)
-    .where(and(eq(weorcOccurrences.routineId, routineId), eq(weorcOccurrences.dueOn, dueOn)));
-  return existing!;
+    const open = await getOpenOccurrence(routineId);
+    if (open) return open;
+
+    // The conflict may have been on (routineId, dueOn) against a terminal row.
+    const [existing] = await db.select().from(weorcOccurrences)
+      .where(and(eq(weorcOccurrences.routineId, routineId), eq(weorcOccurrences.dueOn, dueOn)));
+    if (existing) return existing;
+  }
+
+  throw new Error(`Failed to materialise Weorc occurrence for routine ${routineId} due on ${dueOn}`);
 }
 
 export async function getOccurrence(id: string): Promise<WeorcOccurrence | null> {

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import * as store from '../src/modules/weorc/store.js';
 
 async function aRoutine(over = {}) {
@@ -9,6 +9,10 @@ async function aRoutine(over = {}) {
 }
 
 describe('weorc store', () => {
+  afterEach(() => {
+    store.setInsertOccurrenceConflictHookForTest(null);
+  });
+
   it('inserting the same due date twice yields ONE row and does not throw', async () => {
     const r = await aRoutine();
     const first = await store.insertOccurrence(r.id, '2026-09-01');
@@ -28,12 +32,29 @@ describe('weorc store', () => {
 
   it('finds active routines with no open occurrence', async () => {
     const a = await aRoutine({ name: 'Open' });
-    const b = await aRoutine({ name: 'None' });
+    await aRoutine({ name: 'None' });
     await aRoutine({ name: 'Inactive', active: false });
     await store.insertOccurrence(a.id, '2026-09-01');
     const rows = await store.activeRoutinesWithoutOpenOccurrence();
     expect(rows.map((r) => r.name)).toEqual(['None']);
-    expect(b.name).toBe('None');
+  });
+
+  it('retries when the blocking open occurrence closes before the fallback read', async () => {
+    const r = await aRoutine();
+    const first = await store.insertOccurrence(r.id, '2026-09-01');
+    let ran = false;
+    store.setInsertOccurrenceConflictHookForTest(async () => {
+      if (ran) return;
+      ran = true;
+      await store.terminateOccurrence(first.id, 'skipped', null, null, 'done elsewhere');
+    });
+
+    const second = await store.insertOccurrence(r.id, '2026-09-08');
+
+    expect(ran).toBe(true);
+    expect(second).toBeDefined();
+    expect(second.dueOn).toBe('2026-09-08');
+    expect(second.status).toBe('due');
   });
 
   it('terminating an occurrence records who and when', async () => {

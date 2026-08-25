@@ -94,14 +94,48 @@ export async function completeTask(taskId: string, completed: boolean): Promise<
  */
 export async function createTask(input: CreateTaskInput, actingMemberId: string): Promise<TaskMirrorRow> {
   await assertNotMaintenanceAdmin(actingMemberId);
+  return createHouseholdTask(input, actingMemberId);
+}
+
+/**
+ * Create a task into the shared household list without an authenticated actor.
+ * `preferMemberId` only influences which allowlisted member feed is chosen.
+ */
+export async function createHouseholdTask(
+  input: CreateTaskInput,
+  preferMemberId: string | null,
+): Promise<TaskMirrorRow> {
   const provider = requireProvider();
-  const feed = await resolveSharedFeed(actingMemberId);
+  const feed = await resolveSharedFeed(preferMemberId);
   const created = await provider.createTask(feed.feedKey, input); // throws TaskProviderError
   return store.upsertMirroredTask(provider.source, feed, created);
 }
 
+/**
+ * Complete / uncomplete a projected task by the stable provider key. The
+ * provider is called first; the local mirror is updated only if the row exists.
+ */
+export async function completeProjectedTask(
+  feedKey: string,
+  externalId: string,
+  completed: boolean,
+): Promise<void> {
+  const provider = requireProvider();
+  await provider.setCompleted(feedKey, externalId, completed); // throws TaskProviderError
+  const row = await store.getTaskByFeedRef(feedKey, externalId);
+  if (row) await store.setTaskCompletedLocal(row.id, completed);
+}
+
+export async function findTaskByFeedRef(feedKey: string, externalId: string): Promise<TaskMirrorRow | null> {
+  return store.getTaskByFeedRef(feedKey, externalId);
+}
+
+export async function findTaskByNotesMarker(marker: string): Promise<TaskMirrorRow | null> {
+  return store.getTaskByNotesMarker(marker);
+}
+
 /** Resolve the shared-household-list feed by display name via the allowlist store. */
-async function resolveSharedFeed(actingMemberId: string): Promise<TaskFeed> {
+async function resolveSharedFeed(preferMemberId: string | null): Promise<TaskFeed> {
   const name = getSharedListName();
   if (!name) {
     throw new TaskProviderError('shared_list_unavailable', 'No shared To Do list is configured');
@@ -114,7 +148,7 @@ async function resolveSharedFeed(actingMemberId: string): Promise<TaskFeed> {
     );
   }
   // Prefer the acting member if they have the shared list; else any member that does.
-  const chosen = entries.find((e) => e.memberId === actingMemberId) ?? entries[0]!;
+  const chosen = entries.find((e) => e.memberId === preferMemberId) ?? entries[0]!;
   return {
     feedKey: feedKeys.todoMember(chosen.memberId, chosen.listId),
     memberId: chosen.memberId,

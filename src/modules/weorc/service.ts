@@ -54,7 +54,7 @@ async function view(routine: WeorcRoutine, today: string): Promise<RoutineView> 
     intervalUnit: routine.intervalUnit as IntervalUnit,
     intervalCount: routine.intervalCount,
     anchorDate: routine.anchorDate,
-  }, last ? await terminalDateOf(last) : null, today);
+  }, last ? await terminalDateOf(last, routine.mode as RoutineMode) : null, today);
 
   return { ...routine, nextDueOn: due, openOccurrence: null };
 }
@@ -117,7 +117,7 @@ export async function updateRoutine(id: string, patch: UpdateRoutineInput): Prom
         intervalUnit: routine.intervalUnit as IntervalUnit,
         intervalCount: routine.intervalCount,
         anchorDate: routine.anchorDate,
-      }, last ? await terminalDateOf(last) : null, today);
+      }, last ? await terminalDateOf(last, routine.mode as RoutineMode) : null, today);
       if (due !== open.dueOn) await store.moveOccurrence(open.id, due);
     }
   }

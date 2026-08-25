@@ -37,7 +37,21 @@ export function occurrenceMarker(occurrenceId: string): string {
   return `weorc-occurrence:${occurrenceId}`;
 }
 
-export async function terminalDateOf(occ: WeorcOccurrence): Promise<string> {
+/**
+ * The recurrence base a terminal occurrence contributes - mode-dependent.
+ *
+ * `fixed` is a grid pinned to `anchorDate` and must not drift: the base is
+ * always the terminal occurrence's `dueOn`, whatever its status, so a late
+ * completion fast-forwards the grid rather than restarting it from today.
+ *
+ * `from_completion` recurs from when the work actually happened: `completedAt`
+ * (rendered as a household-local date) when completed, `dueOn` when skipped.
+ */
+export async function terminalDateOf(
+  occ: WeorcOccurrence,
+  mode: RoutineMode,
+): Promise<string> {
+  if (mode === 'fixed') return occ.dueOn;
   if (occ.status === 'completed' && occ.completedAt) {
     return localDateOf(occ.completedAt, await getHouseholdTimeZone());
   }
@@ -62,7 +76,7 @@ export async function advanceRoutine(
       intervalCount: routine.intervalCount,
       anchorDate: routine.anchorDate,
     },
-    last ? await terminalDateOf(last) : null,
+    last ? await terminalDateOf(last, routine.mode as RoutineMode) : null,
     today,
   );
 
@@ -119,8 +133,18 @@ export async function runWeorcTick(): Promise<WeorcTickResult> {
   };
 
   for (const occ of await store.openOccurrencesWithLink()) {
-    const mirrored = await tasks.findTaskByFeedRef(occ.taskFeedKey!, occ.taskExternalId!);
-    if (!mirrored) continue;
+    let mirrored = await tasks.findTaskByFeedRef(occ.taskFeedKey!, occ.taskExternalId!);
+    if (!mirrored) {
+      // Absence is not a deletion (an allowlist drop or a full resync clears a
+      // feed's mirror rows wholesale) - but the household may also have moved
+      // the task to a different list. Look for its marker there before giving
+      // up: found, adopt the new (feedKey, externalId); not found, leave the
+      // occurrence and its link exactly as they are.
+      const relink = await tasks.findTaskByNotesMarker(occurrenceMarker(occ.id));
+      if (!relink) continue;
+      await store.setProjection(occ.id, relink.feedKey, relink.externalId);
+      mirrored = relink;
+    }
     if (mirrored.status !== 'completed') continue;
 
     await store.terminateOccurrence(

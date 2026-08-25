@@ -3,8 +3,8 @@ import { db } from '../src/db/index.js';
 import { taskMirror } from '../src/modules/tasks/schema.js';
 import { setTaskProvider } from '../src/modules/tasks/provider.js';
 import * as store from '../src/modules/weorc/store.js';
-import { runWeorcTick } from '../src/modules/weorc/engine.js';
-import { householdToday } from '../src/modules/weorc/dates.js';
+import { runWeorcTick, advanceRoutine, occurrenceMarker } from '../src/modules/weorc/engine.js';
+import { householdToday, householdMidnightUtc } from '../src/modules/weorc/dates.js';
 import { seedTestHousehold } from './helpers.js';
 import { addDays, nextDueOn } from '../src/modules/weorc/recurrence.js';
 
@@ -141,5 +141,57 @@ describe('the reconcile pass', () => {
     const still = await store.getOccurrence(occ.id);
     expect(still!.status).toBe('due');
     expect(still!.taskExternalId).toBe('ext-vanished');
+  });
+
+  it('RELINKS to the marker row found in a different feed when a task was moved between lists', async () => {
+    const { adult } = await seedTestHousehold();
+    const today = await householdToday();
+    const r = await store.createRoutine({
+      name: 'Bins', mode: 'fixed', intervalUnit: 'week', intervalCount: 1, anchorDate: today,
+    });
+    const occ = await store.insertOccurrence(r.id, today);
+    // The occurrence is linked to a feed whose mirror row is now gone (moved to
+    // a different list), but a mirror row carrying its marker exists elsewhere -
+    // a full resync would produce exactly this shape.
+    await store.setProjection(occ.id, 'todo:member:old:list-1', 'ext-old');
+    await db.insert(taskMirror).values({
+      source: 'm365', feedKey: 'todo:member:new:list-2', externalId: 'ext-new',
+      memberId: adult.user.id, listId: 'list-2', title: 'Bins',
+      notes: occurrenceMarker(occ.id), status: 'open',
+    });
+
+    const result = await runWeorcTick();
+
+    // No new task was created - only the one mirror row from the "move" exists.
+    const mirrorRows = await db.select().from(taskMirror);
+    expect(mirrorRows.length).toBe(1);
+
+    const relinked = await store.getOccurrence(occ.id);
+    expect(relinked!.taskFeedKey).toBe('todo:member:new:list-2');
+    expect(relinked!.taskExternalId).toBe('ext-new');
+    expect(relinked!.status).toBe('due');
+    void result;
+  });
+});
+
+describe('fixed mode must never drift on a late completion', () => {
+  beforeEach(() => setTaskProvider(null));
+
+  it('a weekly fixed routine completed 14 days late is next due on the completion day, not a week past it', async () => {
+    // Worked example from the spec: grid origin/last due 2026-08-11, completed
+    // late on 2026-08-25. The next grid slot after 08-11 fast-forwards to
+    // 08-25 (08-18's successor, 08-25, is not in the future); it must NOT be
+    // computed from the completion date itself, which would jump to 09-01.
+    const r = await store.createRoutine({
+      name: 'Bins', mode: 'fixed', intervalUnit: 'week', intervalCount: 1, anchorDate: '2026-08-11',
+    });
+    const occ = await store.insertOccurrence(r.id, '2026-08-11');
+    await store.terminateOccurrence(
+      occ.id, 'completed', await householdMidnightUtc('2026-08-25'), null, null,
+    );
+
+    const next = await advanceRoutine(r.id, '2026-08-25');
+    expect(next).not.toBeNull();
+    expect(next!.dueOn).toBe('2026-08-25');
   });
 });

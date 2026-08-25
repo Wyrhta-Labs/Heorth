@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Weorc module** (`src/modules/weorc/`, ADR 0014): household routines backed
+  by `weorc_routines` and `weorc_occurrences`, with due-work materialisation,
+  completion/skip history, an ungated background scheduler, and task projection
+  through the existing Tasks provider when one is available. The Tasks service
+  now exposes the projected-task create/complete and feed-reference lookup paths
+  Weorc needs without making M365 a requirement.
+
 ## [0.6.0] - 2026-08-25
 
 ### Fixed

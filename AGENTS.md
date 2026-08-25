@@ -64,6 +64,29 @@ both files are wrong — fix them.
   is a raw-SQL existence check (`hasDisposalLink` in `service.ts`, querying
   `feoh_item_costs.asset_id` directly — **no module import**) that blocks
   reactivating an asset with a recorded disposal link.
+- **Weorc** (`src/modules/weorc/`, ADR 0014) is **always on** and — unlike Ethel
+  — **deliberately depends on other modules.** It imports `tasks`' service
+  (`createHouseholdTask`, `completeProjectedTask`, the two lookups) and reads
+  Ethel's tables for an anchor's display name. **Do not "fix" this by applying
+  Ethel's no-cross-module rule:** Weorc is the domain most entangled with Tasks,
+  Ethel and Hearth View at once, which is exactly why ADR 0014 §8 makes it a
+  built-in module rather than a satellite. The dependency runs one way —
+  Weorc → tasks and Weorc → ethel, never the reverse.
+- **Weorc's scheduler is NOT gated on the M365 integration.** `startWeorcScheduler`
+  guards on `VITEST` only. Materialising due work, completing it and keeping its
+  history are Heorth-native; only the projection pass degrades when no provider
+  is installed, and **an absent provider writes no `projectionError`** — it is a
+  normal state, not a failure.
+- **A missing `task_mirror` row is NOT an upstream deletion.** Weorc's reconcile
+  pass leaves an occurrence and its link untouched when the mirrored task cannot
+  be found: `setAllowlist` deletes a whole feed's rows, and treating that as a
+  deletion would re-project every projected occurrence into a duplicate task.
+- **Weorc stores `(taskFeedKey, taskExternalId)`, never `task_mirror.id`** — a
+  full resync deletes and re-inserts a feed's rows, so the uuid does not survive
+  a 410 recovery.
+- **Weorc's "today" is the HOUSEHOLD's**, via `householdToday()`
+  (`src/modules/weorc/dates.ts`) → `localDateOf` + `getHouseholdTimeZone`.
+  **Not `localTodayIso()`**, which is server-local.
 - **An asset carries at most one detail row** — `ethel_vehicles` or
   `ethel_facilities`, never both (`409 ASSET_DETAIL_CONFLICT`). "The detail row
   exists" is the only signal of what kind of thing an asset is; `category` is

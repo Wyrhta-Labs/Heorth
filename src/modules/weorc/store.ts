@@ -185,6 +185,13 @@ export async function setProjectionError(id: string, reason: string | null): Pro
     .where(eq(weorcOccurrences.id, id));
 }
 
+/** Move an open occurrence's due date when an unprojected routine is edited. */
+export async function moveOccurrence(id: string, dueOn: string): Promise<void> {
+  await db.update(weorcOccurrences)
+    .set({ dueOn, updatedAt: new Date() })
+    .where(eq(weorcOccurrences.id, id));
+}
+
 /** Active routines with nothing currently open - the materialise pass's input. */
 export async function activeRoutinesWithoutOpenOccurrence(): Promise<WeorcRoutine[]> {
   const open = db.select({ id: weorcOccurrences.routineId }).from(weorcOccurrences)

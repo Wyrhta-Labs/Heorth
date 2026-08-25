@@ -6,6 +6,7 @@ import { config } from './config/env.js';
 import { createApp } from './app.js';
 import { ALL_MODULES } from './modules/index.js';
 import { startM365Scheduler } from './m365/scheduler.js';
+import { startWeorcScheduler } from './modules/weorc/scheduler.js';
 import { repairMaintenanceAdmin } from './household/maintenance-admin.js';
 
 /**
@@ -36,6 +37,10 @@ async function main() {
   // Start the M365 read-only mirror poll loop. No-op when the integration is
   // disabled or under tests (see scheduler.ts) — zero impact in either case.
   startM365Scheduler();
+
+  // Start Weorc's native due-work tick. Deliberately not gated on M365: it
+  // must keep materialising household work even with no task provider attached.
+  startWeorcScheduler();
 }
 
 // Only auto-run when executed directly (not when imported by tests).

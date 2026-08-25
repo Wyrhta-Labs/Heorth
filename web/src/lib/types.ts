@@ -249,6 +249,68 @@ export interface EthelAssetDetail extends EthelAsset {
   facility: EthelFacility | null;
 }
 
+// ---- Weorc routines (hand-synced from src/modules/weorc/schema.ts + service.ts) ----
+export type RoutineMode = 'from_completion' | 'fixed';
+export type IntervalUnit = 'day' | 'week' | 'month';
+export type WeorcOccurrenceStatus = 'due' | 'completed' | 'skipped';
+
+export interface WeorcOccurrence {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  routineId: string;
+  dueOn: string;
+  status: WeorcOccurrenceStatus;
+  completedAt: string | null;
+  completedByMemberId: string | null;
+  note: string | null;
+  taskFeedKey: string | null;
+  taskExternalId: string | null;
+  projectionError: string | null;
+}
+
+export interface WeorcRoutine {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  name: string;
+  notes: string | null;
+  mode: RoutineMode;
+  intervalUnit: IntervalUnit;
+  intervalCount: number;
+  anchorDate: string;
+  leadDays: number;
+  ownerMemberId: string | null;
+  anchorAssetId: string | null;
+  anchorPlaceId: string | null;
+  active: boolean;
+}
+
+export interface RoutineView extends WeorcRoutine {
+  /** Computed server-side - beyond the lead horizon nothing is materialised. */
+  nextDueOn: string;
+  openOccurrence: WeorcOccurrence | null;
+}
+
+export interface WeorcRoutineDetail extends RoutineView {
+  history: WeorcOccurrence[];
+}
+
+export interface ProjectionOutcome { ok: boolean; reason?: string; }
+
+export interface TerminateResult {
+  occurrence: WeorcOccurrence;
+  next: WeorcOccurrence | null;
+  projection: ProjectionOutcome;
+}
+
+export interface WeorcTickResult {
+  reconciled: number;
+  materialised: number;
+  projected: number;
+  projectionFailures: number;
+}
+
 // ---- Feoh occurrences / item-costs / ledger (hand-synced from src/modules/feoh) ----
 export type OccurrenceStatus = 'planned' | 'paid' | 'overdue' | 'skipped' | 'unknown';
 

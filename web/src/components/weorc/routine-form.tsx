@@ -19,20 +19,26 @@ interface Props {
    *  ANCHOR_CONFLICT for both). */
   assets?: EthelAsset[];
   places?: EthelPlace[];
+  /** The household's own "today" (`YYYY-MM-DD`), for the new-routine anchor
+   *  default — see the caller (`weorc.tsx`), which is where the household
+   *  timezone is actually resolved. Falls back to the browser's date when
+   *  omitted (e.g. in tests, or before the caller's own household query has
+   *  resolved). */
+  today?: string;
   onSubmit: (input: RoutineInput) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
 /** Create/edit form over the Weorc routine fields (`createRoutineSchema`). */
-export default function RoutineForm({ routine, assets = [], places = [], onSubmit, onCancel, isLoading }: Props) {
+export default function RoutineForm({ routine, assets = [], places = [], today, onSubmit, onCancel, isLoading }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState(routine?.name ?? '');
   const [notes, setNotes] = useState(routine?.notes ?? '');
   const [mode, setMode] = useState<RoutineMode>(routine?.mode ?? 'fixed');
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(routine?.intervalUnit ?? 'week');
   const [intervalCount, setIntervalCount] = useState(routine?.intervalCount ?? 1);
-  const [anchorDate, setAnchorDate] = useState(routine?.anchorDate ?? format(new Date(), 'yyyy-MM-dd'));
+  const [anchorDate, setAnchorDate] = useState(routine?.anchorDate ?? today ?? format(new Date(), 'yyyy-MM-dd'));
   const [leadDays, setLeadDays] = useState(routine?.leadDays ?? 0);
   const [ownerMemberId, setOwnerMemberId] = useState(routine?.ownerMemberId ?? '');
   const [anchorKind, setAnchorKind] = useState<AnchorKind>(

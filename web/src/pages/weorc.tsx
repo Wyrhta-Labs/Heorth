@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +9,8 @@ import { useToast } from '@/components/ui/toast';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useFormatters } from '@/hooks/use-formatters';
+import { useHousehold } from '@/hooks/use-household';
+import { todayInTimeZone } from '@/lib/format';
 import * as api from '@/api/weorc';
 import type { RoutineInput } from '@/api/weorc';
 import { listAssets, listPlaces } from '@/api/ethel';
@@ -34,6 +35,18 @@ export default function WeorcPage() {
     queryKey: ROUTINES_KEY,
     queryFn: () => api.listRoutines(),
   });
+
+  // The backend deliberately uses the HOUSEHOLD's timezone for "today" (a
+  // server-local date was a critical finding earlier in this project,
+  // precisely because it misclassifies work near midnight) - the Due
+  // now/Coming up split must agree with it rather than the browser's own
+  // clock. Falls back to the browser date only until the household query
+  // resolves.
+  const householdQuery = useHousehold();
+  const householdTimeZone = householdQuery.data?.data.timezone;
+  const today = householdTimeZone
+    ? todayInTimeZone(householdTimeZone)
+    : todayInTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
   // Loaded only while the form is open — the anchor picker's only consumer.
   // Fetched from @/api/ethel directly (not the shared use-ethel hooks) so it
@@ -65,12 +78,22 @@ export default function WeorcPage() {
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => api.completeOccurrence(id, {}),
-    onSuccess: (res, id) => applyTerminate(id, res.data.next),
+    onSuccess: (res, id) => {
+      applyTerminate(id, res.data.next);
+      // The optimistic patch only clears `openOccurrence` - it leaves the
+      // routine's own `nextDueOn` stale, so refetch to pick up the truth
+      // (a computed next date when nothing materialised, or the successor's
+      // own date otherwise) rather than keep showing the just-completed day.
+      void qc.invalidateQueries({ queryKey: ROUTINES_KEY });
+    },
     onError: (e) => toast((e as Error).message || t('weorc.title'), 'error'),
   });
   const skipMutation = useMutation({
     mutationFn: (id: string) => api.skipOccurrence(id, {}),
-    onSuccess: (res, id) => applyTerminate(id, res.data.next),
+    onSuccess: (res, id) => {
+      applyTerminate(id, res.data.next);
+      void qc.invalidateQueries({ queryKey: ROUTINES_KEY });
+    },
     onError: (e) => toast((e as Error).message || t('weorc.title'), 'error'),
   });
 
@@ -98,7 +121,6 @@ export default function WeorcPage() {
   if (retry) return <ErrorState message={t('common.loadFailed')} onRetry={retry} />;
 
   const routines = routinesQuery.data?.data ?? [];
-  const today = format(new Date(), 'yyyy-MM-dd');
 
   const dueNow: { routine: RoutineView; occurrence: WeorcOccurrence }[] = [];
   const comingUp: { routine: RoutineView; occurrence: WeorcOccurrence }[] = [];
@@ -190,6 +212,7 @@ export default function WeorcPage() {
             routine={editing}
             assets={anchorAssetsQuery.data?.data ?? []}
             places={anchorPlacesQuery.data?.data ?? []}
+            today={today}
             onSubmit={submit}
             onCancel={() => setFormOpen(false)}
             isLoading={createRoutine.isPending || updateRoutine.isPending}

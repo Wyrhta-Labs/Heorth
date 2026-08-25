@@ -3,10 +3,16 @@ import { render, screen, cleanup, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as api from '@/api/weorc';
+import { useHousehold, useHouseholdMembers } from '@/hooks/use-household';
 
 vi.mock('@/api/weorc');
+vi.mock('@/hooks/use-household');
 
 import WeorcPage from './weorc';
+
+function mockHouseholdTimeZone(timezone: string) {
+  vi.mocked(useHousehold).mockReturnValue({ data: { data: { timezone } } } as never);
+}
 
 const TODAY = '2026-08-25';
 const routine = (over = {}) => ({
@@ -41,6 +47,12 @@ function renderWeorc() {
 describe('the Weorc page', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Default household timezone: UTC keeps every existing fixture's
+    // browser-clock-era assumptions valid (noon UTC is the same calendar day
+    // in UTC as it is on the frozen instant below). Tests that care about a
+    // real household/browser split override this explicitly.
+    mockHouseholdTimeZone('UTC');
+    vi.mocked(useHouseholdMembers).mockReturnValue({ data: { data: [] } } as never);
     // Pin "today" to the date the fixtures below assume. Without this, the
     // "Coming up" fixture (`2026-09-08`) eventually becomes the PAST relative
     // to the real clock and the due/coming-up split test fails for a reason
@@ -76,7 +88,12 @@ describe('the Weorc page', () => {
   });
 
   it('ticking one calls completeOccurrence and clears it from Due now', async () => {
-    vi.mocked(api.listRoutines).mockResolvedValue(listing(routine({ openOccurrence: occurrence() })) as never);
+    // The refetch a terminate now triggers (fix for the stale-`nextDueOn`
+    // card) must reflect the server's post-completion state, same as a real
+    // backend would - the FIRST response is what renders before the click.
+    vi.mocked(api.listRoutines)
+      .mockResolvedValueOnce(listing(routine({ openOccurrence: occurrence() })) as never)
+      .mockResolvedValue(listing(routine({ nextDueOn: '2026-09-01', openOccurrence: null })) as never);
     vi.mocked(api.completeOccurrence).mockResolvedValue({
       data: {
         occurrence: occurrence({ status: 'completed', completedAt: '2026-08-25T09:00:00Z' }),
@@ -89,6 +106,28 @@ describe('the Weorc page', () => {
     await waitFor(() => {
       expect(within(screen.getByTestId('due-now')).queryByText('Put the bins out')).toBeNull();
     });
+  });
+
+  it('refreshes the routine card so it stops showing the just-completed due date', async () => {
+    // Optimistic patching only clears `openOccurrence` - it never touches the
+    // routine's own `nextDueOn`, so the card must be refetched after a
+    // terminate for the truth to reach it.
+    vi.mocked(api.listRoutines)
+      .mockResolvedValueOnce(listing(routine({ nextDueOn: TODAY, openOccurrence: occurrence() })) as never)
+      .mockResolvedValue(listing(routine({ nextDueOn: '2026-09-01', openOccurrence: null })) as never);
+    vi.mocked(api.completeOccurrence).mockResolvedValue({
+      data: {
+        occurrence: occurrence({ status: 'completed', completedAt: '2026-08-25T09:00:00Z' }),
+        next: null, projection: { ok: true },
+      },
+    } as never);
+    renderWeorc();
+    await screen.findByText(/Next due Aug 25, 2026/);
+    await userEvent.click(await screen.findByRole('button', { name: /done/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Next due Sep 1, 2026/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Next due Aug 25, 2026/)).toBeNull();
   });
 
   it('skipping calls skipOccurrence', async () => {
@@ -141,6 +180,26 @@ describe('the Weorc page', () => {
     expect(vi.mocked(api.createRoutine).mock.calls[0]![0]).toMatchObject({
       name: 'Change the bedding', anchorAssetId: null, anchorPlaceId: null,
     });
+  });
+
+  it('splits Due now / Coming up on the HOUSEHOLD timezone, not the browser one', async () => {
+    // System instant: 2026-08-25T22:30:00Z. The test host's local zone
+    // (whatever it is) must play no part - only the mocked household
+    // timezone may decide "today". America/New_York (UTC-4 in August) reads
+    // this instant as 2026-08-25 18:30 - still the 25th.
+    vi.setSystemTime(new Date('2026-08-25T22:30:00Z'));
+    mockHouseholdTimeZone('America/New_York');
+    const tomorrow = occurrence({ id: 'o3', dueOn: '2026-08-26' });
+    vi.mocked(api.listRoutines).mockResolvedValue(
+      listing(routine({ name: 'Descale the kettle', openOccurrence: tomorrow })) as never,
+    );
+    renderWeorc();
+    await screen.findByText('Descale the kettle');
+    // Household-local today is still the 25th, so a chore due the 26th is
+    // "Coming up" - a browser reading its own (later) local date would
+    // wrongly show it as "Due now".
+    expect(within(screen.getByTestId('coming-up')).getByText('Descale the kettle')).toBeInTheDocument();
+    expect(within(screen.getByTestId('due-now')).queryByText('Descale the kettle')).toBeNull();
   });
 
   it('tells the maker when an edit only applies from the next cycle', async () => {

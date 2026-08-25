@@ -72,6 +72,7 @@ lists `ALL_MODULES`):
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |
 | `/api/v1/tasks` | `src/modules/tasks/` | Household tasks backed by Microsoft To Do — list/complete/create + per-member list allowlist (writes need M365 enabled) |
 | `/api/v1/ethel/assets`, `/api/v1/ethel/places` | `src/modules/ethel/` | The property register: assets with lifecycle fields (purchase, warranty, decommission/reactivation), search/filter/paginate, plus a `places` tree and per-asset vehicle/facility detail — a standalone, always-on `HeorthModule` (ADR 0013); no dependency on feoh (see [Ethel](#ethel) below) |
+| `/api/v1/weorc/*` | `src/modules/weorc/` | Household routines and due work: recurring chores anchored to assets/places, occurrence history, and projection into Tasks when a provider exists — always on and not gated by M365 (see [Weorc](#weorc) below) |
 | `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills + occurrences, item costs/TCO, account ledger + reconciliation (ADR 0007) — a `HeorthModule`, always on (see [Finance](#finance) below) |
 | `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
 
@@ -183,6 +184,53 @@ Writes (create/update/delete/decommission on assets, places, vehicle, and
 facility detail) require `admin` or `adult` role — the same
 `requireRole('admin', 'adult')` guard as finance, with **no** additional
 maintenance-admin quarantine on Ethel writes.
+
+## Weorc
+
+Weorc (`src/modules/weorc/`, ADR 0014) is the household routine engine. It is a
+built-in, **always-on** `HeorthModule` mounted at `/api/v1/weorc`; its scheduler
+is deliberately not gated on M365, because materialising due work and preserving
+completion history are native Heorth behaviour. When a Tasks provider exists,
+open occurrences can be projected into the household task list; when it does
+not, open occurrences remain in Weorc with no `projectionError`.
+
+- **Routines** — `GET/POST /api/v1/weorc/routines`,
+  `GET/PATCH/DELETE /api/v1/weorc/routines/:id`. Fields: `name`, `notes`,
+  `mode` (`fixed`/`from_completion`), `intervalUnit` (`day`/`week`/`month`),
+  `intervalCount`, `anchorDate`, `leadDays`, `ownerMemberId`, and one optional
+  anchor (`anchorAssetId` or `anchorPlaceId`, never both). `GET /routines`
+  query params: `active` (`true`/`false`), `anchor_asset_id`,
+  `anchor_place_id`, `owner_member_id`, `limit` (capped at 100), `offset`.
+- **Occurrences** — `GET /api/v1/weorc/occurrences`,
+  `POST /api/v1/weorc/occurrences/:id/complete`, and
+  `POST /api/v1/weorc/occurrences/:id/skip`. `GET /occurrences` filters by
+  `status` (`due`/`completed`/`skipped`), `routine_id`, and `due_to`. Completing
+  records `completedAt`/`completedByMemberId`, skips record a note, and either
+  path advances the routine to its next due occurrence.
+- **Manual tick** — `POST /api/v1/weorc/run` runs the same reconcile,
+  materialise, then project pass as the background scheduler and returns counts
+  for `reconciled`, `materialised`, `projected`, and `projectionFailures`.
+
+`leadDays` is how early a routine should appear before its due date: `0` means
+"only on the due day", while a boiler service with `leadDays: 30` can show up a
+month before it is due. `fixed` routines stay on the calendar grid from
+`anchorDate` (for example, every first Saturday) and skip missed backlog down to
+one open chore; `from_completion` routines count from when the work was last
+completed or skipped, so doing it late pushes the next due date later.
+
+Error codes beyond the common `VALIDATION_ERROR` (400) and `NOT_FOUND` (404):
+
+| Code | Status | When |
+|---|---|---|
+| `ANCHOR_CONFLICT` | 400 | A routine names both `anchorAssetId` and `anchorPlaceId` |
+| `ASSET_NOT_FOUND` | 400 | A referenced Ethel asset does not exist |
+| `PLACE_NOT_FOUND` | 400 | A referenced Ethel place does not exist |
+| `ROUTINE_HAS_HISTORY` | 409 | Deleting a routine that already has completion or skip history |
+| `ALREADY_TERMINAL` | 409 | Completing or skipping an occurrence that is already completed/skipped |
+
+Writes (create/update/delete on routines, complete/skip on occurrences, and
+manual `/run`) require `admin` or `adult` role. All authenticated members may
+read routines and occurrences.
 
 ## Microsoft 365 (optional integration)
 

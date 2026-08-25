@@ -14,6 +14,7 @@ const PAGE_TITLES: Record<string, PageTitleKey> = {
   '/meals': 'nav.meals',
   '/feoh': 'nav.feoh',
   '/ethel': 'nav.ethel',
+  '/weorc': 'nav.weorc',
   '/library': 'nav.library',
   '/household': 'nav.household',
   '/today': 'nav.today',

@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, inArray, asc } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { feedKeys } from '../../m365/feed-keys.js';
 import { taskMirror, todoListAllowlist, type TaskMirrorRow, type TodoListAllowlistRow } from './schema.js';
@@ -120,6 +120,25 @@ export async function listTasks(query: ListTasksQuery = {}): Promise<TaskMirrorR
 
 export async function getTaskById(id: string): Promise<TaskMirrorRow | null> {
   const [row] = await db.select().from(taskMirror).where(eq(taskMirror.id, id)).limit(1);
+  return row ?? null;
+}
+
+/**
+ * One mirrored task by the stable feed reference. `task_mirror.id` is recreated
+ * by full resync; `(feedKey, externalId)` is the table's unique provider key.
+ */
+export async function getTaskByFeedRef(feedKey: string, externalId: string): Promise<TaskMirrorRow | null> {
+  const [row] = await db.select().from(taskMirror)
+    .where(and(eq(taskMirror.feedKey, feedKey), eq(taskMirror.externalId, externalId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** One mirrored task whose notes contain the marker stamped by the projector. */
+export async function getTaskByNotesMarker(marker: string): Promise<TaskMirrorRow | null> {
+  const [row] = await db.select().from(taskMirror)
+    .where(sql`${taskMirror.notes} LIKE ${`%${marker}%`}`)
+    .limit(1);
   return row ?? null;
 }
 

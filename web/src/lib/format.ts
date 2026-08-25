@@ -37,6 +37,21 @@ export function dayLabel(d: Date, locale: Locale = enUS): { dow: string; dom: st
 }
 
 /**
+ * Today's calendar date (`YYYY-MM-DD`) as a given IANA zone reckons it — the
+ * client-side counterpart of the server's `householdToday()`. Uses
+ * `Intl.DateTimeFormat` rather than the browser's own zone, so a page that
+ * splits "due now" from "coming up" agrees with the backend near midnight
+ * instead of drifting a day out whenever the browser and household differ.
+ */
+export function todayInTimeZone(timeZone: string, ref: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(ref);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/**
  * The start/end instants (ISO-8601, UTC) bracketing the LOCAL calendar day
  * containing `d`. Built from local midnight/end-of-day so a negative-UTC
  * viewer's "today" window is not shifted into the previous day (which a naive

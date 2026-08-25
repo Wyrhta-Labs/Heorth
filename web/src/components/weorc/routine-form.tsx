@@ -135,6 +135,12 @@ export default function RoutineForm({ routine, assets = [], places = [], onSubmi
             min="1"
             value={intervalCount}
             onChange={(e) => { setIntervalCount(Number(e.target.value) || 1); setIntervalTouched(true); }}
+            // Purely a test hook, no behavioural meaning: lets a test await the
+            // anchor-asset detail query actually SETTLING (not just having been
+            // called) before it asserts the interval fields did or didn't move -
+            // otherwise an assertion taken on the first render would trivially
+            // see the pre-effect value and never exercise the prefill guard.
+            data-asset-detail-settled={anchorKind === 'asset' ? assetDetailQuery.isFetched : undefined}
           />
         </div>
         <div className="space-y-1">

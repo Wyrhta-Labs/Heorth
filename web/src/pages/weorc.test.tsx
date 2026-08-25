@@ -22,6 +22,13 @@ const occurrence = (over = {}) => ({
 });
 const listing = (...rows: unknown[]) => ({ data: rows, meta: { total: rows.length } });
 
+// The occurrence row's exact production class list (occurrence-list.tsx). A
+// literal, not a synthetic test hook, so it actually tracks the row's real
+// appearance: if a future change conditionally added error styling for
+// `projectionError`, the affected row's class attribute would stop matching
+// this literal and the assertions below would fail.
+const ROW_CLASS = 'flex items-center justify-between gap-3 rounded-md border border-tan bg-card px-3 py-2';
+
 function renderWeorc() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -94,7 +101,7 @@ describe('the Weorc page', () => {
     expect(api.skipOccurrence).toHaveBeenCalledWith('o1', expect.anything());
   });
 
-  it('renders an UNPROJECTED occurrence plainly — no error styling anywhere', async () => {
+  it('renders an UNPROJECTED occurrence with no alert, no error copy, and no style different from a normal row', async () => {
     // In the demo stack EVERY occurrence is unprojected, permanently. Treating
     // that as a fault would make the whole page look broken.
     vi.mocked(api.listRoutines).mockResolvedValue(listing(routine({ openOccurrence: occurrence() })) as never);
@@ -102,10 +109,12 @@ describe('the Weorc page', () => {
     const nameNode = await screen.findByText('Put the bins out');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/couldn't reach your task list/i)).toBeNull();
-    // Positive pin: the row is in the explicit "ok" state, not merely absent
-    // an error class — this fails if the plain styling regresses even when it
-    // regresses to something other than what today's error state looks like.
-    expect(nameNode.closest('li')).toHaveAttribute('data-projection', 'ok');
+    // Appearance pin, not a state mirror: this is the row's REAL class
+    // attribute, so it fails if any conditional (e.g. error) styling is ever
+    // added for this case - see the matching assertion below on a row that
+    // DOES carry a projectionError, which must render with the identical
+    // class list.
+    expect(nameNode.closest('li')).toHaveAttribute('class', ROW_CLASS);
   });
 
   it('surfaces a projection problem quietly, and still shows the chore as due', async () => {
@@ -113,7 +122,12 @@ describe('the Weorc page', () => {
     vi.mocked(api.listRoutines).mockResolvedValue(listing(routine({ openOccurrence: failed })) as never);
     renderWeorc();
     expect(await screen.findByText(/couldn't reach your task list/i)).toBeInTheDocument();
-    expect(within(screen.getByTestId('due-now')).getByText('Put the bins out')).toBeInTheDocument();
+    const nameNode = within(screen.getByTestId('due-now')).getByText('Put the bins out');
+    expect(nameNode).toBeInTheDocument();
+    // The other half of the pair above: a row that DOES have a
+    // projectionError renders with the exact SAME class list as a plain row -
+    // "surfaced quietly" means no visual alarm, not merely no ARIA alert role.
+    expect(nameNode.closest('li')).toHaveAttribute('class', ROW_CLASS);
   });
 
   it('creates a routine with NO anchor — the normal case', async () => {

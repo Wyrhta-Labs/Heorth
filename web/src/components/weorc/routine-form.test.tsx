@@ -60,11 +60,16 @@ describe('RoutineForm — serviceIntervalMonths is a default, never a trigger', 
     getAsset.mockResolvedValue({ data: boilerDetail });
     renderForm(existingRoutine, [boiler]);
 
-    await waitFor(() => expect(getAsset).toHaveBeenCalledWith('a1'));
-    // Give the (absent) effect a chance to have run if it were going to -
-    // `waitFor` polls (wrapped in `act`) rather than a bare timer, so any
-    // resulting re-render is properly flushed either way.
-    await waitFor(() => expect(screen.getByLabelText(/every/i)).toHaveValue(18));
+    // Wait for the anchor-asset detail query to actually SETTLE, not merely
+    // to have been called - `18` is also what the field reads on the very
+    // first render, before the query resolves and the prefill effect gets
+    // its chance to run. Asserting right after `toHaveBeenCalledWith` would
+    // pass trivially at a moment the guard has not been exercised yet, which
+    // is exactly how this test previously could not fail on the broken code
+    // it exists to catch (see the fix-round-2 report for the revert proof).
+    await waitFor(() => expect(screen.getByLabelText(/every/i)).toHaveAttribute('data-asset-detail-settled', 'true'));
+
+    expect(screen.getByLabelText(/every/i)).toHaveValue(18);
     expect(screen.getByRole('radio', { name: 'mode-from-completion' })).toBeChecked();
   });
 

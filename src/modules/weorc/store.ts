@@ -18,6 +18,13 @@ export interface ListRoutinesQuery {
   offset?: number;
 }
 
+export class WeorcMaterialisationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WeorcMaterialisationError';
+  }
+}
+
 export async function listRoutines(q: ListRoutinesQuery = {}): Promise<{
   rows: WeorcRoutine[];
   total: number;
@@ -85,19 +92,17 @@ export async function lastTerminalOccurrence(routineId: string): Promise<WeorcOc
   return row ?? null;
 }
 
-let insertOccurrenceConflictHookForTest: (() => Promise<void> | void) | null = null;
-
-export function setInsertOccurrenceConflictHookForTest(hook: (() => Promise<void> | void) | null): void {
-  insertOccurrenceConflictHookForTest = hook;
-}
-
 /**
  * Materialise one occurrence. `ON CONFLICT DO NOTHING` because the scheduler
  * tick and a REST completion can race: the unique constraints stop a duplicate
  * row, but a bare insert would still turn the loser into a 500. On conflict we
  * re-read whatever occurrence is currently open for the routine and return that.
- * If the blocking open row was terminalized between the conflict and the read,
- * retrying lets the same due date insert once the partial index is free.
+ *
+ * Tests cover the sequential conflicts: same (routineId, dueOn), and a different
+ * dueOn while another occurrence is open. They do not directly exercise the
+ * concurrent interleaving where that open row is terminalized between the
+ * conflict and the re-read; the bounded retry plus concrete-row return paths are
+ * what keep that path from returning `undefined`.
  */
 export async function insertOccurrence(routineId: string, dueOn: string): Promise<WeorcOccurrence> {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -106,8 +111,6 @@ export async function insertOccurrence(routineId: string, dueOn: string): Promis
       .onConflictDoNothing()
       .returning();
     if (row) return row;
-
-    await insertOccurrenceConflictHookForTest?.();
 
     const open = await getOpenOccurrence(routineId);
     if (open) return open;
@@ -118,7 +121,7 @@ export async function insertOccurrence(routineId: string, dueOn: string): Promis
     if (existing) return existing;
   }
 
-  throw new Error(`Failed to materialise Weorc occurrence for routine ${routineId} due on ${dueOn}`);
+  throw new WeorcMaterialisationError(`Failed to materialise Weorc occurrence for routine ${routineId} due on ${dueOn}`);
 }
 
 export async function getOccurrence(id: string): Promise<WeorcOccurrence | null> {

@@ -19,6 +19,7 @@ import SettingsTabPanel from '@/components/household/settings-tab-panel';
 import { DEFAULT_SETTINGS_TAB } from '@/lib/settings-tabs';
 import LibraryPage from '@/pages/library';
 import EthelPage from '@/pages/ethel';
+import WeorcPage from '@/pages/weorc';
 import TodayPage from '@/pages/today';
 import ShoppingPage from '@/pages/shopping';
 import CapturePage from '@/pages/capture';
@@ -94,6 +95,7 @@ const householdTabRoute = createRoute({
 });
 const libraryRoute = createRoute({ getParentRoute: () => authRoute, path: '/library', component: LibraryPage });
 const ethelRoute = createRoute({ getParentRoute: () => authRoute, path: '/ethel', component: EthelPage });
+const weorcRoute = createRoute({ getParentRoute: () => authRoute, path: '/weorc', component: WeorcPage });
 const todayRoute = createRoute({ getParentRoute: () => authRoute, path: '/today', component: TodayPage });
 const shoppingRoute = createRoute({ getParentRoute: () => authRoute, path: '/shopping', component: ShoppingPage });
 const captureRoute = createRoute({ getParentRoute: () => authRoute, path: '/capture', component: CapturePage });
@@ -105,7 +107,7 @@ const routeTree = rootRoute.addChildren([
   authRoute.addChildren([
     dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute,
     householdRoute.addChildren([householdIndexRoute, householdTabRoute]),
-    libraryRoute, ethelRoute, todayRoute, shoppingRoute, captureRoute, profileRoute,
+    libraryRoute, ethelRoute, weorcRoute, todayRoute, shoppingRoute, captureRoute, profileRoute,
   ]),
 ]);
 

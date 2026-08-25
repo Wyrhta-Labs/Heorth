@@ -6,7 +6,7 @@ import * as store from '../src/modules/weorc/store.js';
 import { runWeorcTick } from '../src/modules/weorc/engine.js';
 import { householdToday } from '../src/modules/weorc/dates.js';
 import { seedTestHousehold } from './helpers.js';
-import { addDays } from '../src/modules/weorc/recurrence.js';
+import { addDays, nextDueOn } from '../src/modules/weorc/recurrence.js';
 
 describe('the tick with NO provider - the demo stack, permanently', () => {
   beforeEach(() => setTaskProvider(null));
@@ -71,7 +71,7 @@ describe('the tick with NO provider - the demo stack, permanently', () => {
 describe('the reconcile pass', () => {
   beforeEach(() => setTaskProvider(null));
 
-  it('completes an occurrence when its task completes upstream, and advances', async () => {
+  it('completes an occurrence but defers its successor outside the horizon', async () => {
     const { adult } = await seedTestHousehold();
     const today = await householdToday();
     const r = await store.createRoutine({
@@ -88,10 +88,38 @@ describe('the reconcile pass', () => {
 
     const result = await runWeorcTick();
     expect(result.reconciled).toBe(1);
+    expect(result.materialised).toBe(0);
 
     const done = await store.getOccurrence(occ.id);
     expect(done!.status).toBe('completed');
-    // Reconcile runs FIRST, so the successor appears in the SAME tick.
+    const next = await store.getOpenOccurrence(r.id);
+    expect(next).toBeNull();
+    expect(nextDueOn({
+      mode: 'fixed', intervalUnit: 'week', intervalCount: 1, anchorDate: today,
+    }, done!.dueOn, today)).toBe(addDays(today, 7));
+  });
+
+  it('materialises the reconciled successor in the same tick when inside the horizon', async () => {
+    const { adult } = await seedTestHousehold();
+    const today = await householdToday();
+    const r = await store.createRoutine({
+      name: 'Bins', mode: 'fixed', intervalUnit: 'week', intervalCount: 1,
+      anchorDate: today, leadDays: 7,
+    });
+    const occ = await store.insertOccurrence(r.id, today);
+    const feedKey = `todo:member:${adult.user.id}:list-1`;
+    await store.setProjection(occ.id, feedKey, 'ext-1');
+    const completedAt = new Date();
+    await db.insert(taskMirror).values({
+      source: 'm365', feedKey, externalId: 'ext-1', memberId: adult.user.id,
+      listId: 'list-1', title: 'Bins', status: 'completed', completedAt,
+    });
+
+    const result = await runWeorcTick();
+    expect(result.reconciled).toBe(1);
+    expect(result.materialised).toBe(1);
+
+    // Reconcile runs FIRST, so the admitted successor appears in the SAME tick.
     const next = await store.getOpenOccurrence(r.id);
     expect(next!.dueOn).toBe(addDays(today, 7));
   });

@@ -47,7 +47,6 @@ export async function terminalDateOf(occ: WeorcOccurrence): Promise<string> {
 export async function advanceRoutine(
   routineId: string,
   today: string,
-  force = false,
 ): Promise<WeorcOccurrence | null> {
   const routine = await store.getRoutine(routineId);
   if (!routine || !routine.active) return null;
@@ -67,7 +66,7 @@ export async function advanceRoutine(
     today,
   );
 
-  if (!force && due > addDays(today, routine.leadDays)) return null;
+  if (due > addDays(today, routine.leadDays)) return null;
   const occ = await store.insertOccurrence(routineId, due);
   return occ.status === 'due' ? occ : null;
 }
@@ -118,7 +117,6 @@ export async function runWeorcTick(): Promise<WeorcTickResult> {
     projected: 0,
     projectionFailures: 0,
   };
-  const reconciledRoutineIds = new Set<string>();
 
   for (const occ of await store.openOccurrencesWithLink()) {
     const mirrored = await tasks.findTaskByFeedRef(occ.taskFeedKey!, occ.taskExternalId!);
@@ -133,11 +131,10 @@ export async function runWeorcTick(): Promise<WeorcTickResult> {
       occ.note,
     );
     result.reconciled += 1;
-    reconciledRoutineIds.add(occ.routineId);
   }
 
   for (const routine of await store.activeRoutinesWithoutOpenOccurrence()) {
-    const created = await advanceRoutine(routine.id, today, reconciledRoutineIds.has(routine.id));
+    const created = await advanceRoutine(routine.id, today);
     if (created) result.materialised += 1;
   }
 

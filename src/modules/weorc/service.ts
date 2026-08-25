@@ -80,8 +80,8 @@ export async function getRoutineDetail(id: string): Promise<RoutineDetail | null
 
   const today = await householdToday();
   const base = await view(routine, today);
-  const all = await store.listOccurrences({ routineId: id });
-  return { ...base, history: all.filter((o) => o.status !== 'due').reverse() };
+  const history = await store.listTerminalOccurrences(id);
+  return { ...base, history };
 }
 
 export async function createRoutine(input: CreateRoutineInput): Promise<RoutineView> {

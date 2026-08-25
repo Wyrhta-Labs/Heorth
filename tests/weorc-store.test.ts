@@ -63,6 +63,21 @@ describe('weorc store', () => {
     expect((await store.lastTerminalOccurrence(r.id))!.dueOn).toBe('2026-09-08');
   });
 
+  it('listTerminalOccurrences orders newest-first with the limit applied AFTER filtering to terminal rows', async () => {
+    const r = await aRoutine();
+    const dates = ['2026-09-01', '2026-09-08', '2026-09-15'];
+    for (const d of dates) {
+      const occ = await store.insertOccurrence(r.id, d);
+      await store.terminateOccurrence(occ.id, 'skipped', null, null, null);
+    }
+    // A 4th, still-open occurrence must never displace a terminal row out of a
+    // small limit - the generic ascending list-then-limit would let it.
+    await store.insertOccurrence(r.id, '2026-09-22');
+
+    const top2 = await store.listTerminalOccurrences(r.id, 2);
+    expect(top2.map((o) => o.dueOn)).toEqual(['2026-09-15', '2026-09-08']);
+  });
+
   it('refuses nothing at the store layer - delete is a plain delete', async () => {
     const r = await aRoutine();
     expect(await store.deleteRoutine(r.id)).toBe(true);

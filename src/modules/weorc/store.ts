@@ -93,6 +93,22 @@ export async function lastTerminalOccurrence(routineId: string): Promise<WeorcOc
 }
 
 /**
+ * A routine's terminal (completed/skipped) occurrences, newest first, with the
+ * limit applied to THIS ordering - unlike `listOccurrences`, which orders
+ * ascending and would need its limit raised past every open/older row before
+ * a caller could safely filter-and-reverse for "recent history".
+ */
+export async function listTerminalOccurrences(
+  routineId: string,
+  limit = 20,
+): Promise<WeorcOccurrence[]> {
+  return db.select().from(weorcOccurrences)
+    .where(and(eq(weorcOccurrences.routineId, routineId), sql`${weorcOccurrences.status} <> 'due'`))
+    .orderBy(desc(weorcOccurrences.dueOn))
+    .limit(limit);
+}
+
+/**
  * Materialise one occurrence. `ON CONFLICT DO NOTHING` because the scheduler
  * tick and a REST completion can race: the unique constraints stop a duplicate
  * row, but a bare insert would still turn the loser into a 500. On conflict we

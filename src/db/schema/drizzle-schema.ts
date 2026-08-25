@@ -10,3 +10,4 @@ export * from '../../modules/library/schema';
 export * from '../../modules/tasks/schema';
 export * from '../../m365/schema';
 export * from '../../modules/ethel/schema';
+export * from '../../modules/weorc/schema';

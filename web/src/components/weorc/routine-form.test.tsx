@@ -14,18 +14,33 @@ afterEach(() => {
   getAsset.mockReset();
 });
 
-function renderForm(routine: RoutineView | null, assets: EthelAsset[] = []) {
+function renderForm(routine: RoutineView | null, assets: EthelAsset[] = [], today?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const utils = render(
     <QueryClientProvider client={qc}>
       <RoutineForm
         routine={routine}
         assets={assets}
+        today={today}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
       />
     </QueryClientProvider>,
   );
+  return {
+    ...utils,
+    rerenderWithToday: (nextRoutine: RoutineView | null, nextAssets: EthelAsset[], nextToday?: string) => utils.rerender(
+      <QueryClientProvider client={qc}>
+        <RoutineForm
+          routine={nextRoutine}
+          assets={nextAssets}
+          today={nextToday}
+          onSubmit={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 const boiler: EthelAsset = {
@@ -87,5 +102,49 @@ describe('RoutineForm — serviceIntervalMonths is a default, never a trigger', 
       await userEvent.click(screen.getByRole('radio', { name: 'anchor-asset' }));
       await userEvent.selectOptions(screen.getByLabelText('Asset'), 'a1');
     }
+  });
+});
+
+describe('RoutineForm — the anchor-date default is the same shape: a DEFAULT, never a trigger', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('updates a NEW, untouched anchorDate when `today` arrives late (household timezone resolving after mount)', () => {
+    // Pin the browser's own clock to a date far from the household date this
+    // test uses below, so the browser-clock FALLBACK and the household VALUE
+    // can never accidentally coincide (which would make this assertion pass
+    // for the wrong reason on whatever day the suite happens to run).
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2020-01-01T00:00:00Z'));
+    // The form mounts before the caller's household query has resolved -
+    // exactly like production, where `today` starts undefined/fallback and
+    // is fed in once useHousehold() settles.
+    const { rerenderWithToday } = renderForm(null, [], undefined);
+    expect(screen.getByLabelText(/anchor date/i)).not.toHaveValue('2026-08-25');
+
+    rerenderWithToday(null, [], '2026-08-25');
+    expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-08-25');
+  });
+
+  it('never overwrites the anchorDate once the maker has TOUCHED it, however `today` changes afterward', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const { rerenderWithToday } = renderForm(null, [], '2026-08-25');
+    expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-08-25');
+
+    await userEvent.clear(screen.getByLabelText(/anchor date/i));
+    await userEvent.type(screen.getByLabelText(/anchor date/i), '2026-09-01');
+    expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-09-01');
+
+    // `today` changing after the touch (e.g. a slow household query resolving
+    // even later, or simply the day rolling over) must not revert the pick.
+    rerenderWithToday(null, [], '2026-09-15');
+    expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-09-01');
+  });
+
+  it('never touches an EXISTING routine\'s stored anchorDate, whatever `today` does', () => {
+    const { rerenderWithToday } = renderForm(existingRoutine, [boiler], undefined);
+    expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-01-01');
+
+    rerenderWithToday(existingRoutine, [boiler], '2026-08-25');
+    expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-01-01');
   });
 });

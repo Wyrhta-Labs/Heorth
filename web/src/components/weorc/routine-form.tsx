@@ -46,6 +46,12 @@ export default function RoutineForm({ routine, assets = [], places = [], today, 
   );
   const [anchorAssetId, setAnchorAssetId] = useState<string | null>(routine?.anchorAssetId ?? null);
   const [anchorPlaceId, setAnchorPlaceId] = useState<string | null>(routine?.anchorPlaceId ?? null);
+  // Same shape as intervalTouched below, and for the same reason: `today` is
+  // a DEFAULT for a NEW routine's anchor date, never a trigger. An existing
+  // routine starts "touched" (`!!routine`) so its own stored anchorDate is
+  // never overwritten by the household timezone resolving later - condition
+  // 3 falls out of the same initializer that guards the interval prefill.
+  const [anchorDateTouched, setAnchorDateTouched] = useState(!!routine);
   // A DEFAULT, never a trigger (ADR 0013): the asset's serviceIntervalMonths
   // may only pre-fill a PRISTINE interval. An existing routine's own interval
   // is already a deliberate household decision, so it starts "touched" and
@@ -74,6 +80,12 @@ export default function RoutineForm({ routine, assets = [], places = [], today, 
       setIntervalCount(serviceIntervalMonths);
     }
   }, [assetDetailQuery.data, intervalTouched]);
+
+  useEffect(() => {
+    if (anchorDateTouched) return;
+    if (!today) return;
+    setAnchorDate(today);
+  }, [today, anchorDateTouched]);
 
   const chooseAnchor = (kind: AnchorKind) => {
     setAnchorKind(kind);
@@ -171,7 +183,7 @@ export default function RoutineForm({ routine, assets = [], places = [], today, 
             id="routine-anchor-date"
             type="date"
             value={anchorDate}
-            onChange={(e) => setAnchorDate(e.target.value)}
+            onChange={(e) => { setAnchorDate(e.target.value); setAnchorDateTouched(true); }}
             required
           />
         </div>

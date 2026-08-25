@@ -32,6 +32,11 @@ export default function OccurrenceList({ entries, emptyMessage, formatDate, onCo
       {entries.map(({ routine, occurrence }) => (
         <li
           key={occurrence.id}
+          // A stable, positively-asserted hook for "this row is rendering
+          // plainly" — the row's classes never change when `projectionError`
+          // is set, so a test needs something other than "no error class
+          // present" to pin that the plain state is actually what shipped.
+          data-projection={occurrence.projectionError ? 'error' : 'ok'}
           className="flex items-center justify-between gap-3 rounded-md border border-tan bg-card px-3 py-2"
         >
           <div>

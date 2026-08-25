@@ -32,8 +32,23 @@ function renderWeorc() {
 }
 
 describe('the Weorc page', () => {
-  beforeEach(() => vi.resetAllMocks());
-  afterEach(() => cleanup());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    // Pin "today" to the date the fixtures below assume. Without this, the
+    // "Coming up" fixture (`2026-09-08`) eventually becomes the PAST relative
+    // to the real clock and the due/coming-up split test fails for a reason
+    // that has nothing to do with the code under test.
+    // `shouldAdvanceTime` lets real async work (userEvent's internal waits,
+    // react-query's promises) keep progressing in real time even though
+    // `Date`/`Date.now()` stay frozen.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(`${TODAY}T12:00:00Z`));
+  });
+  afterEach(() => {
+    cleanup();
+    // Restored even if an assertion above threw - afterEach always runs.
+    vi.useRealTimers();
+  });
 
   it('shows work due today under "Due now"', async () => {
     vi.mocked(api.listRoutines).mockResolvedValue(listing(routine({ openOccurrence: occurrence() })) as never);
@@ -84,9 +99,13 @@ describe('the Weorc page', () => {
     // that as a fault would make the whole page look broken.
     vi.mocked(api.listRoutines).mockResolvedValue(listing(routine({ openOccurrence: occurrence() })) as never);
     renderWeorc();
-    await screen.findByText('Put the bins out');
+    const nameNode = await screen.findByText('Put the bins out');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/couldn't reach your task list/i)).toBeNull();
+    // Positive pin: the row is in the explicit "ok" state, not merely absent
+    // an error class — this fails if the plain styling regresses even when it
+    // regresses to something other than what today's error state looks like.
+    expect(nameNode.closest('li')).toHaveAttribute('data-projection', 'ok');
   });
 
   it('surfaces a projection problem quietly, and still shows the chore as due', async () => {

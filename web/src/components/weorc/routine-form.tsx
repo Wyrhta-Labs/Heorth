@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getAsset } from '@/api/ethel';
+import { useHouseholdMembers } from '@/hooks/use-household';
 import type { RoutineInput } from '@/api/weorc';
 import type { EthelAsset, EthelPlace, IntervalUnit, RoutineMode, RoutineView } from '@/lib/types';
 
@@ -39,16 +40,22 @@ export default function RoutineForm({ routine, assets = [], places = [], onSubmi
   );
   const [anchorAssetId, setAnchorAssetId] = useState<string | null>(routine?.anchorAssetId ?? null);
   const [anchorPlaceId, setAnchorPlaceId] = useState<string | null>(routine?.anchorPlaceId ?? null);
-  // Once the maker has touched mode/interval directly, the asset's
-  // serviceIntervalMonths must never clobber their choice — it is a DEFAULT,
-  // never a trigger (ADR 0013).
-  const [intervalTouched, setIntervalTouched] = useState(false);
+  // A DEFAULT, never a trigger (ADR 0013): the asset's serviceIntervalMonths
+  // may only pre-fill a PRISTINE interval. An existing routine's own interval
+  // is already a deliberate household decision, so it starts "touched" and
+  // is never re-derived just by opening the form to edit it. It becomes
+  // pristine again only when the maker actively picks a (new) asset anchor —
+  // see the select's onChange below — never merely by the query refetching.
+  const [intervalTouched, setIntervalTouched] = useState(!!routine);
 
   const assetDetailQuery = useQuery({
     queryKey: ['weorc', 'routineFormAssetDetail', anchorAssetId],
     queryFn: () => getAsset(anchorAssetId as string),
     enabled: anchorKind === 'asset' && !!anchorAssetId,
   });
+
+  const membersQuery = useHouseholdMembers();
+  const members = membersQuery.data?.data ?? [];
 
   useEffect(() => {
     if (intervalTouched) return;
@@ -170,28 +177,41 @@ export default function RoutineForm({ routine, assets = [], places = [], onSubmi
 
       <div className="space-y-1">
         <Label htmlFor="routine-owner">{t('weorc.owner')}</Label>
-        <Input
+        <select
           id="routine-owner"
           value={ownerMemberId ?? ''}
           onChange={(e) => setOwnerMemberId(e.target.value)}
-          placeholder={t('weorc.ownerNone')}
-        />
+          className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
+        >
+          <option value="">{t('weorc.ownerNone')}</option>
+          {members.map((m) => (
+            <option key={m.id} value={m.id}>{m.displayName}</option>
+          ))}
+        </select>
       </div>
 
       <fieldset className="space-y-2">
         <div className="flex items-center gap-2 text-sm">
-          <input type="radio" checked={anchorKind === 'none'} onChange={() => chooseAnchor('none')} />
+          <input type="radio" aria-label="anchor-none" checked={anchorKind === 'none'} onChange={() => chooseAnchor('none')} />
           {t('weorc.anchorNone')}
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <input type="radio" checked={anchorKind === 'asset'} onChange={() => chooseAnchor('asset')} />
+          <input type="radio" aria-label="anchor-asset" checked={anchorKind === 'asset'} onChange={() => chooseAnchor('asset')} />
           {t('weorc.anchorAsset')}
         </div>
         {anchorKind === 'asset' && (
           <select
             aria-label={t('weorc.anchorAsset')}
             value={anchorAssetId ?? ''}
-            onChange={(e) => { setAnchorAssetId(e.target.value || null); setIntervalTouched(false); }}
+            onChange={(e) => {
+              const value = e.target.value || null;
+              setAnchorAssetId(value);
+              // A fresh, explicit pick — not the routine's own already-saved
+              // anchor loading in on mount — is the one moment the interval
+              // is allowed to go back to pristine and pick up the new
+              // asset's serviceIntervalMonths as a default.
+              if (value) setIntervalTouched(false);
+            }}
             className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
           >
             <option value="">—</option>
@@ -201,7 +221,7 @@ export default function RoutineForm({ routine, assets = [], places = [], onSubmi
           </select>
         )}
         <div className="flex items-center gap-2 text-sm">
-          <input type="radio" checked={anchorKind === 'place'} onChange={() => chooseAnchor('place')} />
+          <input type="radio" aria-label="anchor-place" checked={anchorKind === 'place'} onChange={() => chooseAnchor('place')} />
           {t('weorc.anchorPlace')}
         </div>
         {anchorKind === 'place' && (

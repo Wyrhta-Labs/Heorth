@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { updateHousehold } from '../src/household/service.js';
 import { householdMidnightUtc, householdToday } from '../src/modules/weorc/dates.js';
 import { addInterval, addDays, nextDueOn, type RecurrenceSpec } from '../src/modules/weorc/recurrence.js';
@@ -96,12 +96,34 @@ describe('nextDueOn - fixed grid', () => {
 });
 
 describe('household zone, not server zone', () => {
-  it('resolves midnight in the household zone', async () => {
+  it('resolves midnight as UTC when the household zone is UTC', async () => {
+    await householdCore.seedHousehold({ name: 'Test Household' });
+    await updateHousehold({ timezone: 'UTC' });
+    const instant = await householdMidnightUtc('2026-07-01');
+    expect(instant.toISOString()).toBe('2026-07-01T00:00:00.000Z');
+  });
+
+  it('resolves midnight as Berlin local time when the household zone is Europe/Berlin', async () => {
     await householdCore.seedHousehold({ name: 'Test Household' });
     await updateHousehold({ timezone: 'Europe/Berlin' });
     const instant = await householdMidnightUtc('2026-07-01');
     // Europe/Berlin is UTC+2 in July, so local midnight is 22:00 UTC the day before.
     expect(instant.toISOString()).toBe('2026-06-30T22:00:00.000Z');
-    expect(await householdToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('uses the household zone, not the server zone, for today', async () => {
+    await householdCore.seedHousehold({ name: 'Test Household' });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-06-30T23:30:00.000Z'));
+
+      await updateHousehold({ timezone: 'UTC' });
+      expect(await householdToday()).toBe('2026-06-30');
+
+      await updateHousehold({ timezone: 'Europe/Berlin' });
+      expect(await householdToday()).toBe('2026-07-01');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

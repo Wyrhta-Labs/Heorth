@@ -343,6 +343,9 @@ partial presence is a startup error.
 ```
 # KithLedger — both or neither (partial config is a startup error)
 KITH_BASE_URL=http://localhost:14002
+# Optional browser-facing URL used by the Heorth navigation link. Leave unset
+# when the server URL above is also reachable from users' browsers.
+KITH_PUBLIC_URL=https://kithledger.home.example.com
 KITH_API_KEY=<a HOUSEHOLD-kinded kl_ key — see below>
 
 # Optional within the group; 'household' is the only accepted value.

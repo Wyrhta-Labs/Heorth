@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Sun, ShoppingCart, PlusCircle, Menu, LogOut } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
-import { navItems } from './sidebar';
+import { useFeatures } from '@/hooks/use-features';
+import { navItemsForFeatures } from './sidebar';
 import { cn } from '@/lib/utils';
 
 const TABS = [
@@ -22,6 +23,8 @@ export default function MobileNav() {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { logout } = useAuth();
+  const features = useFeatures();
+  const navItems = navItemsForFeatures(features.data?.data.kithledgerUrl);
   const [moreOpen, setMoreOpen] = useState(false);
 
   return (
@@ -59,16 +62,30 @@ export default function MobileNav() {
             <DialogClose onClose={() => setMoreOpen(false)} />
           </DialogHeader>
           <div className="space-y-1">
-            {navItems.map(({ to, labelKey, icon: Icon }) => (
-              <Link
-                key={to}
-                to={to}
-                onClick={() => setMoreOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink hover:bg-linen"
-              >
-                <Icon className="h-4 w-4 shrink-0 text-ash" />
-                {t(labelKey)}
-              </Link>
+            {navItems.map(({ to, labelKey, icon: Icon, external }) => (
+              external ? (
+                <a
+                  key={to}
+                  href={to}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink hover:bg-linen"
+                >
+                  <Icon className="h-4 w-4 shrink-0 text-ash" />
+                  {t(labelKey)}
+                </a>
+              ) : (
+                <Link
+                  key={to}
+                  to={to}
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink hover:bg-linen"
+                >
+                  <Icon className="h-4 w-4 shrink-0 text-ash" />
+                  {t(labelKey)}
+                </Link>
+              )
             ))}
             <button
               onClick={() => logout()}

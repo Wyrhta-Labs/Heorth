@@ -2,9 +2,10 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library,
-  Sun, ShoppingCart, PlusCircle, Tv, Package, ClipboardList,
+  Sun, ShoppingCart, PlusCircle, Tv, Package, ClipboardList, BookUser, ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFeatures } from '@/hooks/use-features';
 
 /** Literal catalog-key union so `t(item.labelKey)` type-checks against the
  * real translation resources instead of accepting an arbitrary string. */
@@ -22,9 +23,10 @@ export type NavLabelKey =
   | 'nav.hearth'
   | 'nav.profile'
   | 'nav.ethel'
-  | 'nav.weorc';
+  | 'nav.weorc'
+  | 'nav.kithledger';
 
-interface NavItem {
+export interface NavItem {
   to: string;
   labelKey: NavLabelKey;
   icon: typeof LayoutDashboard;
@@ -35,6 +37,7 @@ interface NavItem {
    * the item links straight to a tab but must stay lit on all of them.
    */
   activePrefix?: string;
+  external?: boolean;
 }
 
 /** Exported for testing: is `pathname` within this item's active range? */
@@ -60,11 +63,18 @@ export const navItems: NavItem[] = [
   { to: '/hearth', labelKey: 'nav.hearth', icon: Tv },
 ];
 
+export function navItemsForFeatures(kithledgerUrl: string | null | undefined): NavItem[] {
+  if (!kithledgerUrl) return navItems;
+  return [...navItems, { to: kithledgerUrl, labelKey: 'nav.kithledger', icon: BookUser, external: true }];
+}
+
 export default function Sidebar() {
   const { t } = useTranslation();
   // useRouterState (not useRouter().state) — only the former subscribes to
   // router state, and the shell above us does not re-render on navigation.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const features = useFeatures();
+  const items = navItemsForFeatures(features.data?.data.kithledgerUrl);
   return (
     <aside className="hidden md:flex flex-col w-60 min-h-screen bg-ink text-parchment">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-white/10">
@@ -72,17 +82,33 @@ export default function Sidebar() {
         <span className="font-serif text-xl">Heorth</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const { to, labelKey, icon: Icon } = item;
           const active = isNavItemActive(item, pathname);
+          const className = cn(
+            'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+            active ? 'bg-ember text-white' : 'text-parchment/70 hover:bg-white/10 hover:text-white',
+          );
+          if (item.external) {
+            return (
+              <a
+                key={to}
+                href={to}
+                target="_blank"
+                rel="noreferrer"
+                className={className}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{t(labelKey)}</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              </a>
+            );
+          }
           return (
             <Link
               key={to}
               to={to}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                active ? 'bg-ember text-white' : 'text-parchment/70 hover:bg-white/10 hover:text-white',
-              )}
+              className={className}
             >
               <Icon className="h-4 w-4 shrink-0" />
               {t(labelKey)}

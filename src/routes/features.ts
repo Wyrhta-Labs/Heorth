@@ -13,4 +13,5 @@ featuresRouter.use('*', requireAuth);
 featuresRouter.get('/', (c) => ok(c, {
   finance: true, // feoh is always on (gate removed 2026-08-16)
   kithledger: config.kith !== null,
+  kithledgerUrl: config.kith?.publicUrl ?? null,
 }));

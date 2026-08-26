@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the existing Tasks provider when one is available. The Tasks service
   now exposes the projected-task create/complete and feed-reference lookup paths
   Weorc needs without making M365 a requirement.
+- **Heorth can open KithLedger from its navigation.** `GET /api/v1/features`
+  now returns `kithledgerUrl` when the KithLedger integration is configured,
+  and the web shell renders it as an external `KithLedger` launcher. Deployments
+  with internal service URLs can set `KITH_PUBLIC_URL`; otherwise it falls back
+  to `KITH_BASE_URL`.
 
 ## [0.6.0] - 2026-08-25
 

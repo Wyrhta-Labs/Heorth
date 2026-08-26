@@ -23,6 +23,14 @@ describe('kith env group', () => {
     expect(buildEnvSchema().safeParse({ ...base, ...fullKith }).success).toBe(true);
   });
 
+  it('accepts a public browser URL within the KITH group', () => {
+    expect(buildEnvSchema().safeParse({
+      ...base,
+      ...fullKith,
+      KITH_PUBLIC_URL: 'https://kith.example.test',
+    }).success).toBe(true);
+  });
+
   it('rejects partial KITH config (all-or-nothing)', () => {
     const parsed = buildEnvSchema().safeParse({ ...base, KITH_BASE_URL: fullKith.KITH_BASE_URL });
     expect(parsed.success).toBe(false);
@@ -30,6 +38,11 @@ describe('kith env group', () => {
 
   it('rejects a key without a base URL', () => {
     const parsed = buildEnvSchema().safeParse({ ...base, KITH_API_KEY: fullKith.KITH_API_KEY });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('rejects a public URL without the KITH group', () => {
+    const parsed = buildEnvSchema().safeParse({ ...base, KITH_PUBLIC_URL: 'https://kith.example.test' });
     expect(parsed.success).toBe(false);
   });
 

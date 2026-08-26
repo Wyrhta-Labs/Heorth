@@ -50,6 +50,9 @@ export function buildEnvSchema() {
     // partial presence is a startup error (see superRefine). The key MUST be
     // a `household`-kinded `kl_` key — see KITH_API_KEY_KIND below.
     KITH_BASE_URL: emptyToUndefined(z.string().url()),
+    // Browser-facing URL for opening the KithLedger web UI from Heorth. Optional
+    // within the KITH group: omitted deployments fall back to KITH_BASE_URL.
+    KITH_PUBLIC_URL: emptyToUndefined(z.string().url()),
     KITH_API_KEY: emptyToUndefined(z.string().min(1)),
     // WHICH of ADR 0004 §2's three principals `KITH_API_KEY` is. A `kl_` key
     // carries a kind — member | household | ops — decided by KithLedger when
@@ -166,6 +169,15 @@ export function buildEnvSchema() {
           'KITH_BASE_URL and KITH_API_KEY, or unset it.',
       });
     }
+    if (kithPresent.length === 0 && env.KITH_PUBLIC_URL !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['KITH'],
+        message:
+          'KITH_PUBLIC_URL is set without the KithLedger group — also set ' +
+          'KITH_BASE_URL and KITH_API_KEY, or unset it.',
+      });
+    }
     if (env.KITH_API_KEY_KIND !== undefined && env.KITH_API_KEY_KIND !== 'household') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -269,6 +281,7 @@ export const config = {
     parsed.KITH_BASE_URL
       ? {
           baseUrl: parsed.KITH_BASE_URL,
+          publicUrl: parsed.KITH_PUBLIC_URL ?? parsed.KITH_BASE_URL,
           /**
            * The household dashboard credential (ADR 0004 §2.2) — read-only,
            * member-less, and limited to the `household`-visible slice. Never

@@ -13,6 +13,7 @@ import { createFakeKith, runtimeForFakeKith, reminder } from './fake-kith.js';
 // default (unset/disabled) so later files aren't affected by this one.
 afterAll(() => {
   delete process.env['KITH_BASE_URL'];
+  delete process.env['KITH_PUBLIC_URL'];
   delete process.env['KITH_API_KEY'];
   delete process.env['KITH_API_KEY_KIND'];
 });
@@ -29,8 +30,9 @@ describe('kith module gating (KITH_* env group)', () => {
   describe('disabled (default test env)', () => {
     it('GET /api/v1/kith/reminders 404s via the catch-all envelope', async () => {
       delete process.env['KITH_BASE_URL'];
+      delete process.env['KITH_PUBLIC_URL'];
       delete process.env['KITH_API_KEY'];
-  delete process.env['KITH_API_KEY_KIND'];
+      delete process.env['KITH_API_KEY_KIND'];
       const { app } = await freshApp();
       const { adult } = await seedTestHousehold();
 
@@ -45,20 +47,23 @@ describe('kith module gating (KITH_* env group)', () => {
 
     it('GET /api/v1/features reports kithledger disabled', async () => {
       delete process.env['KITH_BASE_URL'];
+      delete process.env['KITH_PUBLIC_URL'];
       delete process.env['KITH_API_KEY'];
-  delete process.env['KITH_API_KEY_KIND'];
+      delete process.env['KITH_API_KEY_KIND'];
       const { app } = await freshApp();
       const { adult } = await seedTestHousehold();
       const res = await app.request('/api/v1/features', { headers: authHeaders(adult.jwt) });
       expect(res.status).toBe(200);
-      const body = await res.json() as { data: { kithledger: boolean } };
+      const body = await res.json() as { data: { kithledger: boolean; kithledgerUrl: string | null } };
       expect(body.data.kithledger).toBe(false);
+      expect(body.data.kithledgerUrl).toBeNull();
     });
   });
 
   describe('enabled', () => {
     it('GET /api/v1/kith/reminders responds through the mounted module', async () => {
       process.env['KITH_BASE_URL'] = 'http://kith.test';
+      delete process.env['KITH_PUBLIC_URL'];
       process.env['KITH_API_KEY'] = 'kl_test-key';
       const { app, setKithRuntime } = await freshApp();
       const fake = createFakeKith([reminder({ id: 'r1', dueAt: '2026-08-15T09:00:00.000Z' })]);
@@ -77,15 +82,29 @@ describe('kith module gating (KITH_* env group)', () => {
 
     it('GET /api/v1/features reports kithledger enabled', async () => {
       process.env['KITH_BASE_URL'] = 'http://kith.test';
+      delete process.env['KITH_PUBLIC_URL'];
       process.env['KITH_API_KEY'] = 'kl_test-key';
       const { app } = await freshApp();
       const { adult } = await seedTestHousehold();
       const res = await app.request('/api/v1/features', { headers: authHeaders(adult.jwt) });
       expect(res.status).toBe(200);
-      const body = await res.json() as { data: { finance: boolean; kithledger: boolean } };
+      const body = await res.json() as { data: { finance: boolean; kithledger: boolean; kithledgerUrl: string | null } };
       expect(body.data.kithledger).toBe(true);
+      expect(body.data.kithledgerUrl).toBe('http://kith.test');
       // the sibling flag is still reported (untouched by the kith group)
       expect(typeof body.data.finance).toBe('boolean');
+    });
+
+    it('GET /api/v1/features reports the public KithLedger URL when configured', async () => {
+      process.env['KITH_BASE_URL'] = 'http://kithledger:3000';
+      process.env['KITH_PUBLIC_URL'] = 'http://localhost:24002';
+      process.env['KITH_API_KEY'] = 'kl_test-key';
+      const { app } = await freshApp();
+      const { adult } = await seedTestHousehold();
+      const res = await app.request('/api/v1/features', { headers: authHeaders(adult.jwt) });
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: { kithledgerUrl: string | null } };
+      expect(body.data.kithledgerUrl).toBe('http://localhost:24002');
     });
   });
 });

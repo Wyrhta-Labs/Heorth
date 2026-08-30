@@ -72,7 +72,7 @@ describe('ConnectionsPanel', () => {
   });
 
   it('triggers a manual sync, toasts the result summary, and invalidates the status query', async () => {
-    syncNow.mockResolvedValue({ data: { results: [{ feedKey: 'calendar:member:b', status: 'ok' }] } });
+    syncNow.mockResolvedValue({ data: { results: [{ feedKey: 'm365:calendar:member:b', status: 'ok' }] } });
     const { invalidateSpy } = renderPanel();
     fireEvent.click(screen.getByRole('button', { name: /sync/i }));
 

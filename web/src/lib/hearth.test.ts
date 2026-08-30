@@ -37,7 +37,7 @@ function ev(partial: Partial<EventOccurrence> & { occurrenceStart: string }): Ev
 
 function task(partial: Partial<Task> & { id: string }): Task {
   return {
-    id: partial.id, source: 'm365', feedKey: 'todo:member:alex:L1', externalId: partial.id,
+    id: partial.id, source: 'm365', feedKey: 'm365:todo:member:alex:L1', externalId: partial.id,
     memberId: partial.memberId ?? 'alex', listId: 'L1', listName: 'Chores',
     title: partial.title ?? 'Task', notes: null, dueAt: partial.dueAt ?? null,
     completedAt: partial.completedAt ?? null, status: partial.status ?? 'open',
@@ -48,7 +48,7 @@ function task(partial: Partial<Task> & { id: string }): Task {
 // ---- attribution / family colour policy -----------------------------------
 describe('resolveAttribution', () => {
   it('renders family-feed events as the household shared band (not a member colour)', () => {
-    const a = resolveAttribution(ev({ occurrenceStart: '2026-07-24T09:00:00Z', feedKey: 'calendar:family', source: 'm365' }), membersById);
+    const a = resolveAttribution(ev({ occurrenceStart: '2026-07-24T09:00:00Z', feedKey: 'm365:calendar:family', source: 'm365' }), membersById);
     expect(a.kind).toBe('family');
     expect(a.color).toBe(HOUSEHOLD_COLOR);
     expect(Object.values(MEMBER_COLORS)).not.toContain(a.color);

@@ -110,4 +110,19 @@ describe('IntegrationStore', () => {
     expect(st!.consecutiveFailures).toBe(2);
     expect(st!.lastError).toBe('needs_reauth');
   });
+
+  it('resets consecutiveFailures and clears lastError on a subsequent success', async () => {
+    const key = 'm365:calendar:family';
+    await m365.recordSyncSuccess(key, 'tok-1');
+    await m365.recordSyncFailure(key, 'boom');
+    let st = await m365.getSyncState(key);
+    expect(st!.consecutiveFailures).toBe(1);
+    expect(st!.lastError).toBe('boom');
+
+    await m365.recordSyncSuccess(key, 'tok-2');
+    st = await m365.getSyncState(key);
+    expect(st!.syncToken).toBe('tok-2');
+    expect(st!.consecutiveFailures).toBe(0);
+    expect(st!.lastError).toBeNull();
+  });
 });

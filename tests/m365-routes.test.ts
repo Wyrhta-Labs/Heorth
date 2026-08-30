@@ -6,10 +6,10 @@ import { ALL_MODULES } from '../src/modules/index.js';
 import { m365Router } from '../src/m365/routes.js';
 import { setM365Runtime } from '../src/m365/runtime.js';
 import { signConnectState } from '../src/m365/state.js';
-import { feedKeys } from '../src/m365/feed-keys.js';
+import { feedKeys } from '../src/integrations/feed-keys.js';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
-import { m365Connections } from '../src/m365/schema.js';
+import { integrationConnections } from '../src/integrations/schema.js';
 import { config } from '../src/config/env.js';
 import { householdCore } from '../src/wiring.js';
 import { createFakeGraph, runtimeForFakeGraph } from './fake-graph.js';
@@ -56,7 +56,7 @@ describe('m365 routes (enabled)', () => {
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('/profile?connected=m365');
 
-    const [row] = await db.select().from(m365Connections).where(eq(m365Connections.memberId, adult.user.id));
+    const [row] = await db.select().from(integrationConnections).where(eq(integrationConnections.memberId, adult.user.id));
     expect(row!.accountLabel).toBe('member@contoso.test');
     expect(row!.refreshTokenEncrypted).not.toContain('refresh-initial');
   });
@@ -132,14 +132,14 @@ describe('m365 routes (enabled)', () => {
 
     // Sync state for a feed the acting member (adult) does not own — the
     // child's calendar feed, gone dead — must still show up for a non-admin.
-    await rt.store.recordSyncFailure(feedKeys.calendarMember(child.user.id), 'graph_401');
-    await rt.store.recordSyncSuccess(feedKeys.calendarFamily(), null);
+    await rt.store.recordSyncFailure(feedKeys.calendarMember('m365', child.user.id), 'graph_401');
+    await rt.store.recordSyncSuccess(feedKeys.calendarFamily('m365'), null);
 
     const res = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
     const body = await res.json() as { data: { connection: unknown; feeds: { feedKey: string }[] } };
     const feedKeysSeen = body.data.feeds.map((f) => f.feedKey);
-    expect(feedKeysSeen).toContain(feedKeys.calendarMember(child.user.id));
-    expect(feedKeysSeen).toContain(feedKeys.calendarFamily());
+    expect(feedKeysSeen).toContain(feedKeys.calendarMember('m365', child.user.id));
+    expect(feedKeysSeen).toContain(feedKeys.calendarFamily('m365'));
 
     // Same feeds[] set for the admin — feeds[] doesn't vary by role, only
     // `connection`/`connections` (member-private) does.

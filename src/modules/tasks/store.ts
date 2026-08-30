@@ -1,6 +1,6 @@
 import { and, eq, gte, lte, inArray, notInArray, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { feedKeys } from '../../m365/feed-keys.js';
+import { feedKeys } from '../../integrations/feed-keys.js';
 import { taskMirror, todoListAllowlist, type TaskMirrorRow, type TodoListAllowlistRow } from './schema.js';
 import type { MirroredTask, TaskPullResult, TaskStatus } from './providers/types.js';
 
@@ -208,7 +208,9 @@ export async function setAllowlist(
     for (const row of existing) {
       if (!keepIds.has(row.listId)) {
         await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.id, row.id));
-        await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember(memberId, row.listId)));
+        // TODO(task-11): hardcoded provider — threaded through TaskFeed when the tasks
+        // module resolves providers by the mirror row's source.
+        await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember('m365', memberId, row.listId)));
       }
     }
 
@@ -230,8 +232,10 @@ export async function setAllowlist(
 /** All allowlisted lists across every member, as sync feeds. */
 export async function listAllowlistedFeeds(): Promise<TaskFeed[]> {
   const rows = await db.select().from(todoListAllowlist);
+  // TODO(task-11): hardcoded provider — threaded through TaskFeed when the tasks
+  // module resolves providers by the mirror row's source.
   return rows.map((r) => ({
-    feedKey: feedKeys.todoMember(r.memberId, r.listId),
+    feedKey: feedKeys.todoMember('m365', r.memberId, r.listId),
     memberId: r.memberId,
     listId: r.listId,
     listName: r.listName,

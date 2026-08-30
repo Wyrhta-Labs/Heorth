@@ -2,14 +2,14 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
-import { m365SyncState } from '../src/m365/schema.js';
+import { integrationSyncState } from '../src/integrations/schema.js';
 import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
 import { applyMirrorPull } from '../src/modules/calendar/mirror-store.js';
 import * as calendar from '../src/modules/calendar/service.js';
 import { calendarRouter } from '../src/modules/calendar/routes.js';
 import { runCalendarSync } from '../src/m365/calendar-sync.js';
 import { m365Router } from '../src/m365/routes.js';
-import { feedKeys } from '../src/m365/feed-keys.js';
+import { feedKeys } from '../src/integrations/feed-keys.js';
 import { setM365Runtime } from '../src/m365/runtime.js';
 import type { M365Runtime } from '../src/m365/runtime.js';
 import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph, type FakeCalEvent } from './fake-graph.js';
@@ -53,7 +53,7 @@ describe('m365 calendar mirror — sync', () => {
     }]);
 
     const results = await runCalendarSync(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
     const memberResult = results.find((r) => r.feedKey === feedKey)!;
     expect(memberResult.status).toBe('ok');
     expect(memberResult.upserted).toBe(2);
@@ -78,7 +78,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
@@ -102,7 +102,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [
       ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
@@ -124,7 +124,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [
       ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
@@ -156,11 +156,11 @@ describe('m365 calendar mirror — sync', () => {
     ] }] }]);
 
     const results = await runCalendarSync(rt);
-    const familyResult = results.find((r) => r.feedKey === feedKeys.calendarFamily())!;
+    const familyResult = results.find((r) => r.feedKey === feedKeys.calendarFamily('m365'))!;
     expect(familyResult.status).toBe('ok');
     expect(fake.appTokenCount).toBeGreaterThan(0); // client_credentials was used
 
-    const rows = await mirrorRows(feedKeys.calendarFamily());
+    const rows = await mirrorRows(feedKeys.calendarFamily('m365'));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.memberId).toBeNull(); // shared feed — no member attribution
   });
@@ -169,7 +169,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const memberKey = feedKeys.calendarMember(adult.user.id);
+    const memberKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.failDelta.add('me'); // member feed errors (500)
     fake.setCalendar(fakeM365Config.familyMailbox, [{ pages: [{ upserts: [
@@ -178,7 +178,7 @@ describe('m365 calendar mirror — sync', () => {
 
     const results = await runCalendarSync(rt);
     const member = results.find((r) => r.feedKey === memberKey)!;
-    const family = results.find((r) => r.feedKey === feedKeys.calendarFamily())!;
+    const family = results.find((r) => r.feedKey === feedKeys.calendarFamily('m365'))!;
     expect(member.status).toBe('error');
     expect(member.reason).toBe('graph_500');
     expect(family.status).toBe('ok'); // the loop continued past the failure
@@ -187,14 +187,14 @@ describe('m365 calendar mirror — sync', () => {
     const memberState = await rt.store.getSyncState(memberKey);
     expect(memberState?.lastError).toBe('graph_500');
     expect(memberState?.consecutiveFailures).toBe(1);
-    expect((await mirrorRows(feedKeys.calendarFamily()))).toHaveLength(1);
+    expect((await mirrorRows(feedKeys.calendarFamily('m365')))).toHaveLength(1);
   });
 
   it('records needs_reauth without hot-retrying the token', async () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const memberKey = feedKeys.calendarMember(adult.user.id);
+    const memberKey = feedKeys.calendarMember('m365', adult.user.id);
     // Mark the connection as needing re-consent.
     await rt.store.recordRefreshError(adult.user.id, 'refresh token expired', 'needs_reauth');
 
@@ -213,7 +213,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'A', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
@@ -238,7 +238,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [
       ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
@@ -251,7 +251,7 @@ describe('m365 calendar mirror — sync', () => {
 
     // Age the feed's last full sync past the (default 7-day) threshold.
     const stale = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
-    await db.update(m365SyncState).set({ lastFullSyncAt: stale }).where(eq(m365SyncState.feedKey, feedKey));
+    await db.update(integrationSyncState).set({ lastFullSyncAt: stale }).where(eq(integrationSyncState.feedKey, feedKey));
 
     // The stored delta token still points at a valid batch (NOT gone) — a
     // stale-but-alive token replay would otherwise happily reuse the frozen
@@ -279,7 +279,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [
       ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
@@ -310,7 +310,7 @@ describe('m365 calendar mirror — sync', () => {
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt); // initial pull is a full sync
@@ -328,9 +328,9 @@ describe('m365 calendar mirror — sync', () => {
     expect(afterDelta.lastFullSyncAt!.getTime()).toBe(firstStamp);
 
     // Force the feed past the threshold and re-sync: the stamp advances.
-    await db.update(m365SyncState).set({
+    await db.update(integrationSyncState).set({
       lastFullSyncAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
-    }).where(eq(m365SyncState.feedKey, feedKey));
+    }).where(eq(integrationSyncState.feedKey, feedKey));
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
     const afterRewindow = (await rt.store.getSyncState(feedKey))!;
@@ -347,7 +347,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [
       // The series master carries the ORIGINAL 1932 start — must never surface.
@@ -376,7 +376,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
@@ -406,7 +406,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
@@ -430,7 +430,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
@@ -453,7 +453,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [
       ev('party-master', 'Party', '2020-06-01T00:00:00.000Z', '2020-06-02T00:00:00.000Z', { allDay: true, type: 'seriesMaster' }),
@@ -472,7 +472,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [
       ev('bday-master', 'Birthday Alice', '1932-05-01T00:00:00.000Z', '1932-05-02T00:00:00.000Z', { allDay: true, type: 'seriesMaster' }),
@@ -498,7 +498,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
@@ -533,7 +533,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     // Initial pull: master + 3 sparse occurrences → 3 mirrored rows.
     fake.setCalendar('me', [{ pages: [{ upserts: [
@@ -571,7 +571,7 @@ describe('m365 calendar mirror — recurring series (master enrichment)', () => 
     const fake = createFakeGraph();
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedConnectedMember(rt);
-    const feedKey = feedKeys.calendarMember(adult.user.id);
+    const feedKey = feedKeys.calendarMember('m365', adult.user.id);
 
     fake.setCalendar('me', [{ pages: [
       { upserts: [
@@ -600,7 +600,7 @@ describe('m365 calendar mirror — visibility + read-only', () => {
       ev('e1', 'Dentist', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z'),
     ] }] }]);
     await runCalendarSync(rt);
-    const [row] = await mirrorRows(feedKeys.calendarMember(seeded.adult.user.id));
+    const [row] = await mirrorRows(feedKeys.calendarMember('m365', seeded.adult.user.id));
     return { seeded, mirrorId: row!.id };
   }
 
@@ -664,7 +664,7 @@ describe('m365 sync route + health surface', () => {
     // Admin sees all feed states; the delta token is NOT exposed.
     const statusAdmin = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(admin.jwt) });
     const adminBody = await statusAdmin.json() as { data: { feeds: Array<Record<string, unknown>> } };
-    const memberFeed = adminBody.data.feeds.find((f) => f['feedKey'] === feedKeys.calendarMember(adult.user.id))!;
+    const memberFeed = adminBody.data.feeds.find((f) => f['feedKey'] === feedKeys.calendarMember('m365', adult.user.id))!;
     expect(memberFeed['lastSuccessAt']).toBeTruthy();
     expect(memberFeed).not.toHaveProperty('syncToken');
 
@@ -672,8 +672,8 @@ describe('m365 sync route + health surface', () => {
     const statusMember = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
     const memberBody = await statusMember.json() as { data: { feeds: Array<{ feedKey: string }> } };
     const keys = memberBody.data.feeds.map((f) => f.feedKey);
-    expect(keys).toContain(feedKeys.calendarMember(adult.user.id));
-    expect(keys.every((k) => k === feedKeys.calendarMember(adult.user.id) || k === feedKeys.calendarFamily())).toBe(true);
+    expect(keys).toContain(feedKeys.calendarMember('m365', adult.user.id));
+    expect(keys.every((k) => k === feedKeys.calendarMember('m365', adult.user.id) || k === feedKeys.calendarFamily('m365'))).toBe(true);
   });
 
   it('POST /sync is admin-only', async () => {

@@ -1,6 +1,6 @@
 import type { M365Config } from '../config/env.js';
 import { authorityBase, GraphError, graphFetch } from './graph.js';
-import type { M365Store } from './store.js';
+import type { IntegrationStore } from '../integrations/store.js';
 
 /** Delegated scopes Heorth requests (see the M365 plan's auth model). */
 export const DELEGATED_SCOPES = 'Calendars.Read Tasks.ReadWrite offline_access User.Read';
@@ -39,7 +39,7 @@ export class DelegatedClient {
 
   constructor(
     private readonly cfg: M365Config,
-    private readonly store: M365Store,
+    private readonly store: IntegrationStore,
     private readonly fetchImpl: typeof fetch,
   ) {}
 

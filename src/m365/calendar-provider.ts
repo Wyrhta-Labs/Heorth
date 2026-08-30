@@ -1,6 +1,6 @@
 import type { M365Runtime } from './runtime.js';
 import { GraphError } from './graph.js';
-import { feedKeys } from './feed-keys.js';
+import { feedKeys } from '../integrations/feed-keys.js';
 import type {
   CalendarProvider, CalendarFeed, MirroredEvent, PullResult,
 } from '../modules/calendar/providers/types.js';
@@ -110,12 +110,12 @@ export class GraphCalendarProvider implements CalendarProvider {
   async listFeeds(): Promise<CalendarFeed[]> {
     const connections = await this.rt.store.listConnections();
     const feeds: CalendarFeed[] = connections.map((c) => ({
-      feedKey: feedKeys.calendarMember(c.memberId),
+      feedKey: feedKeys.calendarMember('m365', c.memberId),
       memberId: c.memberId,
       kind: 'member',
     }));
     // The shared family mailbox (app-only) is always a feed when enabled.
-    feeds.push({ feedKey: feedKeys.calendarFamily(), memberId: null, kind: 'family' });
+    feeds.push({ feedKey: feedKeys.calendarFamily('m365'), memberId: null, kind: 'family' });
     return feeds;
   }
 
@@ -274,7 +274,7 @@ export class GraphCalendarProvider implements CalendarProvider {
   }
 
   private parseFeed(feedKey: string): CalendarFeed {
-    if (feedKey === feedKeys.calendarFamily()) {
+    if (feedKey === feedKeys.calendarFamily('m365')) {
       return { feedKey, memberId: null, kind: 'family' };
     }
     const m = /^m365:calendar:member:(.+)$/.exec(feedKey);

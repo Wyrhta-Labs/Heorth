@@ -6,14 +6,14 @@ import { getM365Runtime } from './runtime.js';
 import { signConnectState, verifyConnectState } from './state.js';
 import { runCalendarSync } from './calendar-sync.js';
 import { runTaskSync } from './task-sync.js';
-import type { M365SyncStateRow } from './schema.js';
+import type { IntegrationSyncStateRow } from '../integrations/schema.js';
 
 /**
  * Public projection of per-feed sync state for the health surface / Hearth View
  * staleness badges (Task 2.5). Never exposes the delta token (an opaque Graph
  * URL that embeds the mailbox) — only the classified last error and counters.
  */
-function toPublicFeed(row: M365SyncStateRow) {
+function toPublicFeed(row: IntegrationSyncStateRow) {
   return {
     feedKey: row.feedKey,
     lastSuccessAt: row.lastSuccessAt,
@@ -90,7 +90,7 @@ m365Router.get('/callback', async (c) => {
     const { refreshToken, accessToken, scopes } = await rt.delegated.exchangeCode(code);
     const me = await rt.delegated.getMe(accessToken);
     await rt.store.upsertConnection({
-      memberId, accountUpn: me.userPrincipalName, refreshToken, scopes,
+      memberId, accountLabel: me.userPrincipalName, refreshToken, scopes,
     });
   } catch {
     // Upstream identity/Graph failure or unexpected error. Details are not

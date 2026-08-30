@@ -1,5 +1,5 @@
 import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
-import { feedKeys } from '../../m365/feed-keys.js';
+import { feedKeys } from '../../integrations/feed-keys.js';
 import { getTaskProvider, getSharedListName } from './provider.js';
 import * as store from './store.js';
 import {
@@ -150,7 +150,7 @@ async function resolveSharedFeed(preferMemberId: string | null): Promise<TaskFee
   // Prefer the acting member if they have the shared list; else any member that does.
   const chosen = entries.find((e) => e.memberId === preferMemberId) ?? entries[0]!;
   return {
-    feedKey: feedKeys.todoMember(chosen.memberId, chosen.listId),
+    feedKey: feedKeys.todoMember('m365', chosen.memberId, chosen.listId),
     memberId: chosen.memberId,
     listId: chosen.listId,
     listName: chosen.listName,

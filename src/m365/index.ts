@@ -31,9 +31,11 @@ export { runTaskSync } from './task-sync.js';
 export type { FeedSyncResult } from './sync-runner.js';
 export { GraphCalendarProvider } from './calendar-provider.js';
 export { GraphTaskProvider } from './task-provider.js';
-export { feedKeys } from './feed-keys.js';
 export { GraphError, graphFetch, GRAPH_BASE } from './graph.js';
-export { M365Store, type PublicM365Connection } from './store.js';
 export { DELEGATED_SCOPES } from './delegated.js';
 export type { GraphMe } from './delegated.js';
-export type { M365ConnectionRow, M365SyncStateRow, M365ConnectionStatus } from './schema.js';
+export { IntegrationStore, type PublicIntegrationConnection } from '../integrations/store.js';
+export { feedKeys } from '../integrations/feed-keys.js';
+export type {
+  IntegrationConnectionRow, IntegrationSyncStateRow, IntegrationConnectionStatus,
+} from '../integrations/schema.js';

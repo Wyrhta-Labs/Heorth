@@ -1,6 +1,6 @@
 import type { M365Runtime } from './runtime.js';
 import { GraphError } from './graph.js';
-import { feedKeys } from './feed-keys.js';
+import { feedKeys } from '../integrations/feed-keys.js';
 import { classify } from './sync-runner.js';
 import { localDateOf, zonedMidnightUtc } from '../lib/local-date.js';
 import { getHouseholdTimeZone } from '../household/timezone.js';
@@ -246,5 +246,5 @@ export class GraphTaskProvider implements TaskProvider {
 
 /** Convenience: the canonical feed key for a member's list (re-export of the shared helper). */
 export function taskFeedKey(memberId: string, listId: string): string {
-  return feedKeys.todoMember(memberId, listId);
+  return feedKeys.todoMember('m365', memberId, listId);
 }

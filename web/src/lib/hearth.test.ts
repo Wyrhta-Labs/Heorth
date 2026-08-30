@@ -263,28 +263,34 @@ describe('staleness from /status feeds[]', () => {
     updatedAt: '2026-07-24T12:00:00Z',
   });
 
-  it('maps feed keys to their owner', () => {
-    expect(ownerOfFeed('calendar:family')).toBe('family');
-    expect(ownerOfFeed('calendar:member:alex')).toBe('alex');
-    expect(ownerOfFeed('todo:member:sam:AAA')).toBe('sam');
+  it('maps provider-prefixed feed keys to their owner', () => {
+    expect(ownerOfFeed('m365:calendar:family')).toBe('family');
+    expect(ownerOfFeed('m365:calendar:member:alex')).toBe('alex');
+    expect(ownerOfFeed('m365:todo:member:sam:AAA')).toBe('sam');
     expect(ownerOfFeed('nonsense')).toBeNull();
   });
 
+  it('rejects unprefixed feed keys as obsolete', () => {
+    expect(ownerOfFeed('calendar:family')).toBeNull();
+    expect(ownerOfFeed('calendar:member:alex')).toBeNull();
+    expect(ownerOfFeed('todo:member:sam:AAA')).toBeNull();
+  });
+
   it('flags a member stale when a feed errors, and surfaces needs_reauth', () => {
-    const s = deriveStaleness([feed({ feedKey: 'calendar:member:alex', lastError: 'needs_reauth' })], now);
+    const s = deriveStaleness([feed({ feedKey: 'm365:calendar:member:alex', lastError: 'needs_reauth' })], now);
     expect(s.alex.stale).toBe(true);
     expect(s.alex.needsReauth).toBe(true);
   });
 
   it('flags stale on an old last success even with no error', () => {
-    const s = deriveStaleness([feed({ feedKey: 'calendar:member:sam', lastSuccessAt: '2026-07-24T10:00:00Z' })], now);
+    const s = deriveStaleness([feed({ feedKey: 'm365:calendar:member:sam', lastSuccessAt: '2026-07-24T10:00:00Z' })], now);
     expect(s.sam.stale).toBe(true); // > 30m old
   });
 
   it('keeps a fresh feed not stale and aggregates the oldest success per owner', () => {
     const s = deriveStaleness([
-      feed({ feedKey: 'calendar:member:alex', lastSuccessAt: '2026-07-24T11:55:00Z' }),
-      feed({ feedKey: 'todo:member:alex:L1', lastSuccessAt: '2026-07-24T11:40:00Z' }),
+      feed({ feedKey: 'm365:calendar:member:alex', lastSuccessAt: '2026-07-24T11:55:00Z' }),
+      feed({ feedKey: 'm365:todo:member:alex:L1', lastSuccessAt: '2026-07-24T11:40:00Z' }),
     ], now);
     expect(s.alex.stale).toBe(false);
     expect(s.alex.lastSuccessAt).toBe('2026-07-24T11:40:00Z'); // oldest of the two

@@ -4,7 +4,9 @@
 
 **Goal:** Extract a provider-neutral `src/integrations/` layer out of `src/m365/` so a second calendar/task provider can slot in beside Microsoft 365, and fix the two behaviour defects that block it — the shared task list resolved by display name, and full-resync truncating the mirrors.
 
-**Architecture:** `src/m365/` today owns both the Microsoft Graph implementation *and* the generic machinery around it (connections, per-feed sync state, token encryption, the sync runner, the scheduler, the routes). The generic half moves to `src/integrations/`, gains a `provider` scope, and exposes a registry that providers register into. `src/m365/` keeps only Graph. Every move is done behind a re-export shim so the build and the full suite stay green at every task boundary; the shims are deleted in Task 8.
+**Architecture:** `src/m365/` today owns both the Microsoft Graph implementation *and* the generic machinery around it (connections, per-feed sync state, token encryption, the sync runner, the scheduler, the routes). The generic half moves to `src/integrations/`, gains a `provider` scope, and exposes a registry that providers register into. `src/m365/` keeps only Graph. Most moves are done behind a re-export shim so the build and the full suite stay green at each task boundary; the shims are deleted in Task 8.
+
+**The one exception, found during execution:** a shim aliases *symbols*, so it cannot cover the column rename and constraint change in Task 3. **Tasks 3 and 4 are one green boundary and one review unit** — see the correction note in Task 3, Step 5. Every other task boundary is green on its own.
 
 **Tech Stack:** Node.js 22, TypeScript (ESM, `.js` import specifiers), Hono, Drizzle ORM, PostgreSQL 18, Zod, Vitest.
 
@@ -719,11 +721,19 @@ Existing rows take `provider = 'm365'` from the column default, so no separate b
 npm run typecheck && npm test
 ```
 
-Expected: PASS, with **two allowed edits** in `tests/m365-store.test.ts` and any other suite that names the renamed columns:
+> **Corrected 2026-08-30, during execution.** An earlier version of this step said "Expected: PASS". **That was wrong, and it is worth understanding why.** The shim aliases the two *tables*, but `src/m365/store.ts` also references a renamed *column* (`accountUpn`) and the changed *unique constraint* — its `onConflictDoUpdate` targets `m365Connections.memberId`, which is no longer a unique key on its own now that the constraint is `unique(provider, member_id)`. **A table alias cannot paper over a column rename.** So this task is NOT independently green:
+>
+> Expected after this task: **6 typecheck errors** — 5 in `src/m365/store.ts`, 1 in `src/m365/sync-runner.ts` (`.deltaToken`). Both files are replaced by Task 4 and Task 6.
+>
+> **Tasks 3 and 4 therefore form a single green boundary and a single review unit.** Run Task 4 immediately after this one, and fold the one-word `.deltaToken` → `.syncToken` fix in `src/m365/sync-runner.ts` into Task 4 so the combined boundary reaches green.
+
+Test edits allowed in this task — **two renames only**, in `tests/m365-store.test.ts` and any other suite naming the renamed columns:
 - `accountUpn:` → `accountLabel:`
-- `.deltaToken` → `.syncToken`
+- `deltaToken` → `syncToken` (including inside a string literal, e.g. `toHaveProperty('deltaToken')` — leaving it would make the assertion silently vacuous)
 
 Nothing else may change. `tests/setup.ts` truncates and re-migrates, so the rename is exercised on every run.
+
+> **Drizzle will mis-generate this migration.** Observed on 2026-08-30: it misdetected the column rename as `account_upn` → `provider` and added a spurious `NOT NULL account_label` with no default. Step 4's instruction to read and replace the generated SQL is not a precaution — it is required.
 
 - [ ] **Step 6: Commit**
 

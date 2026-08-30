@@ -2484,6 +2484,14 @@ export const m365Module: HeorthModule = {
 
 Delete `src/m365/routes.ts` and its export from `src/m365/index.ts`.
 
+> **Corrected 2026-08-30, during execution — the most dangerous error this plan contained.**
+>
+> The `register` rewrite above **must also keep the existing `setTaskProvider(new GraphTaskProvider(rt), rt.config.sharedTodoList)` call.** An earlier version of this task dropped it, on the assumption that registering with the registry replaced it. It does not, yet: `src/modules/tasks/provider.ts` is a *separate* seam, and `requireProvider()` in `src/modules/tasks/service.ts` reads it at six call sites. **Task 11 is what migrates those to the registry** — until then, dropping this call silently disables every task write path (completion, creation, list discovery) and Weorc's projection.
+>
+> **Verified: the test suite does NOT catch this.** Commenting the call out leaves `m365-tasks-sync` and `weorc-projection` fully green — 33 tests passing — because every test installs its own provider through `setTaskProvider` directly and none exercises `m365Module.register()`'s wiring. The failure would have reached production with a green suite.
+>
+> Task 11 removes the call, and adds the test that would have caught this.
+
 - [ ] **Step 7: Repoint `tests/m365-routes.test.ts`**
 
 > **Corrected 2026-08-30, during execution.** This is more than route-path edits, and the plan understated it. `tests/m365-routes.test.ts` imports `m365Router` from `../src/m365/routes.js` and mounts it in its own `enabledApp()` helper. **This task deletes that module**, so the file cannot merely be repointed — its app helper has no router to mount.
@@ -2952,6 +2960,31 @@ describe('task write-back routing', () => {
 > ```
 >
 > — two parameters, no acting member, and no maintenance-admin guard (that guard is on `createTask`, `listAvailableLists` and `setAllowlist`, not on completion). Its callers are `src/modules/tasks/routes.ts:112` and two tests in `tests/m365-tasks-sync.test.ts`. **Keep the existing name and signature**; only the provider lookup inside it changes. Renaming it would break all three callers for no reason.
+
+**Also add this test — it closes a real hole found during execution.** Nothing verifies that `m365Module.register()` actually installs a task provider: every existing test installs its own directly, so the module's own wiring is untested. Task 9 nearly shipped a version that dropped the installation entirely, with the whole suite green.
+
+```ts
+import { createApp } from '../src/app.js';
+import { ALL_MODULES } from '../src/modules/index.js';
+import { setM365Runtime } from '../src/m365/runtime.js';
+import { createFakeGraph, runtimeForFakeGraph } from './fake-graph.js';
+import { getTaskProviderFor, clearProviders } from '../src/integrations/registry.js';
+
+it('m365Module.register installs a usable task provider', async () => {
+  // Registration happens as a side effect of building the app, exactly as it
+  // does at boot — NOT by calling registerProvider() directly, which is what
+  // every other test does and precisely why this gap existed.
+  clearProviders();
+  setM365Runtime(runtimeForFakeGraph(createFakeGraph()));
+  createApp(ALL_MODULES);
+
+  const provider = getTaskProviderFor('m365');
+  expect(provider).not.toBeNull();
+  expect(provider!.source).toBe('m365');
+});
+```
+
+`m365Module.register()` is gated on `isM365Enabled()`, and `tests/setup.ts` forces the integration disabled for the whole suite. Enable it the way the deleted `tests/m365-routes.test.ts` did — check that file in git history (`git show c710177^:tests/m365-routes.test.ts`) and mirror its approach. **If you cannot make this test genuinely fail when the registration is removed, say so in your report rather than shipping a test that always passes** — that is the exact failure mode this test exists to prevent.
 
 - [ ] **Step 6: Generate the migration and run everything**
 

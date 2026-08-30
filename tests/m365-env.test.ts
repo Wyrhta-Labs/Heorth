@@ -16,7 +16,6 @@ describe('m365 env group', () => {
     M365_CLIENT_SECRET: 'secret',
     M365_REDIRECT_URI: 'http://localhost:4000/api/v1/m365/callback',
     M365_FAMILY_MAILBOX: 'family@example.com',
-    M365_SHARED_TODO_LIST: 'Household',
   };
 
   it('is valid with no M365 vars (integration disabled)', () => {

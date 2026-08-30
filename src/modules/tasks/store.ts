@@ -244,7 +244,47 @@ export async function listAllowlistedFeeds(provider?: string): Promise<TaskFeed[
   }));
 }
 
-/** Allowlist entries (any member) for a list with the given display name. */
-export async function findAllowlistByName(name: string): Promise<TodoListAllowlistRow[]> {
-  return db.select().from(todoListAllowlist).where(eq(todoListAllowlist.listName, name));
+/**
+ * The designated household task feed, or null when none is designated.
+ *
+ * Replaces resolution by display name (`findAllowlistByName`), which matched
+ * `M365_SHARED_TODO_LIST` against every member's allowlist and tie-broke with
+ * "prefer the acting member, else the first row". That broke silently when a
+ * member renamed the list at the source, and with two providers the tie-break
+ * could route a task to either one.
+ */
+export async function getHouseholdFeed(): Promise<TaskFeed | null> {
+  const [row] = await db.select().from(todoListAllowlist)
+    .where(eq(todoListAllowlist.isHousehold, true)).limit(1);
+  if (!row) return null;
+  return {
+    provider: row.provider,
+    feedKey: feedKeys.todoMember(row.provider, row.memberId, row.listId),
+    memberId: row.memberId,
+    listId: row.listId,
+    listName: row.listName,
+  };
+}
+
+/**
+ * Designate one allowlisted list as the household list. Clearing every other
+ * flag and setting the new one happen in ONE transaction — the partial unique
+ * index would otherwise reject the update, and a non-transactional clear-then-set
+ * could leave the household with no list at all if the second statement failed.
+ */
+export async function setHouseholdList(
+  memberId: string, provider: string, listId: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.update(todoListAllowlist)
+      .set({ isHousehold: false, updatedAt: new Date() })
+      .where(eq(todoListAllowlist.isHousehold, true));
+    await tx.update(todoListAllowlist)
+      .set({ isHousehold: true, updatedAt: new Date() })
+      .where(and(
+        eq(todoListAllowlist.memberId, memberId),
+        eq(todoListAllowlist.provider, provider),
+        eq(todoListAllowlist.listId, listId),
+      ));
+  });
 }

@@ -39,7 +39,6 @@ export function buildEnvSchema() {
     M365_CLIENT_SECRET: emptyToUndefined(z.string().min(1)),
     M365_REDIRECT_URI: emptyToUndefined(z.string().url()),
     M365_FAMILY_MAILBOX: emptyToUndefined(z.string().min(1)),
-    M365_SHARED_TODO_LIST: emptyToUndefined(z.string().min(1)),
     // Background mirror poll interval. OPTIONAL and INDEPENDENT of the all-or-
     // nothing group above (a tuning knob, not a credential): default 300s, floored
     // at 60s by the scheduler. Absent when the integration is disabled anyway.
@@ -132,7 +131,7 @@ export function buildEnvSchema() {
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
-      'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX', 'M365_SHARED_TODO_LIST',
+      'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX',
     ] as const;
     const present = m365Keys.filter((k) => env[k] !== undefined && env[k] !== '');
     if (present.length > 0 && present.length < m365Keys.length) {
@@ -271,7 +270,6 @@ export const config = {
           clientSecret: parsed.M365_CLIENT_SECRET!,
           redirectUri: parsed.M365_REDIRECT_URI!,
           familyMailbox: parsed.M365_FAMILY_MAILBOX!,
-          sharedTodoList: parsed.M365_SHARED_TODO_LIST!,
         }
       : null,
   // Resolved KithLedger config, or null when the integration is disabled

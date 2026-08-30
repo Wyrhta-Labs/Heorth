@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, unique, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, uuid, timestamp, unique, index, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from '@wyrhta/core/identity';
 
@@ -50,8 +50,7 @@ export const taskMirror = pgTable('task_mirror', {
 /**
  * Per-member To Do list allowlist. Nothing syncs by default; a member selects
  * which of their lists sync. Presence of a row = that list is allowlisted (its
- * feed `todo:member:<memberId>:<listId>` is enumerated by the sync runner). The
- * cached `listName` also backs shared-household-list resolution BY NAME.
+ * feed `todo:member:<memberId>:<listId>` is enumerated by the sync runner).
  */
 export const todoListAllowlist = pgTable('todo_list_allowlist', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -63,9 +62,16 @@ export const todoListAllowlist = pgTable('todo_list_allowlist', {
   // Which provider this list belongs to. Defaults to 'm365' so existing rows
   // backfill correctly; a member may allowlist lists from both providers.
   provider: text('provider').notNull().default('m365'),
+  // Marks THE household's shared task list — the one Heorth creates tasks into
+  // (including Weorc's projected maintenance work). At most one row household-wide
+  // carries this, enforced by a partial unique index below. Replaces resolution by
+  // display name, which broke silently whenever a member renamed the list.
+  isHousehold: boolean('is_household').notNull().default(false),
 }, (t) => [
   unique('todo_allowlist_provider_member_list_unique').on(t.provider, t.memberId, t.listId),
   index('todo_allowlist_member_idx').on(t.memberId),
+  uniqueIndex('todo_allowlist_single_household')
+    .on(t.isHousehold).where(sql`${t.isHousehold}`),
 ]);
 
 export type TaskMirrorRow = typeof taskMirror.$inferSelect;

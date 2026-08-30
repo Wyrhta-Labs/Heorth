@@ -29,24 +29,3 @@ export function requireProviderFor(source: string): TaskProvider {
   }
   return p;
 }
-
-/**
- * DEVIATION from the brief (flagged in the task-11 report): the household
- * shared-list display name used to travel alongside the provider installed by
- * `setTaskProvider`. That slot is gone now that write paths resolve per-row, so
- * the name needs somewhere to live that isn't tied to any one provider — this
- * is a standalone seam for exactly that, kept so `resolveSharedFeed` /
- * `getSharedListName` in `service.ts` are genuinely untouched, as the brief
- * says. Task 12 replaces this wholesale with `todo_list_allowlist.is_household`.
- */
-let sharedListName: string | null = null;
-
-/** Install (or clear) the configured shared household list display name. */
-export function setSharedListName(name: string | null): void {
-  sharedListName = name;
-}
-
-/** The configured shared household list display name, or null when unset. */
-export function getSharedListName(): string | null {
-  return sharedListName;
-}

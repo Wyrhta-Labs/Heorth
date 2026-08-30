@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
-import { setSharedListName } from '../src/modules/tasks/provider.js';
+import { setHouseholdList } from '../src/modules/tasks/store.js';
 import { clearProviders } from '../src/integrations/registry.js';
 import { TaskProviderError, type TaskProvider, type MirroredTask } from '../src/modules/tasks/providers/types.js';
 import * as store from '../src/modules/weorc/store.js';
@@ -10,11 +10,11 @@ import { runWeorcTick, occurrenceMarker } from '../src/modules/weorc/engine.js';
 import { householdToday } from '../src/modules/weorc/dates.js';
 import { seedTestHousehold, registerFakeTaskProvider } from './helpers.js';
 
-/** Register `p` as the 'm365' provider and set the shared household list name —
- * the Task 11 registry-based replacement for `setTaskProvider(p, shared)`. */
-function wireProvider(p: TaskProvider, shared: string): void {
+/** Register `p` as the 'm365' provider. The household list is designated
+ * separately, by the caller, via `setHouseholdList` — Task 12 replaced
+ * resolution by display name with the `is_household` flag. */
+function wireProvider(p: TaskProvider): void {
   registerFakeTaskProvider('m365', p);
-  setSharedListName(shared);
 }
 
 function provider(createTask: TaskProvider['createTask']): TaskProvider {
@@ -30,11 +30,12 @@ function provider(createTask: TaskProvider['createTask']): TaskProvider {
 async function allowlistedMember() {
   const { adult } = await seedTestHousehold();
   await db.insert(todoListAllowlist).values({ memberId: adult.user.id, listId: 'list-1', listName: 'Household' });
+  await setHouseholdList(adult.user.id, 'm365', 'list-1');
   return adult.user.id;
 }
 
 describe('the project pass', () => {
-  beforeEach(() => { clearProviders(); setSharedListName(null); });
+  beforeEach(() => { clearProviders(); });
 
   it('projects an open occurrence and stores the STABLE link', async () => {
     const memberId = await allowlistedMember();
@@ -47,7 +48,7 @@ describe('the project pass', () => {
         dueAt: input.dueAt ?? null, completedAt: null, status: 'open',
         listId: 'list-1', listName: 'Household', memberId,
       };
-    }), 'Household');
+    }));
 
     const [asset] = await db.insert(ethelAssets).values({ name: 'Boiler' }).returning();
     const r = await store.createRoutine({
@@ -85,7 +86,7 @@ describe('the project pass', () => {
     });
 
     let creates = 0;
-    wireProvider(provider(async () => { creates += 1; throw new Error('must not create'); }), 'Household');
+    wireProvider(provider(async () => { creates += 1; throw new Error('must not create'); }));
 
     const result = await runWeorcTick();
     expect(creates).toBe(0);
@@ -99,7 +100,7 @@ describe('the project pass', () => {
     const r = await store.createRoutine({
       name: 'Bins', mode: 'fixed', intervalUnit: 'week', intervalCount: 1, anchorDate: today,
     });
-    wireProvider(provider(async () => { throw new TaskProviderError('needs_reauth'); }), 'Household');
+    wireProvider(provider(async () => { throw new TaskProviderError('needs_reauth'); }));
 
     const result = await runWeorcTick();
     expect(result.projected).toBe(0);
@@ -126,7 +127,7 @@ describe('the project pass', () => {
         completedAt: null, status: 'open', listId: 'list-1', listName: 'Household',
         memberId: feedKey.split(':')[3]!,
       };
-    }), 'Household');
+    }));
 
     const result = await runWeorcTick();
     expect(result.projectionFailures).toBe(1);

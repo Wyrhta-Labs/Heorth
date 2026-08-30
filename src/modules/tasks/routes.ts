@@ -6,6 +6,7 @@ import * as service from './service.js';
 import { TaskProviderError } from './providers/types.js';
 import {
   listTasksQuerySchema, completeTaskSchema, createTaskSchema, setAllowlistSchema,
+  setHouseholdListSchema,
 } from './validators.js';
 
 /**
@@ -68,6 +69,22 @@ tasksRouter.put('/allowlist', async (c) => {
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
   try {
     return ok(c, await service.setAllowlist(c.get('auth').userId, body.data.listIds));
+  } catch (e) {
+    return writeError(c, e);
+  }
+});
+
+/** Designate the household task list (admin or adult — it is a household-wide setting). */
+tasksRouter.put('/household-list', async (c) => {
+  const auth = c.get('auth');
+  if (auth.role !== 'admin' && auth.role !== 'adult') {
+    return err(c, 'FORBIDDEN', 'Only an adult can set the household task list', 403);
+  }
+  const body = setHouseholdListSchema.safeParse(await c.req.json());
+  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  try {
+    await service.setHouseholdList(auth.userId, body.data.provider, body.data.listId);
+    return ok(c, await service.getHouseholdList());
   } catch (e) {
     return writeError(c, e);
   }

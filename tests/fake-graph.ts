@@ -132,7 +132,6 @@ const TEST_CONFIG: M365Config = {
   clientSecret: 'test-client-secret',
   redirectUri: 'http://localhost:4000/api/v1/integrations/m365/callback',
   familyMailbox: 'family-calendar@contoso.test',
-  sharedTodoList: 'Household',
 };
 
 export function createFakeGraph(): FakeGraph {

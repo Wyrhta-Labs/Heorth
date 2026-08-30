@@ -1,17 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
-import { setSharedListName } from '../src/modules/tasks/provider.js';
+import { setHouseholdList } from '../src/modules/tasks/store.js';
 import { clearProviders } from '../src/integrations/registry.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { TaskProviderError, type TaskProvider, type MirroredTask } from '../src/modules/tasks/providers/types.js';
 import { seedTestHousehold, registerFakeTaskProvider } from './helpers.js';
 
-/** Register `p` as the 'm365' provider and set the shared household list name —
- * the Task 11 registry-based replacement for `setTaskProvider(p, shared)`. */
-function wireProvider(p: TaskProvider, shared: string | null = null): void {
+/** Register `p` as the 'm365' provider. The household list is designated
+ * separately, by the caller, via `setHouseholdList`. */
+function wireProvider(p: TaskProvider): void {
   registerFakeTaskProvider('m365', p);
-  if (shared) setSharedListName(shared);
 }
 
 function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { created: unknown[]; completed: unknown[] } {
@@ -46,30 +45,33 @@ function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { create
 }
 
 describe('the tasks seam Weorc needs', () => {
-  beforeEach(() => { clearProviders(); setSharedListName(null); });
+  beforeEach(() => { clearProviders(); });
 
   it('createHouseholdTask works with NO acting principal', async () => {
     const { adult } = await seedTestHousehold();
     await db.insert(todoListAllowlist).values({ memberId: adult.user.id, listId: 'list-1', listName: 'Household' });
+    await setHouseholdList(adult.user.id, 'm365', 'list-1');
     const provider = fakeProvider();
-    wireProvider(provider, 'Household');
+    wireProvider(provider);
 
     const row = await tasks.createHouseholdTask({ title: 'Put the bins out' }, null);
     expect(row.title).toBe('Put the bins out');
     expect(provider.created).toHaveLength(1);
   });
 
-  it('createHouseholdTask prefers the named member when they have the list', async () => {
+  it('createHouseholdTask resolves through the DESIGNATED list, ignoring the (now decorative) preferMemberId', async () => {
     const { admin, adult } = await seedTestHousehold();
     await db.insert(todoListAllowlist).values([
       { memberId: admin.user.id, listId: 'list-1', listName: 'Household' },
-      { memberId: adult.user.id, listId: 'list-1', listName: 'Household' },
+      { memberId: adult.user.id, listId: 'list-2', listName: 'Household' },
     ]);
+    await setHouseholdList(admin.user.id, 'm365', 'list-1');
     const provider = fakeProvider();
-    wireProvider(provider, 'Household');
+    wireProvider(provider);
 
+    // preferMemberId names the adult, but the DESIGNATED list belongs to admin.
     const row = await tasks.createHouseholdTask({ title: 'Descale the kettle' }, adult.user.id);
-    expect(row.memberId).toBe(adult.user.id);
+    expect(row.memberId).toBe(admin.user.id);
   });
 
   it('createHouseholdTask throws a CLASSIFIED error when no provider is installed', async () => {
@@ -91,7 +93,7 @@ describe('the tasks seam Weorc needs', () => {
       status: 'open',
     });
     const provider = fakeProvider();
-    wireProvider(provider, 'Household');
+    wireProvider(provider);
 
     await tasks.completeProjectedTask(feedKey, 'ext-9', true);
     expect(provider.completed).toEqual([{ feedKey, externalId: 'ext-9', value: true }]);
@@ -106,7 +108,7 @@ describe('the tasks seam Weorc needs', () => {
   // reported as `provider_unavailable` rather than guessed at.
   it('completeProjectedTask reports provider_unavailable when NO mirror row exists', async () => {
     const provider = fakeProvider();
-    wireProvider(provider, 'Household');
+    wireProvider(provider);
     await expect(tasks.completeProjectedTask('todo:member:x:list-1', 'ext-gone', true))
       .rejects.toMatchObject({ reason: 'provider_unavailable' });
     expect(provider.completed).toHaveLength(0);

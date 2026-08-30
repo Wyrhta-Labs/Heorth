@@ -3,10 +3,9 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
-import { applyTaskPull } from '../src/modules/tasks/store.js';
+import { applyTaskPull, setHouseholdList } from '../src/modules/tasks/store.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { tasksRouter } from '../src/modules/tasks/routes.js';
-import { setSharedListName } from '../src/modules/tasks/provider.js';
 import { clearProviders } from '../src/integrations/registry.js';
 import { TaskProviderError, type TaskProvider } from '../src/modules/tasks/providers/types.js';
 import { runTaskSync } from '../src/m365/task-sync.js';
@@ -14,18 +13,13 @@ import { runCalendarSync } from '../src/m365/calendar-sync.js';
 import { GraphTaskProvider } from '../src/m365/task-provider.js';
 import { feedKeys } from '../src/integrations/feed-keys.js';
 import { setM365Runtime, type M365Runtime } from '../src/m365/runtime.js';
-import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph } from './fake-graph.js';
+import { createFakeGraph, runtimeForFakeGraph, type FakeGraph } from './fake-graph.js';
 import { localDateOf } from '../src/lib/local-date.js';
 import { seedTestHousehold, authHeaders, registerFakeTaskProvider } from './helpers.js';
 
 afterEach(() => {
   setM365Runtime(null);
   clearProviders();
-  // The old `setTaskProvider(null)` implicitly cleared the shared-list name too
-  // (its second arg defaults to null) — this seam is now separate, so it needs
-  // its own reset, or a test that never calls wire() inherits whatever name a
-  // PRECEDING test left behind.
-  setSharedListName(null);
 });
 
 /** Seed a household + a connected M365 connection for a given member. */
@@ -49,13 +43,12 @@ function task(id: string, title: string, extra: Partial<Record<string, unknown>>
 }
 
 /** Wire a fake-Graph runtime + provider seam and return both. */
-function wire(shared = fakeM365Config.sharedTodoList) {
+function wire() {
   const fake = createFakeGraph();
   const rt = runtimeForFakeGraph(fake);
   setM365Runtime(rt);
   const provider = new GraphTaskProvider(rt);
   registerFakeTaskProvider('m365', provider);
-  setSharedListName(shared);
   return { fake, rt, provider };
 }
 
@@ -189,11 +182,12 @@ describe('m365 tasks — write-back', () => {
     expect(patch).toBeTruthy();
   });
 
-  it('creates a task into the shared list (resolution by name)', async () => {
-    const { fake, rt } = wire(); // shared list name = 'Household'
+  it('creates a task into the designated household list', async () => {
+    const { fake, rt } = wire();
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
-    await allow(adult.user.id, 'L2', 'Household'); // the shared list, allowlisted by the actor
+    await allow(adult.user.id, 'L2', 'Household'); // the household list, allowlisted by the actor
+    await setHouseholdList(adult.user.id, 'm365', 'L2');
 
     const created = await tasks.createTask({ title: 'Buy stamps', notes: 'first class', dueAt: null }, adult.user.id);
     expect(created.title).toBe('Buy stamps');
@@ -205,27 +199,28 @@ describe('m365 tasks — write-back', () => {
     expect((await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L2'))).length).toBe(1);
   });
 
-  it('creates into the shared list via a fallback member when the actor lacks it', async () => {
+  it('creates into the designated list even when the acting member does not own it', async () => {
     const { fake, rt } = wire();
     const { adult, child } = await seedTestHousehold();
     await connect(rt, adult.user.id, 'adult@contoso.test');
     await connect(rt, child.user.id, 'child@contoso.test');
-    // The actor (adult) has only a non-shared list; the child has the shared 'Household'.
+    // The actor (adult) has only a non-household list; the CHILD's list is designated.
     await allow(adult.user.id, 'L1', 'Groceries');
     await allow(child.user.id, 'L2', 'Household');
+    await setHouseholdList(child.user.id, 'm365', 'L2');
 
     const created = await tasks.createTask({ title: 'Trash night', dueAt: null }, adult.user.id);
-    expect(created.memberId).toBe(child.user.id); // resolved through the member who has the list
+    expect(created.memberId).toBe(child.user.id); // resolved through the designated list's owner
     expect(created.listId).toBe('L2');
     const post = fake.calls.find((c) => c.method === 'POST' && c.path.includes('/todo/lists/L2/tasks'));
     expect(post).toBeTruthy();
   });
 
-  it('errors (classified) when no member has the shared list', async () => {
+  it('errors (classified) when no household list is designated', async () => {
     const { rt } = wire();
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
-    await allow(adult.user.id, 'L1', 'Groceries'); // no 'Household' anywhere
+    await allow(adult.user.id, 'L1', 'Groceries'); // allowlisted, but never designated
     await expect(tasks.createTask({ title: 'x' }, adult.user.id))
       .rejects.toMatchObject({ reason: 'shared_list_unavailable' });
   });
@@ -250,8 +245,12 @@ describe('m365 tasks — write-back', () => {
   });
 
   it('write paths return provider_unavailable when the integration is disabled', async () => {
-    clearProviders(); // no provider installed
     const { adult } = await seedTestHousehold();
+    // A household list must be DESIGNATED first — otherwise resolution fails
+    // with shared_list_unavailable before the provider is even looked up.
+    await allow(adult.user.id, 'L1', 'Groceries');
+    await setHouseholdList(adult.user.id, 'm365', 'L1');
+    clearProviders(); // no provider installed
     await expect(tasks.createTask({ title: 'x' }, adult.user.id))
       .rejects.toMatchObject({ reason: 'provider_unavailable' });
   });
@@ -402,6 +401,7 @@ describe('m365 tasks — REST', () => {
     const { adult, child } = await seedTestHousehold();
     await connect(rt, adult.user.id);
     await allow(adult.user.id, 'L2', 'Household');
+    await setHouseholdList(adult.user.id, 'm365', 'L2');
     fake.setTodoTasks('L2', [{ pages: [{ upserts: [
       task('t1', 'Milk'),
       task('t2', 'Done thing', { status: 'completed', completedUtc: '2026-07-20T08:00:00.000Z' }),

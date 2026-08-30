@@ -23,5 +23,10 @@ export const setAllowlistSchema = z.object({
   listIds: z.array(z.string().min(1)).default([]),
 });
 
+export const setHouseholdListSchema = z.object({
+  provider: z.string().min(1),
+  listId: z.string().min(1),
+});
+
 export type ListTasksQueryInput = z.infer<typeof listTasksQuerySchema>;
 export type CreateTaskBody = z.infer<typeof createTaskSchema>;

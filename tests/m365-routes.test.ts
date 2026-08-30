@@ -57,7 +57,7 @@ describe('m365 routes (enabled)', () => {
     expect(res.headers.get('location')).toBe('/profile?connected=m365');
 
     const [row] = await db.select().from(m365Connections).where(eq(m365Connections.memberId, adult.user.id));
-    expect(row!.accountUpn).toBe('member@contoso.test');
+    expect(row!.accountLabel).toBe('member@contoso.test');
     expect(row!.refreshTokenEncrypted).not.toContain('refresh-initial');
   });
 
@@ -75,8 +75,8 @@ describe('m365 routes (enabled)', () => {
     await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
 
     const mine = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
-    const mineBody = await mine.json() as { data: { connection: { accountUpn: string } | null } };
-    expect(mineBody.data.connection!.accountUpn).toBe('member@contoso.test');
+    const mineBody = await mine.json() as { data: { connection: { accountLabel: string } | null } };
+    expect(mineBody.data.connection!.accountLabel).toBe('member@contoso.test');
 
     const all = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(admin.jwt) });
     const allBody = await all.json() as { data: { connections: unknown[] } };
@@ -101,9 +101,9 @@ describe('m365 routes (enabled)', () => {
     );
 
     const res = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(promotedJwt) });
-    const body = await res.json() as { data: { connection: { accountUpn: string } | null; connections: unknown[] } };
+    const body = await res.json() as { data: { connection: { accountLabel: string } | null; connections: unknown[] } };
     expect(body.data.connection).not.toBeNull();
-    expect(body.data.connection!.accountUpn).toBe('member@contoso.test');
+    expect(body.data.connection!.accountLabel).toBe('member@contoso.test');
     // `connections` (the admin panel's household-wide view) must still be present.
     expect(body.data.connections).toHaveLength(1);
   });
@@ -115,9 +115,9 @@ describe('m365 routes (enabled)', () => {
     await enabledApp().request(`/api/v1/m365/callback?code=abc&state=${encodeURIComponent(state)}`);
 
     const asAdult = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
-    const adultBody = await asAdult.json() as { data: { connections?: { accountUpn: string }[] } };
+    const adultBody = await asAdult.json() as { data: { connections?: { accountLabel: string }[] } };
     expect(adultBody.data.connections).toHaveLength(1);
-    expect(adultBody.data.connections![0]!.accountUpn).toBe('member@contoso.test');
+    expect(adultBody.data.connections![0]!.accountLabel).toBe('member@contoso.test');
 
     const asChild = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(child.jwt) });
     const childBody = await asChild.json() as { data: { connections?: unknown[]; connection: unknown | null } };

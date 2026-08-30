@@ -162,6 +162,13 @@
       "when": 1787657346326,
       "tag": "0022_weorc_v1",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788085781807,
+      "tag": "0023_integrations_layer",
+      "breakpoints": true
     }
   ]
 }

@@ -13,7 +13,7 @@ describe('m365 store', () => {
     const { adult } = await seedTestHousehold();
     const secret = 'super-secret-refresh-token';
     const pub = await store.upsertConnection({
-      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: secret, scopes: 'User.Read',
+      memberId: adult.user.id, accountLabel: 'adult@contoso.test', refreshToken: secret, scopes: 'User.Read',
     });
     // Public projection never carries token material.
     expect(pub).not.toHaveProperty('refreshTokenEncrypted');
@@ -29,8 +29,8 @@ describe('m365 store', () => {
 
   it('upsert is idempotent per member (one row)', async () => {
     const { adult } = await seedTestHousehold();
-    await store.upsertConnection({ memberId: adult.user.id, accountUpn: 'a@t', refreshToken: 'r1', scopes: '' });
-    await store.upsertConnection({ memberId: adult.user.id, accountUpn: 'a@t', refreshToken: 'r2', scopes: '' });
+    await store.upsertConnection({ memberId: adult.user.id, accountLabel: 'a@t', refreshToken: 'r1', scopes: '' });
+    await store.upsertConnection({ memberId: adult.user.id, accountLabel: 'a@t', refreshToken: 'r2', scopes: '' });
     const rows = await db.select().from(m365Connections).where(eq(m365Connections.memberId, adult.user.id));
     expect(rows).toHaveLength(1);
     expect(await store.getRefreshToken(adult.user.id)).toBe('r2');
@@ -40,7 +40,7 @@ describe('m365 store', () => {
     const key = feedKeys.calendarFamily();
     await store.recordSyncSuccess(key, 'delta-token-1');
     let st = await store.getSyncState(key);
-    expect(st!.deltaToken).toBe('delta-token-1');
+    expect(st!.syncToken).toBe('delta-token-1');
     expect(st!.consecutiveFailures).toBe(0);
 
     await store.recordSyncFailure(key, 'boom');
@@ -50,7 +50,7 @@ describe('m365 store', () => {
 
     await store.recordSyncSuccess(key, 'delta-token-2');
     st = await store.getSyncState(key);
-    expect(st!.deltaToken).toBe('delta-token-2');
+    expect(st!.syncToken).toBe('delta-token-2');
     expect(st!.consecutiveFailures).toBe(0);
     expect(st!.lastError).toBeNull();
   });

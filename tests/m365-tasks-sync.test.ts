@@ -25,7 +25,7 @@ afterEach(() => {
 /** Seed a household + a connected M365 connection for a given member. */
 async function connect(rt: M365Runtime, memberId: string, upn = 'member@contoso.test') {
   await rt.store.upsertConnection({
-    memberId, accountUpn: upn, refreshToken: 'refresh-initial', scopes: 'Tasks.ReadWrite offline_access',
+    memberId, accountLabel: upn, refreshToken: 'refresh-initial', scopes: 'Tasks.ReadWrite offline_access',
   });
 }
 

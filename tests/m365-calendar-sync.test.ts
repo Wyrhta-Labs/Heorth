@@ -22,7 +22,7 @@ async function seedConnectedMember(rt: M365Runtime) {
   const seeded = await seedTestHousehold();
   await rt.store.upsertConnection({
     memberId: seeded.adult.user.id,
-    accountUpn: 'adult@contoso.test',
+    accountLabel: 'adult@contoso.test',
     refreshToken: 'refresh-initial',
     scopes: 'Calendars.Read offline_access',
   });
@@ -69,7 +69,7 @@ describe('m365 calendar mirror — sync', () => {
 
     // A delta token is persisted for the next incremental run.
     const state = await rt.store.getSyncState(feedKey);
-    expect(state?.deltaToken).toBeTruthy();
+    expect(state?.syncToken).toBeTruthy();
     expect(state?.lastSuccessAt).toBeTruthy();
     expect(state?.consecutiveFailures).toBe(0);
   });
@@ -217,13 +217,13 @@ describe('m365 calendar mirror — sync', () => {
 
     fake.setCalendar('me', [{ pages: [{ upserts: [ev('e1', 'A', '2026-08-01T09:00:00.000Z', '2026-08-01T10:00:00.000Z')] }] }]);
     await runCalendarSync(rt);
-    const tokenAfter1 = (await rt.store.getSyncState(feedKey))!.deltaToken;
+    const tokenAfter1 = (await rt.store.getSyncState(feedKey))!.syncToken;
 
     // Second run with no new batch → the stored token is sent back to Graph.
     await runCalendarSync(rt);
     const deltaCalls = fake.calls.filter((c) => c.path.endsWith('/me/calendarView/delta'));
     expect(deltaCalls.length).toBeGreaterThanOrEqual(2);
-    const tokenAfter2 = (await rt.store.getSyncState(feedKey))!.deltaToken;
+    const tokenAfter2 = (await rt.store.getSyncState(feedKey))!.syncToken;
     expect(tokenAfter2).toBeTruthy();
     expect(tokenAfter1).toBeTruthy();
   });
@@ -666,7 +666,7 @@ describe('m365 sync route + health surface', () => {
     const adminBody = await statusAdmin.json() as { data: { feeds: Array<Record<string, unknown>> } };
     const memberFeed = adminBody.data.feeds.find((f) => f['feedKey'] === feedKeys.calendarMember(adult.user.id))!;
     expect(memberFeed['lastSuccessAt']).toBeTruthy();
-    expect(memberFeed).not.toHaveProperty('deltaToken');
+    expect(memberFeed).not.toHaveProperty('syncToken');
 
     // A member sees only their own + family feed state.
     const statusMember = await enabledApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });

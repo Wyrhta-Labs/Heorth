@@ -22,7 +22,7 @@ describe('m365 delegated client', () => {
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedTestHousehold();
     await rt.store.upsertConnection({
-      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
+      memberId: adult.user.id, accountLabel: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
     });
 
     // First call refreshes → rotates the stored refresh token to refresh-r1.
@@ -50,7 +50,7 @@ describe('m365 delegated client', () => {
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedTestHousehold();
     await rt.store.upsertConnection({
-      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
+      memberId: adult.user.id, accountLabel: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
     });
 
     await expect(rt.delegated.getAccessToken(adult.user.id)).rejects.toBeInstanceOf(GraphError);
@@ -64,7 +64,7 @@ describe('m365 delegated client', () => {
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedTestHousehold();
     await rt.store.upsertConnection({
-      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
+      memberId: adult.user.id, accountLabel: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
     });
 
     // Simulate a JWT_SECRET rotation (or any at-rest corruption): the derived

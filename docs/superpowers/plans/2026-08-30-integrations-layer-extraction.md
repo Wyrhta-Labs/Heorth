@@ -2706,10 +2706,9 @@ Replace the import of `requireProvider` with `requireProviderFor`, then:
  * ROW's source, not from a global: with two providers connected, a
  * Google-mirrored task must be written back to Google.
  */
-export async function setTaskCompleted(
-  taskId: string, completed: boolean, actingMemberId: string,
+export async function completeTask(
+  taskId: string, completed: boolean,
 ): Promise<TaskMirrorRow | null> {
-  await assertNotMaintenanceAdmin(actingMemberId);
   const row = await store.getTaskById(taskId);
   if (!row) return null;
   const provider = requireProviderFor(row.source);
@@ -2745,16 +2744,25 @@ export async function completeProjectedTask(
  * entry is tagged with its provider so the picker can group them and so
  * `setAllowlist` knows which provider a chosen list belongs to.
  */
-export async function listAvailableLists(
-  memberId: string,
-): Promise<Array<{ provider: string; id: string; name: string }>> {
-  const out: Array<{ provider: string; id: string; name: string }> = [];
+export interface AvailableListView {
+  provider: string;   // NEW — which provider this list belongs to
+  id: string;
+  name: string;
+  enabled: boolean;   // already allowlisted by this member
+}
+
+export async function listAvailableLists(memberId: string): Promise<AvailableListView[]> {
+  await assertNotMaintenanceAdmin(memberId);
+  const out: AvailableListView[] = [];
   for (const p of listProviders()) {
     if (!p.tasks) continue;
-    // One provider being unreachable must not hide another's lists.
+    // One provider being unreachable must not hide another's lists: a member
+    // connected to Google but not to M365 is a normal state, not an error.
     try {
-      for (const l of await p.tasks.listAvailableLists(memberId)) {
-        out.push({ provider: p.id, id: l.id, name: l.name });
+      const lists = await p.tasks.listAvailableLists(memberId);
+      const enabled = new Set((await store.getAllowlist(memberId, p.id)).map((a) => a.listId));
+      for (const l of lists) {
+        out.push({ provider: p.id, id: l.id, name: l.name, enabled: enabled.has(l.id) });
       }
     } catch (e) {
       if (p.classifyError(e) === 'no_connection') continue; // not connected: normal
@@ -2764,6 +2772,8 @@ export async function listAvailableLists(
   return out;
 }
 ```
+
+> **Verified 2026-08-30, during execution.** An earlier version of this block dropped the `enabled` flag. The existing `AvailableListView` is `{ id, name, enabled }` and `enabled` is what the list-picker UI renders as "this list syncs" — losing it would silently break the picker. It also dropped the `assertNotMaintenanceAdmin(memberId)` guard the real function opens with. Both are preserved above; the only additions are the `provider` field and the loop over providers.
 
 Add `import { listProviders } from '../../integrations/registry.js';` and keep `TaskProviderError` imported from `./providers/types.js`.
 
@@ -2827,7 +2837,7 @@ describe('task write-back routing', () => {
       status: 'open',
     }).returning();
 
-    await service.setTaskCompleted(row!.id, true, adult.user.id);
+    await service.completeTask(row!.id, true);
     expect(calls).toEqual(['google']);
   });
 
@@ -2843,7 +2853,7 @@ describe('task write-back routing', () => {
       status: 'open',
     }).returning();
 
-    await service.setTaskCompleted(row!.id, true, adult.user.id);
+    await service.completeTask(row!.id, true);
     expect(calls).toEqual(['m365']);
   });
 
@@ -2859,13 +2869,19 @@ describe('task write-back routing', () => {
       status: 'open',
     }).returning();
 
-    await expect(service.setTaskCompleted(row!.id, true, adult.user.id))
+    await expect(service.completeTask(row!.id, true))
       .rejects.toMatchObject({ reason: 'provider_unavailable' });
   });
 });
 ```
 
-> Check `setTaskCompleted`'s real signature in `src/modules/tasks/service.ts` before running — adjust the argument order in this test to match it rather than changing the service to match the test.
+> **Verified 2026-08-30, during execution.** An earlier version of this task invented a function `setTaskCompleted(taskId, completed, actingMemberId)` with an `assertNotMaintenanceAdmin` guard. **No such function exists.** The real one is:
+>
+> ```ts
+> export async function completeTask(taskId: string, completed: boolean): Promise<TaskMirrorRow | null>
+> ```
+>
+> — two parameters, no acting member, and no maintenance-admin guard (that guard is on `createTask`, `listAvailableLists` and `setAllowlist`, not on completion). Its callers are `src/modules/tasks/routes.ts:112` and two tests in `tests/m365-tasks-sync.test.ts`. **Keep the existing name and signature**; only the provider lookup inside it changes. Renaming it would break all three callers for no reason.
 
 - [ ] **Step 6: Generate the migration and run everything**
 

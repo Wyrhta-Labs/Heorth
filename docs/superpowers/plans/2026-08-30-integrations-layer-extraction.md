@@ -2160,6 +2160,31 @@ describe('/api/v1/integrations', () => {
     expect(await res.text()).not.toContain('super-secret-delta-url');
   });
 
+  // Pins the wire contract. Added 2026-08-30 after review found that the
+  // account field silently changed from accountUpn to accountLabel three tasks
+  // earlier and NO test noticed, because every existing assertion was about the
+  // store's inputs rather than the route's output. The web client reads these
+  // exact names.
+  it('projects a connection with the documented field names', async () => {
+    const { adult } = await seedTestHousehold();
+    await store.upsertConnection({
+      memberId: adult.user.id, accountLabel: 'a@contoso.test', refreshToken: 'r', scopes: 'User.Read',
+    });
+    const res = await integrationsApp().request('/api/v1/integrations/status', {
+      headers: authHeaders(adult.jwt),
+    });
+    const conn = (await res.json()).data.connections[0];
+
+    expect(Object.keys(conn).sort()).toEqual([
+      'accountLabel', 'createdAt', 'id', 'lastRefreshError', 'lastRefreshSuccessAt',
+      'memberId', 'provider', 'scopes', 'status', 'updatedAt',
+    ]);
+    expect(conn.accountLabel).toBe('a@contoso.test');
+    expect(conn.provider).toBe('m365');
+    // The one field that must never appear.
+    expect(conn).not.toHaveProperty('refreshTokenEncrypted');
+  });
+
   it('gives an adult the household-wide connection list', async () => {
     const { adult } = await seedTestHousehold();
     await store.upsertConnection({

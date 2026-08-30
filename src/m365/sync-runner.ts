@@ -117,7 +117,7 @@ export async function syncOneFeed(
   try {
     const state = await rt.store.getSyncState(feed.feedKey);
     const forceFullResync = isFullResyncDue(state?.lastFullSyncAt ?? null, new Date());
-    const outcome = await pullAndApply(state?.deltaToken ?? null, forceFullResync);
+    const outcome = await pullAndApply(state?.syncToken ?? null, forceFullResync);
     await rt.store.recordSyncSuccess(feed.feedKey, outcome.nextToken, outcome.fullResync);
     return {
       feedKey: feed.feedKey, status: 'ok',

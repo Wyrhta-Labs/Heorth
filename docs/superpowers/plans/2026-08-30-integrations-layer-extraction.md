@@ -3418,7 +3418,13 @@ nothing, so this is the state a real deployment can land in."
 ### Task 14: Repoint the web client
 
 **Files:**
-- Modify: `web/src/api/m365.ts`, `web/src/hooks/use-m365.ts`, `web/src/lib/providers.ts`, `web/src/lib/types.ts`, `web/src/lib/hearth.ts`, `web/src/lib/constants.ts` and their tests
+- Modify: `web/src/api/m365.ts`, `web/src/hooks/use-m365.ts`, `web/src/lib/providers.ts`, `web/src/lib/types.ts`, `web/src/lib/hearth.ts`, `web/src/lib/constants.ts`, `web/src/components/household/connections-panel.tsx` and their tests
+
+> **Added 2026-08-30, during execution.** The original list omitted `connections-panel.tsx`, and "and their tests" does not cover a component. It is the file that actually *renders* the field: **`connections-panel.tsx:92` outputs `{c.accountUpn}`**, which after the rename resolves to `undefined` and renders an empty cell in the admin connections table — a silent visual failure, not a crash. Its comments at lines 18, 26 and 27 also still document `POST /m365/sync` and `GET /m365/status`.
+>
+> `web/src/lib/hearth.ts:275` carries the same stale reference in a comment above the staleness derivation.
+>
+> **Web baseline before this task: 59 test files / 318 tests passing.**
 - Test: the existing web suites
 
 **Interfaces:**

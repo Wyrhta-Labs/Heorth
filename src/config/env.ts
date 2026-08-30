@@ -27,7 +27,7 @@ export function buildEnvSchema() {
     TRAKT_CLIENT_ID: z.string().min(1).optional(),
     TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
     LIBRARY_ENCRYPTION_KEY: z.string().min(1).optional(),
-    // Microsoft 365 integration (Phase 2). Optional AS A GROUP: either all six
+    // Microsoft 365 integration (Phase 2). Optional AS A GROUP: either all five
     // present (integration enabled) or all absent (integration disabled). Partial
     // presence is a startup error (see superRefine). Absent = zero impact: the
     // m365 area does not register any routes and boot/tests are unaffected.

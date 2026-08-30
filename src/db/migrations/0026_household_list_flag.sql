@@ -1,23 +1,19 @@
 ALTER TABLE "todo_list_allowlist" ADD COLUMN "is_household" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "todo_allowlist_single_household" ON "todo_list_allowlist" USING btree ("is_household") WHERE "todo_list_allowlist"."is_household";--> statement-breakpoint
 
--- Backfill the household designation.
+-- No backfill, deliberately.
 --
--- The pre-flag deployment picked its household list by matching a display name
--- from M365_SHARED_TODO_LIST. That value is a deployment secret and is not
--- available here, and hand-editing a committed migration to inject it is exactly
--- the kind of step that gets forgotten -- silently flagging nothing and stopping
--- Weorc's projection with no signal.
+-- The pre-flag deployment picked its household list by matching a display name from
+-- M365_SHARED_TODO_LIST. That value is a deployment secret and is not available to a migration,
+-- and every way of inferring the list from what IS available is unsafe:
+--   * hand-substituting the name into this file means editing a committed migration, which gets
+--     forgotten -- and then nothing is flagged, silently;
+--   * flagging the sole allowlisted row when there is exactly one guesses. If that one row is a
+--     member's personal list, household tasks would be written into it with no error at all.
 --
--- Instead: when the household has allowlisted exactly ONE list, that list IS the
--- household list -- there is nothing else it could be. When two or more exist the
--- choice is genuinely ambiguous, so flag nothing and let an adult designate one
--- through PUT /api/v1/tasks/household-list. `getHouseholdList()` returning null
--- surfaces that state today; a follow-up task is expected to add a boot-time
--- warning so it is visible without an adult having to check.
+-- So this migration designates nothing, and the household designation starts empty. An adult picks
+-- the list once, explicitly, through PUT /api/v1/tasks/household-list. Until they do,
+-- createHouseholdTask reports shared_list_unavailable and Weorc's projection is paused -- a visible,
+-- correctable state, which is the entire point of replacing name-matching with an explicit flag.
 --
--- OPERATOR NOTE: a household with SEVERAL allowlisted lists gets nothing flagged
--- by this statement and must designate one explicitly after upgrading.
-UPDATE todo_list_allowlist
-   SET is_household = true
- WHERE (SELECT count(*) FROM todo_list_allowlist) = 1;
+-- OPERATOR STEP AFTER UPGRADING: designate the household task list. Nothing projects until you do.

@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { sql } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { todoListAllowlist } from '../src/modules/tasks/schema.js';
 import { getHouseholdFeed, setHouseholdList } from '../src/modules/tasks/store.js';
@@ -12,26 +11,14 @@ async function allowlist(memberId: string, provider: string, listId: string, nam
 }
 
 /**
- * The real migration's backfill statement, read from disk — NOT a copy. A copy
- * would let the checked-in migration rot silently while the test stayed green.
- *
- * Only the LAST statement (the backfill `UPDATE`) is executed: the migration's
- * earlier statements (`ALTER TABLE … ADD COLUMN`, `CREATE UNIQUE INDEX`) were
- * already applied by the standard migrator in `tests/setup.ts` — re-running them
- * here would fail on "column/index already exists", not exercise anything new.
+ * The real migration file, read from disk — NOT a copy. A copy would let the
+ * checked-in migration rot silently while the test stayed green.
  */
-async function runHouseholdFlagBackfill(): Promise<void> {
+async function readHouseholdFlagMigration(): Promise<string> {
   const path = fileURLToPath(
     new URL('../src/db/migrations/0026_household_list_flag.sql', import.meta.url),
   );
-  const ddl = await readFile(path, 'utf8');
-  const statements = ddl.split('--> statement-breakpoint');
-  const backfill = statements[statements.length - 1]!;
-  // Guard against an empty (or gutted) file: it would execute as a no-op and
-  // let every assertion below pass vacuously.
-  expect(backfill).toContain('is_household');
-  expect(backfill).toContain('count(*)');
-  await db.execute(sql.raw(backfill));
+  return readFile(path, 'utf8');
 }
 
 describe('household task list designation', () => {
@@ -89,28 +76,27 @@ describe('household task list designation', () => {
   });
 });
 
-describe('migration 0026 backfill', () => {
-  it('flags the sole allowlisted list when the household has exactly one', async () => {
-    const { adult } = await seedTestHousehold();
-    await allowlist(adult.user.id, 'm365', 'l1', 'Household');
-
-    await runHouseholdFlagBackfill();
-
-    const rows = await db.select().from(todoListAllowlist);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.isHousehold).toBe(true);
-    expect((await getHouseholdFeed())!.listId).toBe('l1');
+describe('migration 0026 ships no backfill', () => {
+  // Both available inference strategies were unsafe (see the migration's own
+  // comment): matching a display name needs a secret not available to a
+  // migration, and flagging the sole allowlisted row guesses — if that row is
+  // someone's PERSONAL list, household tasks would land there with no error at
+  // all. So the shipped migration designates nothing, whatever the allowlist
+  // holds, and an adult designates the real list explicitly afterward.
+  it('the checked-in migration contains no data-mutating statement', async () => {
+    const ddl = await readHouseholdFlagMigration();
+    // Guard against an empty (or gutted) file: it would trivially "contain no
+    // UPDATE" and let the assertion below pass vacuously.
+    expect(ddl).toContain('is_household');
+    expect(ddl.toUpperCase()).not.toMatch(/\bUPDATE\b/);
   });
 
-  it('flags nothing when the household has allowlisted more than one list', async () => {
+  it('no list is auto-designated household, whatever the allowlist holds', async () => {
     const { adult, admin } = await seedTestHousehold();
-    await allowlist(adult.user.id, 'm365', 'l1', 'One');
-    await allowlist(admin.user.id, 'google', 'l2', 'Two');
+    await allowlist(adult.user.id, 'm365', 'l1', 'Solo list');
+    expect(await getHouseholdFeed()).toBeNull(); // exactly one allowlisted row — still nothing designated
 
-    await runHouseholdFlagBackfill();
-
-    const rows = await db.select().from(todoListAllowlist);
-    expect(rows.filter((r) => r.isHousehold)).toHaveLength(0);
-    expect(await getHouseholdFeed()).toBeNull();
+    await allowlist(admin.user.id, 'google', 'l2', 'Another list');
+    expect(await getHouseholdFeed()).toBeNull(); // two rows now — still nothing designated
   });
 });

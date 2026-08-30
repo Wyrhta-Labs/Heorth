@@ -745,6 +745,11 @@ describe('m365 connect + callback via integrations router (Graph-specific)', () 
     const loc = res.headers.get('location')!;
     expect(loc).toContain('/oauth2/v2.0/authorize');
     expect(loc).toContain('client_id=test-client-id');
+    // Asserts on the DECODED redirect_uri, not a substring of the raw
+    // (percent-encoded) URL — this is what pins the callback path migration.
+    expect(new URL(loc).searchParams.get('redirect_uri')).toBe(
+      'http://localhost:4000/api/v1/integrations/m365/callback',
+    );
     expect(loc).toContain('state=');
   });
 
@@ -757,6 +762,9 @@ describe('m365 connect + callback via integrations router (Graph-specific)', () 
     expect(res.status).toBe(200);
     const { data } = await res.json();
     expect(data.url).toContain('/oauth2/v2.0/authorize');
+    expect(new URL(data.url).searchParams.get('redirect_uri')).toBe(
+      'http://localhost:4000/api/v1/integrations/m365/callback',
+    );
     expect(data.url).toContain('state=');
   });
 

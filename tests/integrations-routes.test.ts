@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
+import { sign } from 'hono/jwt';
 import { createApp, heorthErrorHandler } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 import { integrationsRouter } from '../src/integrations/routes.js';
@@ -7,6 +8,8 @@ import { seedTestHousehold, authHeaders } from './helpers.js';
 import { clearProviders, registerProvider } from '../src/integrations/registry.js';
 import { IntegrationStore } from '../src/integrations/store.js';
 import { signConnectState } from '../src/integrations/state.js';
+import { householdCore } from '../src/wiring.js';
+import { config } from '../src/config/env.js';
 
 const store = new IntegrationStore('m365');
 
@@ -211,8 +214,18 @@ describe('/api/v1/integrations', () => {
     await store.upsertConnection({
       memberId: adult.user.id, accountLabel: 'a@contoso.test', refreshToken: 'r', scopes: '',
     });
+
+    // Promote to admin. Role, not handle, is the quarantine anchor's opposite —
+    // this member is now an "admin session" but is not the maintenance admin
+    // (that stays anchored on the `admin` handle from seedTestHousehold()).
+    await householdCore.setRole(adult.user.id, 'admin');
+    const promotedJwt = await sign(
+      { sub: adult.user.id, role: 'admin', iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600 },
+      config.jwtSecret,
+    );
+
     const res = await integrationsApp().request('/api/v1/integrations/status', {
-      headers: authHeaders(adult.jwt),
+      headers: authHeaders(promotedJwt),
     });
     const body = await res.json();
     expect(body.data.connection).not.toBeNull();

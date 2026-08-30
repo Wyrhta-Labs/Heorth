@@ -130,7 +130,7 @@ const TEST_CONFIG: M365Config = {
   tenantId: 'test-tenant-id',
   clientId: 'test-client-id',
   clientSecret: 'test-client-secret',
-  redirectUri: 'http://localhost:4000/api/v1/m365/callback',
+  redirectUri: 'http://localhost:4000/api/v1/integrations/m365/callback',
   familyMailbox: 'family-calendar@contoso.test',
   sharedTodoList: 'Household',
 };

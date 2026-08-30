@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { bootstrap, warnIfNoHouseholdList } from '../src/index.js';
 import { db } from '../src/db/index.js';
@@ -7,7 +7,6 @@ import { setHouseholdList } from '../src/modules/tasks/store.js';
 import { household } from '@wyrhta/core/household';
 import { users } from '@wyrhta/core/identity';
 import { config } from '../src/config/env.js';
-import { identity } from '../src/wiring.js';
 import { clearProviders, registerProvider } from '../src/integrations/registry.js';
 import { IntegrationStore } from '../src/integrations/store.js';
 
@@ -29,6 +28,10 @@ describe('bootstrap', () => {
 describe('warnIfNoHouseholdList', () => {
   beforeEach(() => {
     clearProviders();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   function stubProvider() {
@@ -60,7 +63,6 @@ describe('warnIfNoHouseholdList', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('PUT /api/v1/tasks/household-list'),
     );
-    warnSpy.mockRestore();
   });
 
   it('does not warn when a household list is designated', async () => {
@@ -80,7 +82,6 @@ describe('warnIfNoHouseholdList', () => {
     await warnIfNoHouseholdList();
 
     expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
   });
 
   it('does not warn when no providers are registered', async () => {
@@ -89,6 +90,5 @@ describe('warnIfNoHouseholdList', () => {
     await warnIfNoHouseholdList();
 
     expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
   });
 });

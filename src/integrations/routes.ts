@@ -70,6 +70,7 @@ integrationsRouter.get('/status', requireAuth, async (c) => {
   return ok(c, {
     connection: own.find((r) => r !== null) ?? null,
     feeds,
+    householdListDesignated,
     providers: providers.map((p) => p.id),
   });
 });

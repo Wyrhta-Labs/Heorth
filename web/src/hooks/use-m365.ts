@@ -65,11 +65,11 @@ export function useM365ProviderStatus(): {
   const raw = query.data?.data.connection ?? null;
 
   // Map the M365 wire shape onto the provider-neutral contract — the
-  // rendering component never sees `accountUpn` or the raw `status` string.
+  // rendering component never sees the raw `status` string.
   const connection: ProviderConnection | null = raw
     ? {
         memberId: raw.memberId,
-        accountLabel: raw.accountUpn,
+        accountLabel: raw.accountLabel,
         lastSuccessAt: raw.lastRefreshSuccessAt,
         lastError: raw.lastRefreshError,
       }

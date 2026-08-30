@@ -272,7 +272,7 @@ export function computeMealSwap(
 }
 
 // ---------------------------------------------------------------------------
-// Per-feed staleness derivation from GET /api/v1/m365/status feeds[]
+// Per-feed staleness derivation from GET /api/v1/integrations/status feeds[]
 // ---------------------------------------------------------------------------
 export interface FeedStatus {
   feedKey: string;

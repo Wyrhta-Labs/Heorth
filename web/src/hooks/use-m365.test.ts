@@ -42,7 +42,7 @@ describe('useM365ProviderStatus', () => {
           feeds: [],
           connection: {
             memberId: 'm1',
-            accountUpn: 'anna@example.com',
+            accountLabel: 'anna@example.com',
             status: 'active',
             lastRefreshSuccessAt: '2026-08-01T00:00:00Z',
             lastRefreshError: null,
@@ -71,7 +71,7 @@ describe('useM365ProviderStatus', () => {
           feeds: [],
           connection: {
             memberId: 'm1',
-            accountUpn: 'anna@example.com',
+            accountLabel: 'anna@example.com',
             status: 'error',
             lastRefreshSuccessAt: null,
             lastRefreshError: 'invalid_grant',

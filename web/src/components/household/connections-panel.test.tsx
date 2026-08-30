@@ -21,7 +21,7 @@ vi.mock('@/hooks/use-m365', () => ({
   useM365Status: () => ({
     data: { data: {
       connections: [{
-        memberId: 'b', accountUpn: 'anna@example.com', status: 'active',
+        memberId: 'b', accountLabel: 'anna@example.com', status: 'active',
         lastRefreshSuccessAt: '2026-08-04T10:00:00Z', lastRefreshError: null,
       }],
       feeds: [

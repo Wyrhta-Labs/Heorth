@@ -2055,11 +2055,33 @@ DELETE /api/v1/integrations/:provider/connection      disconnect
 
 - [ ] **Step 2: Write the failing route test**
 
-Create `tests/integrations-routes.test.ts`. Model the fake-runtime installation on the existing `tests/m365-routes.test.ts` (which installs a fake-Graph-backed runtime via `setM365Runtime` and registers the provider).
+Create `tests/integrations-routes.test.ts`.
+
+> **Corrected 2026-08-30, during execution.** An earlier version of this test imported a bare `app` from `../src/app.js`. **No such export exists** — `src/app.ts` exports `createApp(modules)` and `heorthErrorHandler`. Route tests build their own bare Hono instance; copy the pattern from `tests/m365-routes.test.ts:24-28`, including the explicit `onError`, whose comment explains why: without it a thrown `MaintenanceAdminError` surfaces as an unhandled 500 instead of the documented 403.
+
+Add this helper to the test file and use it for every request:
+
+```ts
+/**
+ * A bare app with just the integrations router mounted. `heorthErrorHandler` is
+ * mounted explicitly because this app is NOT built via `createApp` — without it a
+ * thrown MaintenanceAdminError would surface as an unhandled 500 rather than 403.
+ */
+function integrationsApp() {
+  const app = new Hono();
+  app.route('/api/v1/integrations', integrationsRouter);
+  app.onError(heorthErrorHandler);
+  return app;
+}
+```
+
+The "retires the old m365 route surface" test is the one exception: a bare app that never mounted `/api/v1/m365` would 404 trivially and prove nothing. Build that one with `createApp(ALL_MODULES)` so the assertion is about the real application's routing table.
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { app } from '../src/app.js';
+import { Hono } from 'hono';
+import { createApp, heorthErrorHandler } from '../src/app.js';
+import { integrationsRouter } from '../src/integrations/routes.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 import { clearProviders, registerProvider } from '../src/integrations/registry.js';
 import { IntegrationStore } from '../src/integrations/store.js';
@@ -2091,7 +2113,7 @@ describe('/api/v1/integrations', () => {
 
   it('returns a consent url for the acting member', async () => {
     const { adult } = await seedTestHousehold();
-    const res = await app.request('/api/v1/integrations/m365/connect-url', {
+    const res = await integrationsApp().request('/api/v1/integrations/m365/connect-url', {
       headers: authHeaders(adult.jwt),
     });
     expect(res.status).toBe(200);
@@ -2101,7 +2123,7 @@ describe('/api/v1/integrations', () => {
 
   it('404s for an unregistered provider', async () => {
     const { adult } = await seedTestHousehold();
-    const res = await app.request('/api/v1/integrations/google/connect-url', {
+    const res = await integrationsApp().request('/api/v1/integrations/google/connect-url', {
       headers: authHeaders(adult.jwt),
     });
     expect(res.status).toBe(404);
@@ -2110,7 +2132,7 @@ describe('/api/v1/integrations', () => {
   it('shows feeds to any authenticated session, including a child', async () => {
     await store.recordSyncSuccess('m365:calendar:family', 'tok');
     const { child } = await seedTestHousehold();
-    const res = await app.request('/api/v1/integrations/status', {
+    const res = await integrationsApp().request('/api/v1/integrations/status', {
       headers: authHeaders(child.jwt),
     });
     expect(res.status).toBe(200);
@@ -2124,7 +2146,7 @@ describe('/api/v1/integrations', () => {
   it('never projects the sync token', async () => {
     await store.recordSyncSuccess('m365:calendar:family', 'super-secret-delta-url');
     const { adult } = await seedTestHousehold();
-    const res = await app.request('/api/v1/integrations/status', {
+    const res = await integrationsApp().request('/api/v1/integrations/status', {
       headers: authHeaders(adult.jwt),
     });
     expect(await res.text()).not.toContain('super-secret-delta-url');
@@ -2135,7 +2157,7 @@ describe('/api/v1/integrations', () => {
     await store.upsertConnection({
       memberId: adult.user.id, accountLabel: 'a@contoso.test', refreshToken: 'r', scopes: '',
     });
-    const res = await app.request('/api/v1/integrations/status', {
+    const res = await integrationsApp().request('/api/v1/integrations/status', {
       headers: authHeaders(adult.jwt),
     });
     const body = await res.json();
@@ -2145,12 +2167,12 @@ describe('/api/v1/integrations', () => {
 
   it('restricts the manual sync trigger to admins', async () => {
     const { adult, admin } = await seedTestHousehold();
-    const denied = await app.request('/api/v1/integrations/sync', {
+    const denied = await integrationsApp().request('/api/v1/integrations/sync', {
       method: 'POST', headers: authHeaders(adult.jwt), body: '{}',
     });
     expect(denied.status).toBe(403);
 
-    const allowed = await app.request('/api/v1/integrations/sync', {
+    const allowed = await integrationsApp().request('/api/v1/integrations/sync', {
       method: 'POST', headers: authHeaders(admin.jwt), body: '{}',
     });
     expect(allowed.status).toBe(200);
@@ -2159,7 +2181,7 @@ describe('/api/v1/integrations', () => {
 
   it('disconnects the acting member and 404s when there is nothing to disconnect', async () => {
     const { adult } = await seedTestHousehold();
-    const empty = await app.request('/api/v1/integrations/m365/connection', {
+    const empty = await integrationsApp().request('/api/v1/integrations/m365/connection', {
       method: 'DELETE', headers: authHeaders(adult.jwt),
     });
     expect(empty.status).toBe(404);
@@ -2167,7 +2189,7 @@ describe('/api/v1/integrations', () => {
     await store.upsertConnection({
       memberId: adult.user.id, accountLabel: 'a@t', refreshToken: 'r', scopes: '',
     });
-    const done = await app.request('/api/v1/integrations/m365/connection', {
+    const done = await integrationsApp().request('/api/v1/integrations/m365/connection', {
       method: 'DELETE', headers: authHeaders(adult.jwt),
     });
     expect(done.status).toBe(200);
@@ -2175,7 +2197,7 @@ describe('/api/v1/integrations', () => {
 
   it('retires the old m365 route surface', async () => {
     const { adult } = await seedTestHousehold();
-    const res = await app.request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
+    const res = await integrationsApp().request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
     expect(res.status).toBe(404);
   });
 });
@@ -2431,7 +2453,16 @@ Delete `src/m365/routes.ts` and its export from `src/m365/index.ts`.
 
 - [ ] **Step 7: Repoint `tests/m365-routes.test.ts`**
 
-Its requests move from `/api/v1/m365/...` to `/api/v1/integrations/m365/...` (and `/status`, `/sync` lose the provider segment). Route-path edits are an allowed category. Delete any test that only asserted the old path shape — `tests/integrations-routes.test.ts` covers the new surface, including a test that the old surface is gone.
+> **Corrected 2026-08-30, during execution.** This is more than route-path edits, and the plan understated it. `tests/m365-routes.test.ts` imports `m365Router` from `../src/m365/routes.js` and mounts it in its own `enabledApp()` helper. **This task deletes that module**, so the file cannot merely be repointed — its app helper has no router to mount.
+
+The file's coverage splits in two:
+
+- **Connection-flow behaviour that is now provider-generic** (auth required on connect, consent redirect, callback state validation, the maintenance-admin quarantine including redirect-not-throw, disconnect, the role rules on `/status`) is already covered by `tests/integrations-routes.test.ts`. Do not duplicate it.
+- **Anything genuinely Graph-specific that survives** — the fake-Graph runtime installation, `exchangeCode`/`getMe` behaviour reached through the callback — keeps a home. Move those cases into the new file using `integrationsApp()`, or into a Graph-focused suite if they do not fit.
+
+Then delete `tests/m365-routes.test.ts`. **Before deleting it, list its test names in your report** and say, for each, which new test covers it or why it is obsolete. A deleted test is only safe when someone can see what replaced it — do not delete first and reconstruct the justification afterwards.
+
+It also imports `m365Connections` from `../src/m365/schema.js` and `feedKeys` from `../src/m365/feed-keys.js`, both deleted in Task 8, and `signConnectState` from `../src/m365/state.js`, which this task moves. Whatever survives must import from `../src/integrations/`.
 
 - [ ] **Step 8: Run the tests**
 
@@ -3272,7 +3303,7 @@ Append to `tests/integrations-routes.test.ts`.
 ```ts
 it('reports whether a household task list is designated', async () => {
   const { adult } = await seedTestHousehold();
-  const before = await app.request('/api/v1/integrations/status', {
+  const before = await integrationsApp().request('/api/v1/integrations/status', {
     headers: authHeaders(adult.jwt),
   });
   expect((await before.json()).data.householdListDesignated).toBe(false);
@@ -3282,7 +3313,7 @@ it('reports whether a household task list is designated', async () => {
   });
   await setHouseholdList(adult.user.id, 'm365', 'l1');
 
-  const after = await app.request('/api/v1/integrations/status', {
+  const after = await integrationsApp().request('/api/v1/integrations/status', {
     headers: authHeaders(adult.jwt),
   });
   expect((await after.json()).data.householdListDesignated).toBe(true);

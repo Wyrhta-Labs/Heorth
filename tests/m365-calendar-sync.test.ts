@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { m365SyncState } from '../src/m365/schema.js';
 import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
+import { applyMirrorPull } from '../src/modules/calendar/mirror-store.js';
 import * as calendar from '../src/modules/calendar/service.js';
 import { calendarRouter } from '../src/modules/calendar/routes.js';
 import { runCalendarSync } from '../src/m365/calendar-sync.js';
@@ -681,5 +682,88 @@ describe('m365 sync route + health surface', () => {
     const { adult } = await seedTestHousehold();
     const res = await enabledApp().request('/api/v1/m365/sync', { method: 'POST', headers: authHeaders(adult.jwt) });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('applyMirrorPull fullResync reconciles instead of truncating', () => {
+  const feedKey = 'calendar:member:recon';
+
+  function ev(externalId: string, title: string, seriesMasterId: string | null = null) {
+    return {
+      externalId, title,
+      start: { utc: '2026-03-01T09:00:00.000Z', timeZone: 'Europe/Berlin' },
+      end: { utc: '2026-03-01T10:00:00.000Z', timeZone: 'Europe/Berlin' },
+      allDay: false, location: null, organizer: null, memberId: null, seriesMasterId,
+    };
+  }
+
+  it('preserves the row id of an event that survives a full resync', async () => {
+    await applyMirrorPull('m365', feedKey, {
+      upserts: [ev('e1', 'Standup')],
+      deletions: [], masterPurges: [], nextToken: null, fullResync: true,
+    });
+    const before = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.externalId, 'e1'));
+    const idBefore = before[0]!.id;
+
+    await applyMirrorPull('m365', feedKey, {
+      upserts: [ev('e1', 'Standup (moved)')],
+      deletions: [], masterPurges: [], nextToken: null, fullResync: true,
+    });
+    const after = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.externalId, 'e1'));
+
+    expect(after).toHaveLength(1);
+    expect(after[0]!.id).toBe(idBefore);
+    expect(after[0]!.title).toBe('Standup (moved)');
+  });
+
+  it('drops events that aged out of the re-windowed snapshot', async () => {
+    await applyMirrorPull('m365', feedKey, {
+      upserts: [ev('old', 'Last month'), ev('cur', 'This month')],
+      deletions: [], masterPurges: [], nextToken: null, fullResync: true,
+    });
+
+    // The window rolled forward: 'old' is no longer in range, so it is absent.
+    const res = await applyMirrorPull('m365', feedKey, {
+      upserts: [ev('cur', 'This month')],
+      deletions: [], masterPurges: [], nextToken: null, fullResync: true,
+    });
+
+    const rows = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.feedKey, feedKey));
+    expect(rows.map((r) => r.externalId)).toEqual(['cur']);
+    expect(res.deleted).toBe(1);
+  });
+
+  it('still cascades a series deletion over seriesMasterId on an incremental pull', async () => {
+    await applyMirrorPull('m365', feedKey, {
+      upserts: [ev('occ1', 'Weekly', 'master1'), ev('occ2', 'Weekly', 'master1'), ev('solo', 'Solo')],
+      deletions: [], masterPurges: [], nextToken: null, fullResync: true,
+    });
+
+    // The source tombstones only the master id.
+    await applyMirrorPull('m365', feedKey, {
+      upserts: [], deletions: ['master1'], masterPurges: [], nextToken: null, fullResync: false,
+    });
+
+    const rows = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.feedKey, feedKey));
+    expect(rows.map((r) => r.externalId)).toEqual(['solo']);
+  });
+
+  it('still purges an alive master by externalId only, sparing its occurrences', async () => {
+    await applyMirrorPull('m365', feedKey, {
+      upserts: [ev('master1', 'Weekly'), ev('occ1', 'Weekly', 'master1')],
+      deletions: [], masterPurges: [], nextToken: null, fullResync: true,
+    });
+
+    await applyMirrorPull('m365', feedKey, {
+      upserts: [], deletions: [], masterPurges: ['master1'], nextToken: null, fullResync: false,
+    });
+
+    const rows = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.feedKey, feedKey));
+    expect(rows.map((r) => r.externalId)).toEqual(['occ1']);
   });
 });

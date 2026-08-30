@@ -340,6 +340,21 @@ provider, member_id, calendar_id, calendar_name, is_household
   flagged allowlisted or not) and `PUT /api/v1/calendar/allowlist`, mirroring the
   existing `/tasks/lists` and `/tasks/allowlist` routes.
 
+> **Found 2026-08-30, during Phase 1. The task allowlist API is not provider-aware, and Phase 2 must fix it before a Google list can be selected.**
+>
+> Phase 1 left the tasks allowlist half-migrated, deliberately and unreachably:
+>
+> - `service.listAvailableLists` **does** iterate every registered provider and tags each entry with its `provider`.
+> - `service.getAllowlist` and `service.setAllowlist` **do not** — they hardcode a `DEFAULT_PROVIDER = 'm365'` constant, because they act before any mirror row exists and so have no `source` to resolve from.
+>
+> The consequence once Google registers: **its lists appear in the picker as available but can never be enabled.** `setAllowlist` would persist them under `provider = 'm365'`, or not at all.
+>
+> The store layer is already correct — `store.getAllowlist(memberId, provider)` and `store.setAllowlist(memberId, provider, lists)` are provider-scoped. The gap is the service and the route above them.
+>
+> **Fixing it is an API shape change**, which is why it was not done in Phase 1: `PUT /api/v1/tasks/allowlist` currently takes `{ listIds: string[] }`, and a provider-aware version needs the provider per entry (or per request). That touches the route, its Zod schema, and the web picker — all of which Phase 2 is building for Google anyway. Do it there, together, rather than shipping an intermediate shape.
+>
+> Not reachable in Phase 1: with only M365 registered, every discovered list is an M365 list and the hardcoded constant is always right.
+
 **Feed keys stay member-scoped and stable** —
 `google:calendar:member:<id>:<calendarId>` — whether or not the row is the
 household one. `is_household` controls only *attribution*: the provider emits

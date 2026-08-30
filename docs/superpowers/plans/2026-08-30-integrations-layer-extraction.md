@@ -1906,7 +1906,15 @@ The mechanical task. Every shim created in Tasks 3–6 is removed and its import
 
 **Files:**
 - Delete: `src/m365/schema.ts`, `src/m365/store.ts`, `src/m365/crypto.ts`, `src/m365/feed-keys.ts`
-- Modify: `src/m365/runtime.ts`, `src/m365/delegated.ts`, `src/m365/index.ts`, `src/m365/calendar-sync.ts`, `src/m365/task-sync.ts`, `src/m365/calendar-provider.ts`, `src/m365/task-provider.ts`, `src/modules/tasks/store.ts`, and every test importing a deleted path
+- Modify: `src/m365/runtime.ts`, `src/m365/delegated.ts`, `src/m365/index.ts`, `src/m365/calendar-sync.ts`, `src/m365/task-sync.ts`, `src/m365/calendar-provider.ts`, `src/m365/task-provider.ts`, `src/modules/tasks/store.ts`, `src/modules/tasks/service.ts`, `src/household/maintenance-admin.ts`, and every test importing a deleted path
+- Retire: `tests/m365-store.test.ts` (see below)
+
+> **Two additions found 2026-08-30, during execution.** The original list named neither, though Step 1's grep does surface them:
+>
+> - **`src/household/maintenance-admin.ts` imports from BOTH `../m365/feed-keys.js` and `../m365/schema.js`.** It is not an M365 file and is easy to overlook when thinking "this task is about `src/m365/`".
+> - **`src/modules/tasks/service.ts` imports `feedKeys` from `../../m365/feed-keys.js`** as well as `store.ts` does.
+>
+> **`tests/m365-store.test.ts` cannot simply be repointed.** It imports `M365Store` from `../src/m365/store.js`, the shim this task deletes. Repointing it at `IntegrationStore` would make it a near-duplicate of `tests/integrations-store.test.ts`. Retire it, with the same accounting Task 9 requires: **list every test name in your report and say which case in `tests/integrations-store.test.ts` covers it.** Any case NOT covered there — the sync-state tests keyed through `feedKeys` are the likely gap — must be **moved into** `tests/integrations-store.test.ts` before the file is deleted, not dropped. Deleting coverage is only safe when someone can see where it went.
 
 **Interfaces:**
 - Consumes: everything produced by Tasks 3–7.

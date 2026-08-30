@@ -43,7 +43,6 @@ export const m365Module: HeorthModule = {
 
 // Public surface for Tasks 2.2/2.3 (calendar + To Do providers).
 export { getM365Runtime, setM365Runtime, createM365Runtime, isM365Enabled, type M365Runtime } from './runtime.js';
-export { startM365Scheduler, stopM365Scheduler, type SchedulerHandle } from './scheduler.js';
 export { runCalendarSync } from './calendar-sync.js';
 export { runTaskSync } from './task-sync.js';
 export type { FeedSyncResult } from './sync-runner.js';

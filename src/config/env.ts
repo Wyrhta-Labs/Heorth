@@ -43,7 +43,7 @@ export function buildEnvSchema() {
     // Background mirror poll interval. OPTIONAL and INDEPENDENT of the all-or-
     // nothing group above (a tuning knob, not a credential): default 300s, floored
     // at 60s by the scheduler. Absent when the integration is disabled anyway.
-    M365_SYNC_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
+    INTEGRATIONS_SYNC_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
     // KithLedger integration. Optional AS A GROUP, same contract as M365_*:
     // both present → the kith module mounts and proxies upcoming reminders;
     // both absent → zero impact (routes fall through to the catch-all 404);
@@ -259,7 +259,7 @@ export const config = {
   libraryEncryptionKey: parsed.LIBRARY_ENCRYPTION_KEY,
   // Mirror poll interval (seconds). Independent optional tuning knob; the
   // scheduler floors it at 60s and only runs when the integration is enabled.
-  m365SyncIntervalSeconds: parsed.M365_SYNC_INTERVAL_SECONDS,
+  integrationsSyncIntervalSeconds: parsed.INTEGRATIONS_SYNC_INTERVAL_SECONDS,
   // Resolved M365 config, or null when the integration is disabled (env absent).
   // The env schema guarantees this is all-or-nothing, so the presence of
   // M365_TENANT_ID implies the whole group is present.

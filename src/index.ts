@@ -5,7 +5,7 @@ import { db } from './db/index.js';
 import { config } from './config/env.js';
 import { createApp } from './app.js';
 import { ALL_MODULES } from './modules/index.js';
-import { startM365Scheduler } from './m365/scheduler.js';
+import { startIntegrationsScheduler } from './integrations/scheduler.js';
 import { startWeorcScheduler } from './modules/weorc/scheduler.js';
 import { repairMaintenanceAdmin } from './household/maintenance-admin.js';
 
@@ -34,9 +34,9 @@ async function main() {
     console.log(`Heorth running on http://localhost:${info.port}`);
   });
 
-  // Start the M365 read-only mirror poll loop. No-op when the integration is
-  // disabled or under tests (see scheduler.ts) — zero impact in either case.
-  startM365Scheduler();
+  // Start the integrations poll loop. No-op when no providers are registered
+  // or under tests (see scheduler.ts) — zero impact in either case.
+  startIntegrationsScheduler();
 
   // Start Weorc's native due-work tick. Deliberately not gated on M365: it
   // must keep materialising household work even with no task provider attached.

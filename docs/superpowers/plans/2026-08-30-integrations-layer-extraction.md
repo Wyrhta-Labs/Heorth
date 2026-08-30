@@ -3514,7 +3514,19 @@ that would justify the split."
 ### Task 15: Documentation
 
 **Files:**
-- Modify: `AGENTS.md`, `README.md`
+- Modify: `AGENTS.md`, `README.md`, `CHANGELOG.md`
+
+> **`CHANGELOG.md` added 2026-08-30, during execution.** The original list omitted it. Its `[Unreleased]` section is maintained **per feature as work lands** — Weorc and the KithLedger launcher were each written up when they merged, not at release time — so this branch owes it an entry.
+>
+> This branch carries three changes an operator must actually act on, and they are the point of the entry:
+>
+> - **`/api/v1/m365/*` is retired**, replaced by `/api/v1/integrations/*` including a provider segment on the connection routes. **The Entra app registration's redirect URI must move to `<base>/api/v1/integrations/m365/callback`** or consent fails with `redirect_uri_mismatch`.
+> - **`M365_SHARED_TODO_LIST` is gone.** The household task list is now designated in the database (`todo_list_allowlist.is_household`) and set via `PUT /api/v1/tasks/household-list`. The migration backfills it by matching the old value's list name; **if nothing matches, no list is designated and Weorc's projection stops** until an adult picks one — which the new boot warning and the `householdListDesignated` status field make visible.
+> - **`M365_SYNC_INTERVAL_SECONDS` is renamed** to `INTEGRATIONS_SYNC_INTERVAL_SECONDS`. An unrenamed value is silently ignored and falls back to the 300s default. (Checked: the `deploy/` compose files do not set it, so only a hand-edited `.env` is affected.)
+>
+> Worth noting under Fixed as well: a full resync no longer deletes and re-inserts a feed's mirror rows, so `task_mirror.id` and `calendar_mirror_events.id` stay stable — which removes an intermittent 404 when the web completed a task whose id had just churned.
+>
+> Follow the existing section's voice: what changed, why it matters to someone running this, not a list of refactored file names.
 
 - [ ] **Step 1: Rewrite the AGENTS.md integration rules**
 

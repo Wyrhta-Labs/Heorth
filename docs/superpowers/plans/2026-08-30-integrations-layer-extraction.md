@@ -73,9 +73,15 @@ Recorded here because an executor reading only the spec would be surprised:
 | `tests/integrations-migration.test.ts` | Feed-key rewrite correctness |
 | `tests/tasks-household-list.test.ts` | Designation-by-flag |
 
-**Deleted (Task 8)**
+**Deleted, by the task that does it**
 
-`src/m365/schema.ts`, `store.ts`, `crypto.ts`, `feed-keys.ts`, `sync-runner.ts`, `scheduler.ts`, `routes.ts`, `state.ts`
+- **Task 8:** `src/m365/schema.ts`, `store.ts`, `crypto.ts`, `feed-keys.ts` — the four shims.
+- **Task 9:** `src/m365/routes.ts`; `src/m365/state.ts` is *moved* (`git mv`) to `src/integrations/state.ts`, not deleted.
+- **Task 10:** `src/m365/scheduler.ts`.
+
+> **Corrected 2026-08-30, during execution.** An earlier version listed all eight files under Task 8, which was wrong twice over. It attributed Task 9's and Task 10's deletions to Task 8, and it listed **`src/m365/sync-runner.ts` as deleted — that file must survive.** Task 6 leaves the Graph error classifier in it, and `src/m365/task-provider.ts` imports `classify` from there at three call sites (lines 107, 193, 221). Deleting it would break the Graph task provider's error mapping.
+>
+> `src/m365/sync-runner.ts` keeps its name after Task 6 even though it no longer runs anything — renaming it to `classify.ts` would be tidier but is pure churn mid-refactor. Task 15 notes the stale name in AGENTS.md.
 
 **Modified**
 

@@ -238,7 +238,7 @@ export class GraphTaskProvider implements TaskProvider {
   }
 
   private parseFeed(feedKey: string): ParsedFeed {
-    const m = /^todo:member:([^:]+):(.+)$/.exec(feedKey);
+    const m = /^m365:todo:member:([^:]+):(.+)$/.exec(feedKey);
     if (!m) throw new Error(`Unsupported task feed key: ${feedKey}`);
     return { memberId: m[1]!, listId: m[2]! };
   }

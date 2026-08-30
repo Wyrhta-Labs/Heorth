@@ -29,7 +29,7 @@ function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { create
         status: 'open',
         listId: 'list-1',
         listName: 'Household',
-        memberId: feedKey.split(':')[2]!,
+        memberId: feedKey.split(':')[3]!,
       };
     },
     ...over,

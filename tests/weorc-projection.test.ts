@@ -52,7 +52,7 @@ describe('the project pass', () => {
 
     const open = await store.getOpenOccurrence(r.id);
     expect(open!.taskExternalId).toBe('ext-1');
-    expect(open!.taskFeedKey).toBe(`todo:member:${memberId}:list-1`);
+    expect(open!.taskFeedKey).toBe(`m365:todo:member:${memberId}:list-1`);
     expect(open!.projectionError).toBeNull();
 
     expect(seen[0]!.title).toBe('Service the boiler');
@@ -116,7 +116,7 @@ describe('the project pass', () => {
       return {
         externalId: 'ext-ok', title: input.title, notes: input.notes ?? null, dueAt: null,
         completedAt: null, status: 'open', listId: 'list-1', listName: 'Household',
-        memberId: feedKey.split(':')[2]!,
+        memberId: feedKey.split(':')[3]!,
       };
     }), 'Household');
 

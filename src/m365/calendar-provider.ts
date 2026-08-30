@@ -277,7 +277,7 @@ export class GraphCalendarProvider implements CalendarProvider {
     if (feedKey === feedKeys.calendarFamily()) {
       return { feedKey, memberId: null, kind: 'family' };
     }
-    const m = /^calendar:member:(.+)$/.exec(feedKey);
+    const m = /^m365:calendar:member:(.+)$/.exec(feedKey);
     if (!m) throw new Error(`Unsupported calendar feed key: ${feedKey}`);
     return { feedKey, memberId: m[1]!, kind: 'member' };
   }

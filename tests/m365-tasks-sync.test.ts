@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
+import { applyTaskPull } from '../src/modules/tasks/store.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { tasksRouter } from '../src/modules/tasks/routes.js';
 import { setTaskProvider } from '../src/modules/tasks/provider.js';
@@ -515,5 +516,94 @@ describe('m365 tasks — REST', () => {
     const get = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     const body = await get.json() as { data: Array<{ listId: string }> };
     expect(body.data.map((r) => r.listId)).toEqual(['L2']);
+  });
+});
+
+describe('applyTaskPull fullResync reconciles instead of truncating', () => {
+  const feed = { feedKey: 'todo:member:x:list1', memberId: '', listId: 'list1', listName: 'List' };
+
+  function task(externalId: string, title: string, memberId: string) {
+    return {
+      externalId, title, notes: null, dueAt: null, completedAt: null,
+      status: 'open' as const, listId: 'list1', listName: 'List', memberId,
+    };
+  }
+
+  it('preserves the row id of a task that survives a full resync', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = { ...feed, memberId: adult.user.id };
+
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Buy milk', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+    const before = await db.select().from(taskMirror).where(eq(taskMirror.externalId, 't1'));
+    const idBefore = before[0]!.id;
+
+    // Same task re-delivered by a second full snapshot, with an edited title.
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Buy oat milk', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+    const after = await db.select().from(taskMirror).where(eq(taskMirror.externalId, 't1'));
+
+    expect(after).toHaveLength(1);
+    expect(after[0]!.id).toBe(idBefore);          // the id survived
+    expect(after[0]!.title).toBe('Buy oat milk'); // and the update applied
+  });
+
+  it('deletes rows absent from a full snapshot, with no tombstone', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = { ...feed, memberId: adult.user.id };
+
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Keep me', adult.user.id), task('t2', 'Delete me', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+
+    // t2 is simply not in the next snapshot — no deletions[] entry.
+    const res = await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Keep me', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+
+    const rows = await db.select().from(taskMirror).where(eq(taskMirror.feedKey, f.feedKey));
+    expect(rows.map((r) => r.externalId)).toEqual(['t1']);
+    expect(res.deleted).toBe(1);
+  });
+
+  it('empties the feed when a full snapshot is empty', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = { ...feed, memberId: adult.user.id };
+
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Gone soon', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+    await applyTaskPull('m365', f, {
+      upserts: [], deletions: [], nextToken: null, fullResync: true,
+    });
+
+    const rows = await db.select().from(taskMirror).where(eq(taskMirror.feedKey, f.feedKey));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('does not touch another feed', async () => {
+    const { adult } = await seedTestHousehold();
+    const a = { ...feed, memberId: adult.user.id };
+    const b = { ...feed, feedKey: 'todo:member:x:list2', memberId: adult.user.id, listId: 'list2' };
+
+    await applyTaskPull('m365', a, {
+      upserts: [task('t1', 'Feed A', adult.user.id)], deletions: [], nextToken: null, fullResync: true,
+    });
+    await applyTaskPull('m365', b, {
+      upserts: [task('t9', 'Feed B', adult.user.id)], deletions: [], nextToken: null, fullResync: true,
+    });
+    await applyTaskPull('m365', a, {
+      upserts: [], deletions: [], nextToken: null, fullResync: true,
+    });
+
+    const rowsB = await db.select().from(taskMirror).where(eq(taskMirror.feedKey, b.feedKey));
+    expect(rowsB).toHaveLength(1);
   });
 });

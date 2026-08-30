@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, inArray, asc, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray, notInArray, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { feedKeys } from '../../m365/feed-keys.js';
 import { taskMirror, todoListAllowlist, type TaskMirrorRow, type TodoListAllowlistRow } from './schema.js';
@@ -38,8 +38,17 @@ function toRow(source: string, feed: TaskFeed, t: MirroredTask) {
 
 /**
  * Apply one feed's pull to the mirror.
- *  - `fullResync`: replace ALL of the feed's rows with `upserts` (410 / periodic).
+ *  - `fullResync`: `upserts` IS the complete current contents of the feed.
+ *    Rows are RECONCILED, not replaced: everything present is upserted, then
+ *    everything absent is deleted. This is what keeps `task_mirror.id` stable
+ *    for a task that survives the resync — the previous implementation deleted
+ *    the whole feed and re-inserted it, changing every uuid. `GET /api/v1/tasks`
+ *    hands those ids to the web, which then calls `/:id/complete` with one, so
+ *    churning them turns into an intermittent 404.
  *  - otherwise: upsert `upserts` (by feed + externalId) and delete `deletions`.
+ *
+ * A provider with no delta API (Google Tasks) sets `fullResync` on EVERY pull;
+ * the reconcile is what detects a deletion structurally, with no tombstone.
  */
 export async function applyTaskPull(
   source: string,
@@ -47,10 +56,6 @@ export async function applyTaskPull(
   result: TaskPullResult,
 ): Promise<{ upserted: number; deleted: number }> {
   return db.transaction(async (tx) => {
-    if (result.fullResync) {
-      await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feed.feedKey));
-    }
-
     let upserted = 0;
     for (const t of result.upserts) {
       await tx.insert(taskMirror).values(toRow(source, feed, t)).onConflictDoUpdate({
@@ -72,7 +77,19 @@ export async function applyTaskPull(
     }
 
     let deleted = 0;
-    if (!result.fullResync && result.deletions.length > 0) {
+    if (result.fullResync) {
+      // Reconcile: anything in the feed that this snapshot did not carry is gone
+      // at the source. An EMPTY snapshot legitimately empties the feed, so the
+      // seen-list being empty must delete everything rather than short-circuit.
+      const seen = result.upserts.map((t) => t.externalId);
+      const rows = await tx
+        .delete(taskMirror)
+        .where(seen.length > 0
+          ? and(eq(taskMirror.feedKey, feed.feedKey), notInArray(taskMirror.externalId, seen))
+          : eq(taskMirror.feedKey, feed.feedKey))
+        .returning({ id: taskMirror.id });
+      deleted = rows.length;
+    } else if (result.deletions.length > 0) {
       const rows = await tx
         .delete(taskMirror)
         .where(and(

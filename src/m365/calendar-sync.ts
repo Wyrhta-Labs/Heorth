@@ -2,7 +2,7 @@ import { getM365Runtime, type M365Runtime } from './runtime.js';
 import { GraphCalendarProvider } from './calendar-provider.js';
 import type { CalendarFeed, CalendarProvider } from '../modules/calendar/providers/types.js';
 import { applyMirrorPull } from '../modules/calendar/mirror-store.js';
-import { syncOneFeed, type FeedSyncResult } from './sync-runner.js';
+import { syncOneFeed, type FeedSyncResult, classify, m365FullResyncIntervalMs } from './sync-runner.js';
 
 /**
  * Calendar sync runner. Pulls each feed's delta through the (provider-agnostic)
@@ -22,11 +22,15 @@ async function syncFeed(
   feed: CalendarFeed,
   rt: M365Runtime,
 ): Promise<FeedSyncResult> {
-  return syncOneFeed(rt, feed, async (syncToken, forceFullResync) => {
-    const result = await provider.pullChanges(feed.feedKey, syncToken, forceFullResync);
-    const { upserted, deleted } = await applyMirrorPull(provider.source, feed.feedKey, result);
-    return { nextToken: result.nextToken, fullResync: result.fullResync, upserted, deleted };
-  });
+  return syncOneFeed(
+    { store: rt.store, classifyError: classify, fullResyncIntervalMs: m365FullResyncIntervalMs() },
+    feed,
+    async (syncToken, forceFullResync) => {
+      const result = await provider.pullChanges(feed.feedKey, syncToken, forceFullResync);
+      const { upserted, deleted } = await applyMirrorPull(provider.source, feed.feedKey, result);
+      return { nextToken: result.nextToken, fullResync: result.fullResync, upserted, deleted };
+    },
+  );
 }
 
 /**

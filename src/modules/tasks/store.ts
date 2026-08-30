@@ -12,8 +12,9 @@ import type { MirroredTask, TaskPullResult, TaskStatus } from './providers/types
  * the delta payload itself does not repeat the list name on every task.
  */
 
-/** A feed = one allowlisted To Do list of one member. */
+/** A feed = one allowlisted task list of one member, at one provider. */
 export interface TaskFeed {
+  provider: string;
   feedKey: string;
   memberId: string;
   listId: string;
@@ -185,57 +186,58 @@ export async function upsertMirroredTask(source: string, feed: TaskFeed, t: Mirr
 
 // --- allowlist --------------------------------------------------------------
 
-export async function getAllowlist(memberId: string): Promise<TodoListAllowlistRow[]> {
+export async function getAllowlist(memberId: string, provider: string): Promise<TodoListAllowlistRow[]> {
   return db.select().from(todoListAllowlist)
-    .where(eq(todoListAllowlist.memberId, memberId))
+    .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)))
     .orderBy(asc(todoListAllowlist.listName));
 }
 
 /**
- * Replace a member's allowlist with the given lists. Rows for lists removed from
- * the selection are deleted and their mirrored tasks cleared, so a de-selected
- * list stops syncing and disappears immediately.
+ * Replace a member's allowlist for one provider with the given lists. Rows for
+ * lists removed from the selection are deleted and their mirrored tasks cleared,
+ * so a de-selected list stops syncing and disappears immediately. Only this
+ * provider's rows for the member are touched — an allowlist from the other
+ * provider is untouched.
  */
 export async function setAllowlist(
-  memberId: string, lists: Array<{ id: string; name: string | null }>,
+  memberId: string, provider: string, lists: Array<{ id: string; name: string | null }>,
 ): Promise<TodoListAllowlistRow[]> {
   const keepIds = new Set(lists.map((l) => l.id));
   return db.transaction(async (tx) => {
     const existing = await tx.select().from(todoListAllowlist)
-      .where(eq(todoListAllowlist.memberId, memberId));
+      .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)));
 
     // Remove de-selected lists + their mirrored tasks.
     for (const row of existing) {
       if (!keepIds.has(row.listId)) {
         await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.id, row.id));
-        // TODO(task-11): hardcoded provider — threaded through TaskFeed when the tasks
-        // module resolves providers by the mirror row's source.
-        await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember('m365', memberId, row.listId)));
+        await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember(provider, memberId, row.listId)));
       }
     }
 
     // Upsert the selected lists (refresh cached names).
     for (const l of lists) {
-      await tx.insert(todoListAllowlist).values({ memberId, listId: l.id, listName: l.name })
+      await tx.insert(todoListAllowlist).values({ memberId, provider, listId: l.id, listName: l.name })
         .onConflictDoUpdate({
-          target: [todoListAllowlist.memberId, todoListAllowlist.listId],
+          target: [todoListAllowlist.provider, todoListAllowlist.memberId, todoListAllowlist.listId],
           set: { listName: l.name, updatedAt: new Date() },
         });
     }
 
     return tx.select().from(todoListAllowlist)
-      .where(eq(todoListAllowlist.memberId, memberId))
+      .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)))
       .orderBy(asc(todoListAllowlist.listName));
   });
 }
 
-/** All allowlisted lists across every member, as sync feeds. */
-export async function listAllowlistedFeeds(): Promise<TaskFeed[]> {
-  const rows = await db.select().from(todoListAllowlist);
-  // TODO(task-11): hardcoded provider — threaded through TaskFeed when the tasks
-  // module resolves providers by the mirror row's source.
+/** All allowlisted lists across every member and provider, as sync feeds. */
+export async function listAllowlistedFeeds(provider?: string): Promise<TaskFeed[]> {
+  const rows = provider
+    ? await db.select().from(todoListAllowlist).where(eq(todoListAllowlist.provider, provider))
+    : await db.select().from(todoListAllowlist);
   return rows.map((r) => ({
-    feedKey: feedKeys.todoMember('m365', r.memberId, r.listId),
+    provider: r.provider,
+    feedKey: feedKeys.todoMember(r.provider, r.memberId, r.listId),
     memberId: r.memberId,
     listId: r.listId,
     listName: r.listName,

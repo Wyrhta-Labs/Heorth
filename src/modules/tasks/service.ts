@@ -1,10 +1,11 @@
 import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import { feedKeys } from '../../integrations/feed-keys.js';
-import { getTaskProvider, getSharedListName } from './provider.js';
+import { listProviders } from '../../integrations/registry.js';
+import { requireProviderFor, getSharedListName } from './provider.js';
 import * as store from './store.js';
 import {
   TaskProviderError,
-  type CreateTaskInput, type TaskProvider,
+  type CreateTaskInput,
 } from './providers/types.js';
 import type { TaskMirrorRow, TodoListAllowlistRow } from './schema.js';
 import type { TaskFeed, ListTasksQuery } from './store.js';
@@ -16,16 +17,15 @@ import type { TaskFeed, ListTasksQuery } from './store.js';
  * provider seam and surface a classified {@link TaskProviderError} on any
  * failure — a dead/absent connection never crashes a request and never silently
  * drops the write.
+ *
+ * The default provider used by `setAllowlist` / `createHouseholdTask` is 'm365'
+ * — those two are not migrated to per-row resolution in this task (they act
+ * BEFORE any mirror row exists, so there is no row to read a source from yet);
+ * `resolveSharedFeed` still hardcodes 'm365' for the same reason, unchanged
+ * from before this task. Task 12 revisits the household list as a multi-
+ * provider concern.
  */
-
-/** The provider, or a classified `provider_unavailable` when the integration is off. */
-function requireProvider(): TaskProvider {
-  const provider = getTaskProvider();
-  if (!provider) {
-    throw new TaskProviderError('provider_unavailable', 'Microsoft 365 integration is not enabled');
-  }
-  return provider;
-}
+const DEFAULT_PROVIDER = 'm365';
 
 export type { ListTasksQuery } from './store.js';
 
@@ -35,22 +35,40 @@ export async function listTasks(query: ListTasksQuery = {}): Promise<TaskMirrorR
 }
 
 export interface AvailableListView {
+  provider: string;   // NEW — which provider this list belongs to
   id: string;
   name: string;
-  enabled: boolean;
+  enabled: boolean;   // already allowlisted by this member
 }
 
-/** A member's To Do lists, each flagged with whether it is currently allowlisted. */
+/**
+ * Discover the lists a member can sync, across EVERY registered provider. Each
+ * entry is tagged with its provider so the picker can group them and so
+ * `setAllowlist` knows which provider a chosen list belongs to.
+ */
 export async function listAvailableLists(memberId: string): Promise<AvailableListView[]> {
   await assertNotMaintenanceAdmin(memberId);
-  const provider = requireProvider();
-  const lists = await provider.listAvailableLists(memberId); // throws TaskProviderError
-  const enabled = new Set((await store.getAllowlist(memberId)).map((a) => a.listId));
-  return lists.map((l) => ({ id: l.id, name: l.name, enabled: enabled.has(l.id) }));
+  const out: AvailableListView[] = [];
+  for (const p of listProviders()) {
+    if (!p.tasks) continue;
+    // One provider being unreachable must not hide another's lists: a member
+    // connected to Google but not to M365 is a normal state, not an error.
+    try {
+      const lists = await p.tasks.listAvailableLists(memberId);
+      const enabled = new Set((await store.getAllowlist(memberId, p.id)).map((a) => a.listId));
+      for (const l of lists) {
+        out.push({ provider: p.id, id: l.id, name: l.name, enabled: enabled.has(l.id) });
+      }
+    } catch (e) {
+      if (p.classifyError(e) === 'no_connection') continue; // not connected: normal
+      throw e;
+    }
+  }
+  return out;
 }
 
 export async function getAllowlist(memberId: string): Promise<TodoListAllowlistRow[]> {
-  return store.getAllowlist(memberId);
+  return store.getAllowlist(memberId, DEFAULT_PROVIDER);
 }
 
 /**
@@ -60,7 +78,7 @@ export async function getAllowlist(memberId: string): Promise<TodoListAllowlistR
  */
 export async function setAllowlist(memberId: string, listIds: string[]): Promise<TodoListAllowlistRow[]> {
   await assertNotMaintenanceAdmin(memberId);
-  const provider = requireProvider();
+  const provider = requireProviderFor(DEFAULT_PROVIDER);
   const available = await provider.listAvailableLists(memberId); // throws TaskProviderError
   const byId = new Map(available.map((l) => [l.id, l.name]));
   const selected: Array<{ id: string; name: string | null }> = [];
@@ -70,18 +88,20 @@ export async function setAllowlist(memberId: string, listIds: string[]): Promise
     }
     selected.push({ id, name: byId.get(id) ?? null });
   }
-  return store.setAllowlist(memberId, selected);
+  return store.setAllowlist(memberId, DEFAULT_PROVIDER, selected);
 }
 
 /**
- * Complete / uncomplete a task: write back through the provider FIRST (the feed's
- * owning member's connection must be healthy — a classified error otherwise),
- * then optimistically update the local mirror. Returns null if the id is unknown.
+ * Complete / uncomplete one mirrored task. The provider is resolved from the
+ * ROW's source, not from a global: with two providers connected, a
+ * Google-mirrored task must be written back to Google.
  */
-export async function completeTask(taskId: string, completed: boolean): Promise<TaskMirrorRow | null> {
-  const provider = requireProvider();
+export async function completeTask(
+  taskId: string, completed: boolean,
+): Promise<TaskMirrorRow | null> {
   const row = await store.getTaskById(taskId);
   if (!row) return null;
+  const provider = requireProviderFor(row.source);
   await provider.setCompleted(row.feedKey, row.externalId, completed); // throws TaskProviderError
   return store.setTaskCompletedLocal(taskId, completed);
 }
@@ -105,25 +125,37 @@ export async function createHouseholdTask(
   input: CreateTaskInput,
   preferMemberId: string | null,
 ): Promise<TaskMirrorRow> {
-  const provider = requireProvider();
+  // Provider checked BEFORE resolving the shared feed — same order as before
+  // this task's migration (`requireProvider()` ran first there too), so
+  // "the integration is disabled" still reports `provider_unavailable` rather
+  // than being masked by a `shared_list_unavailable` from the feed lookup.
+  const provider = requireProviderFor(DEFAULT_PROVIDER);
   const feed = await resolveSharedFeed(preferMemberId);
   const created = await provider.createTask(feed.feedKey, input); // throws TaskProviderError
   return store.upsertMirroredTask(provider.source, feed, created);
 }
 
 /**
- * Complete / uncomplete a projected task by the stable provider key. The
- * provider is called first; the local mirror is updated only if the row exists.
+ * Complete / uncomplete a projected task by its stable provider key. The mirror
+ * row is loaded FIRST here (it was loaded after the provider call before) —
+ * without it there is no `source`, so there is no provider to call. A missing
+ * row is reported as `provider_unavailable` rather than guessed at.
  */
 export async function completeProjectedTask(
   feedKey: string,
   externalId: string,
   completed: boolean,
 ): Promise<void> {
-  const provider = requireProvider();
-  await provider.setCompleted(feedKey, externalId, completed); // throws TaskProviderError
   const row = await store.getTaskByFeedRef(feedKey, externalId);
-  if (row) await store.setTaskCompletedLocal(row.id, completed);
+  if (!row) {
+    throw new TaskProviderError(
+      'provider_unavailable',
+      'No mirrored task for that feed reference — cannot resolve a provider',
+    );
+  }
+  const provider = requireProviderFor(row.source);
+  await provider.setCompleted(feedKey, externalId, completed);
+  await store.setTaskCompletedLocal(row.id, completed);
 }
 
 export async function findTaskByFeedRef(feedKey: string, externalId: string): Promise<TaskMirrorRow | null> {
@@ -150,7 +182,8 @@ async function resolveSharedFeed(preferMemberId: string | null): Promise<TaskFee
   // Prefer the acting member if they have the shared list; else any member that does.
   const chosen = entries.find((e) => e.memberId === preferMemberId) ?? entries[0]!;
   return {
-    feedKey: feedKeys.todoMember('m365', chosen.memberId, chosen.listId),
+    provider: DEFAULT_PROVIDER,
+    feedKey: feedKeys.todoMember(DEFAULT_PROVIDER, chosen.memberId, chosen.listId),
     memberId: chosen.memberId,
     listId: chosen.listId,
     listName: chosen.listName,

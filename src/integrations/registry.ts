@@ -71,3 +71,13 @@ export function clearProviders(): void {
 export function getTaskProviderFor(source: string): TaskProvider | null {
   return providers.get(source)?.tasks ?? null;
 }
+
+/**
+ * True when at least one registered provider offers task sync. Weorc uses this
+ * to decide whether projecting an occurrence into an outward task is even
+ * possible right now — a general presence check, unlike {@link getTaskProviderFor}
+ * which is keyed to one row's source.
+ */
+export function hasTaskProvider(): boolean {
+  return [...providers.values()].some((p) => p.tasks !== null);
+}

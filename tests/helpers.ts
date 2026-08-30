@@ -1,6 +1,9 @@
 import { sign } from 'hono/jwt';
 import { config } from '../src/config/env.js';
 import { identity, householdCore } from '../src/wiring.js';
+import { registerProvider } from '../src/integrations/registry.js';
+import { IntegrationStore } from '../src/integrations/store.js';
+import type { TaskProvider } from '../src/modules/tasks/providers/types.js';
 
 type Member = Awaited<ReturnType<typeof identity.createUser>>;
 
@@ -42,4 +45,27 @@ export async function seedTestHousehold(): Promise<{
 
 export function authHeaders(jwt: string): Record<string, string> {
   return { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' };
+}
+
+/**
+ * Register a fake/stub {@link TaskProvider} into the integrations registry
+ * under `id`, filling in the non-task fields of `RegisteredProvider` with
+ * inert stubs. Task 11 moved the tasks module's write paths off the single
+ * global `setTaskProvider` slot onto this registry, so tests that used to
+ * install a fake provider that way now install it here instead — same fake
+ * provider object, different seam.
+ */
+export function registerFakeTaskProvider(id: string, tasks: TaskProvider): void {
+  registerProvider({
+    id,
+    store: new IntegrationStore(id),
+    classifyError: () => 'error',
+    fullResyncIntervalMs: 1000,
+    authorizeUrl: () => `https://${id}.test`,
+    completeConnect: async () => ({ accountLabel: `a@${id}`, refreshToken: 'r', scopes: '' }),
+    calendar: null,
+    tasks,
+    runCalendarSync: async () => [],
+    runTaskSync: async () => [],
+  });
 }

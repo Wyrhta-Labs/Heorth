@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
-import { setTaskProvider } from '../src/modules/tasks/provider.js';
+import { setSharedListName } from '../src/modules/tasks/provider.js';
+import { clearProviders } from '../src/integrations/registry.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { TaskProviderError, type TaskProvider, type MirroredTask } from '../src/modules/tasks/providers/types.js';
-import { seedTestHousehold } from './helpers.js';
+import { seedTestHousehold, registerFakeTaskProvider } from './helpers.js';
+
+/** Register `p` as the 'm365' provider and set the shared household list name —
+ * the Task 11 registry-based replacement for `setTaskProvider(p, shared)`. */
+function wireProvider(p: TaskProvider, shared: string | null = null): void {
+  registerFakeTaskProvider('m365', p);
+  if (shared) setSharedListName(shared);
+}
 
 function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { created: unknown[]; completed: unknown[] } {
   const created: unknown[] = [];
@@ -38,13 +46,13 @@ function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { create
 }
 
 describe('the tasks seam Weorc needs', () => {
-  beforeEach(() => setTaskProvider(null));
+  beforeEach(() => { clearProviders(); setSharedListName(null); });
 
   it('createHouseholdTask works with NO acting principal', async () => {
     const { adult } = await seedTestHousehold();
     await db.insert(todoListAllowlist).values({ memberId: adult.user.id, listId: 'list-1', listName: 'Household' });
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
+    wireProvider(provider, 'Household');
 
     const row = await tasks.createHouseholdTask({ title: 'Put the bins out' }, null);
     expect(row.title).toBe('Put the bins out');
@@ -58,7 +66,7 @@ describe('the tasks seam Weorc needs', () => {
       { memberId: adult.user.id, listId: 'list-1', listName: 'Household' },
     ]);
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
+    wireProvider(provider, 'Household');
 
     const row = await tasks.createHouseholdTask({ title: 'Descale the kettle' }, adult.user.id);
     expect(row.memberId).toBe(adult.user.id);
@@ -83,7 +91,7 @@ describe('the tasks seam Weorc needs', () => {
       status: 'open',
     });
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
+    wireProvider(provider, 'Household');
 
     await tasks.completeProjectedTask(feedKey, 'ext-9', true);
     expect(provider.completed).toEqual([{ feedKey, externalId: 'ext-9', value: true }]);
@@ -91,11 +99,17 @@ describe('the tasks seam Weorc needs', () => {
     expect(row!.status).toBe('completed');
   });
 
-  it('completeProjectedTask still calls the provider when NO mirror row exists', async () => {
+  // Task 11 changed this: `completeProjectedTask` used to call the provider
+  // BEFORE looking for the mirror row, so it would complete upstream even with
+  // no local row. It now requires the row first, because the row is what names
+  // the provider (there is no source to resolve without it) — a missing row is
+  // reported as `provider_unavailable` rather than guessed at.
+  it('completeProjectedTask reports provider_unavailable when NO mirror row exists', async () => {
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
-    await tasks.completeProjectedTask('todo:member:x:list-1', 'ext-gone', true);
-    expect(provider.completed).toHaveLength(1);
+    wireProvider(provider, 'Household');
+    await expect(tasks.completeProjectedTask('todo:member:x:list-1', 'ext-gone', true))
+      .rejects.toMatchObject({ reason: 'provider_unavailable' });
+    expect(provider.completed).toHaveLength(0);
   });
 
   it('finds a mirrored task by a notes marker', async () => {

@@ -6,7 +6,8 @@ import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
 import { applyTaskPull } from '../src/modules/tasks/store.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { tasksRouter } from '../src/modules/tasks/routes.js';
-import { setTaskProvider } from '../src/modules/tasks/provider.js';
+import { setSharedListName } from '../src/modules/tasks/provider.js';
+import { clearProviders } from '../src/integrations/registry.js';
 import { TaskProviderError, type TaskProvider } from '../src/modules/tasks/providers/types.js';
 import { runTaskSync } from '../src/m365/task-sync.js';
 import { runCalendarSync } from '../src/m365/calendar-sync.js';
@@ -15,11 +16,16 @@ import { feedKeys } from '../src/integrations/feed-keys.js';
 import { setM365Runtime, type M365Runtime } from '../src/m365/runtime.js';
 import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph } from './fake-graph.js';
 import { localDateOf } from '../src/lib/local-date.js';
-import { seedTestHousehold, authHeaders } from './helpers.js';
+import { seedTestHousehold, authHeaders, registerFakeTaskProvider } from './helpers.js';
 
 afterEach(() => {
   setM365Runtime(null);
-  setTaskProvider(null);
+  clearProviders();
+  // The old `setTaskProvider(null)` implicitly cleared the shared-list name too
+  // (its second arg defaults to null) — this seam is now separate, so it needs
+  // its own reset, or a test that never calls wire() inherits whatever name a
+  // PRECEDING test left behind.
+  setSharedListName(null);
 });
 
 /** Seed a household + a connected M365 connection for a given member. */
@@ -48,7 +54,8 @@ function wire(shared = fakeM365Config.sharedTodoList) {
   const rt = runtimeForFakeGraph(fake);
   setM365Runtime(rt);
   const provider = new GraphTaskProvider(rt);
-  setTaskProvider(provider, shared);
+  registerFakeTaskProvider('m365', provider);
+  setSharedListName(shared);
   return { fake, rt, provider };
 }
 
@@ -243,7 +250,7 @@ describe('m365 tasks — write-back', () => {
   });
 
   it('write paths return provider_unavailable when the integration is disabled', async () => {
-    setTaskProvider(null); // no provider installed
+    clearProviders(); // no provider installed
     const { adult } = await seedTestHousehold();
     await expect(tasks.createTask({ title: 'x' }, adult.user.id))
       .rejects.toMatchObject({ reason: 'provider_unavailable' });
@@ -461,7 +468,7 @@ describe('m365 tasks — REST', () => {
     await runTaskSync(rt);
     const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
-    setTaskProvider(failingProvider('graph_503'));
+    registerFakeTaskProvider('m365', failingProvider('graph_503'));
     const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
       method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
     });
@@ -478,7 +485,7 @@ describe('m365 tasks — REST', () => {
     await runTaskSync(rt);
     const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
-    setTaskProvider(failingProvider('network_error'));
+    registerFakeTaskProvider('m365', failingProvider('network_error'));
     const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
       method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
     });
@@ -495,7 +502,7 @@ describe('m365 tasks — REST', () => {
     await runTaskSync(rt);
     const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
-    setTaskProvider(failingProvider('graph_404'));
+    registerFakeTaskProvider('m365', failingProvider('graph_404'));
     const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
       method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
     });

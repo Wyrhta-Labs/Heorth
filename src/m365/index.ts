@@ -2,7 +2,7 @@ import type { HeorthModule } from '../modules/registry.js';
 import { getM365Runtime, isM365Enabled } from './runtime.js';
 import { GraphCalendarProvider } from './calendar-provider.js';
 import { GraphTaskProvider } from './task-provider.js';
-import { setTaskProvider } from '../modules/tasks/provider.js';
+import { setSharedListName } from '../modules/tasks/provider.js';
 import { registerProvider } from '../integrations/registry.js';
 import { runCalendarSync } from './calendar-sync.js';
 import { runTaskSync } from './task-sync.js';
@@ -37,7 +37,7 @@ export const m365Module: HeorthModule = {
       runCalendarSync: () => runCalendarSync(rt),
       runTaskSync: () => runTaskSync(rt),
     });
-    setTaskProvider(new GraphTaskProvider(rt), rt.config.sharedTodoList);
+    setSharedListName(rt.config.sharedTodoList);
   },
 };
 

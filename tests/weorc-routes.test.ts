@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../src/db/index.js';
 import { ethelAssets, ethelPlaces } from '../src/modules/ethel/schema.js';
-import { setTaskProvider } from '../src/modules/tasks/provider.js';
+import { taskMirror } from '../src/modules/tasks/schema.js';
+import { clearProviders } from '../src/integrations/registry.js';
 import { TaskProviderError, type MirroredTask, type TaskProvider } from '../src/modules/tasks/providers/types.js';
 import * as store from '../src/modules/weorc/store.js';
 import { householdToday } from '../src/modules/weorc/dates.js';
 import { addDays } from '../src/modules/weorc/recurrence.js';
-import { seedTestHousehold, authHeaders } from './helpers.js';
+import { seedTestHousehold, authHeaders, registerFakeTaskProvider } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 
@@ -41,7 +42,7 @@ function provider(overrides: Partial<TaskProvider>): TaskProvider {
 }
 
 describe('weorc routes', () => {
-  beforeEach(() => setTaskProvider(null));
+  beforeEach(() => clearProviders());
 
   it('creates an UNANCHORED routine - the normal case', async () => {
     const { adult } = await seedTestHousehold();
@@ -166,7 +167,13 @@ describe('weorc routes', () => {
     });
     const occ = await store.insertOccurrence(r.id, today);
     await store.setProjection(occ.id, 'todo:member:x:list-1', 'ext-1');
-    setTaskProvider(provider({
+    // completeProjectedTask (Task 11) now resolves the provider from the
+    // MIRROR ROW's source, so one must exist for the feed ref above.
+    await db.insert(taskMirror).values({
+      source: 'm365', feedKey: 'todo:member:x:list-1', externalId: 'ext-1',
+      memberId: adult.user.id, listId: 'list-1', title: 'Bins', status: 'open',
+    });
+    registerFakeTaskProvider('m365', provider({
       async setCompleted() { throw new TaskProviderError('network_error'); },
     }));
 

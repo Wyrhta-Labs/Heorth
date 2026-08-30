@@ -16,7 +16,7 @@ export async function runTaskSync(
   rt: M365Runtime = getM365Runtime(),
   provider: TaskProvider = new GraphTaskProvider(rt),
 ): Promise<FeedSyncResult[]> {
-  const feeds = await listAllowlistedFeeds();
+  const feeds = await listAllowlistedFeeds('m365');
   const results: FeedSyncResult[] = [];
   for (const feed of feeds) {
     results.push(await syncOneFeed(

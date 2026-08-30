@@ -60,8 +60,11 @@ export const todoListAllowlist = pgTable('todo_list_allowlist', {
   memberId: uuid('member_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   listId: text('list_id').notNull(),
   listName: text('list_name'),
+  // Which provider this list belongs to. Defaults to 'm365' so existing rows
+  // backfill correctly; a member may allowlist lists from both providers.
+  provider: text('provider').notNull().default('m365'),
 }, (t) => [
-  unique('todo_allowlist_member_list_unique').on(t.memberId, t.listId),
+  unique('todo_allowlist_provider_member_list_unique').on(t.provider, t.memberId, t.listId),
   index('todo_allowlist_member_idx').on(t.memberId),
 ]);
 

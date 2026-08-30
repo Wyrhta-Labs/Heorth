@@ -1,7 +1,7 @@
 import { logError } from '@wyrhta/core/lib';
 import * as tasks from '../tasks/service.js';
 import { TaskProviderError } from '../tasks/providers/types.js';
-import { getTaskProvider } from '../tasks/provider.js';
+import { hasTaskProvider } from '../../integrations/registry.js';
 import { anchorName } from './anchors.js';
 import * as store from './store.js';
 import { householdToday, householdMidnightUtc } from './dates.js';
@@ -95,7 +95,7 @@ async function composeNotes(routine: WeorcRoutine, occurrenceId: string): Promis
 }
 
 export async function projectOccurrence(occ: WeorcOccurrence): Promise<ProjectionOutcome> {
-  if (!getTaskProvider()) return { ok: false };
+  if (!hasTaskProvider()) return { ok: false };
 
   const routine = await store.getRoutine(occ.routineId);
   if (!routine) return { ok: false };
@@ -162,7 +162,7 @@ export async function runWeorcTick(): Promise<WeorcTickResult> {
     if (created) result.materialised += 1;
   }
 
-  if (getTaskProvider()) {
+  if (hasTaskProvider()) {
     for (const occ of await store.openOccurrencesWithoutLink()) {
       try {
         const outcome = await projectOccurrence(occ);

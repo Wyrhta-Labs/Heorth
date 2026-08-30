@@ -54,7 +54,7 @@ export interface MirroredEvent {
 
 /** A discrete incremental-sync stream the provider can pull. */
 export interface CalendarFeed {
-  /** Canonical `m365_sync_state` key (see `src/m365/feed-keys.ts`). */
+  /** Canonical `integration_sync_state` key (see `src/integrations/feed-keys.ts`). */
   feedKey: string;
   /** Owning member (member feeds) or null (shared/family feed). */
   memberId: string | null;
@@ -108,7 +108,7 @@ export interface CalendarProvider {
    * `forceFullResync`, when true, tells the provider to ignore `syncToken` and
    * do a fresh full (re-windowed) snapshot even though a token is present. The
    * sync runner sets this on a deterministic schedule (tracked via
-   * `m365_sync_state.lastFullSyncAt`) so a rolling time window actually rolls
+   * `integration_sync_state.lastFullSyncAt`) so a rolling time window actually rolls
    * forward instead of staying pinned to the window computed when the token
    * was first minted.
    */

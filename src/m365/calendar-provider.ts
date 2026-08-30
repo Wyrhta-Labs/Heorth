@@ -15,7 +15,7 @@ import type {
  * Uses `calendarView/delta` over a rolling window so Graph expands recurring
  * events into individual occurrences for us; we mirror expanded occurrences and
  * never reconstruct recurrence rules. Delta tokens are opaque `@odata.deltaLink`
- * URLs, persisted by the sync runner in `m365_sync_state`.
+ * URLs, persisted by the sync runner in `integration_sync_state`.
  *
  * Recurring series need special handling — `calendarView/delta` delivers them
  * in pieces:

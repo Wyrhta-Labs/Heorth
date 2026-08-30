@@ -7,8 +7,8 @@ import { AppOnlyClient } from './app-only.js';
 /**
  * The live M365 dependencies route handlers and (later) providers resolve per
  * request. Consumers in Tasks 2.2/2.3 depend only on this surface:
- *  - `config`     — resolved M365 settings (tenant, family mailbox, shared list).
- *  - `store`      — connections + generic sync state (see `store.ts`).
+ *  - `config`     — resolved M365 settings (tenant, family mailbox).
+ *  - `store`      — connections + generic sync state (`src/integrations/store.ts`).
  *  - `delegated`  — per-member access tokens (auth-code flow).
  *  - `appOnly`    — tenant-scoped token for the family mailbox.
  *  - `graphFetch` — bearer JSON call with 429 retry + typed GraphError mapping.

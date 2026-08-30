@@ -7,7 +7,7 @@ import { syncOneFeed, type FeedSyncResult, classify, m365FullResyncIntervalMs } 
 /**
  * Calendar sync runner. Pulls each feed's delta through the (provider-agnostic)
  * {@link CalendarProvider}, applies it to the read-only mirror, and records
- * per-feed state in `m365_sync_state`. All of the machinery AROUND the pull —
+ * per-feed state in `integration_sync_state`. All of the machinery AROUND the pull —
  * connection short-circuit, periodic re-window, error isolation + classification
  * — lives in the shared {@link syncOneFeed} (see `sync-runner.ts`), so the
  * calendar and To Do runners behave identically.
@@ -35,8 +35,8 @@ async function syncFeed(
 
 /**
  * Run all calendar feeds sequentially. Returns a per-feed result summary. Safe
- * to call from the scheduler tick or the manual `POST /api/v1/m365/sync` route.
- * Never rejects for a per-feed failure; only a total inability to enumerate
+ * to call from the scheduler tick or the manual `POST /api/v1/integrations/sync`
+ * route. Never rejects for a per-feed failure; only a total inability to enumerate
  * feeds (e.g. app-only token failure surfaced by listFeeds) would propagate.
  */
 export async function runCalendarSync(

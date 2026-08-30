@@ -151,16 +151,17 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
   const attendees = await tx.delete(eventAttendees).where(eq(eventAttendees.memberId, adminId));
   counts['event_attendees'] = attendees.count;
   const m365 = await tx.delete(integrationConnections).where(eq(integrationConnections.memberId, adminId));
-  counts['m365_connections'] = m365.count;
+  counts['integration_connections'] = m365.count;
   const library = await tx.delete(libraryConnections).where(eq(libraryConnections.memberId, adminId));
   counts['library_connections'] = library.count;
 
-  // `m365_sync_state` is keyed by a generic `feedKey` string, not `memberId`, so
-  // it cannot be targeted with a plain `where(eq(memberId, adminId))` delete —
-  // the feed keys must be rebuilt via `feedKeys` (never hand-formatted, per its
-  // own contract) BEFORE the allowlist rows they are derived from are deleted.
-  // Without this, a feed the admin had connected leaves a permanently frozen
-  // row in `/m365/status`'s `feeds[]` forever.
+  // `integration_sync_state` is keyed by a generic `feedKey` string, not
+  // `memberId`, so it cannot be targeted with a plain `where(eq(memberId,
+  // adminId))` delete — the feed keys must be rebuilt via `feedKeys` (never
+  // hand-formatted, per its own contract) BEFORE the allowlist rows they are
+  // derived from are deleted. Without this, a feed the admin had connected
+  // leaves a permanently frozen row in `/integrations/status`'s `feeds[]`
+  // forever.
   const adminAllowlistRows = await tx.select().from(todoListAllowlist)
     .where(eq(todoListAllowlist.memberId, adminId));
   const staleFeedKeys = [
@@ -173,7 +174,7 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
   if (staleFeedKeys.length > 0) {
     const syncState = await tx.delete(integrationSyncState)
       .where(inArray(integrationSyncState.feedKey, staleFeedKeys));
-    counts['m365_sync_state'] = syncState.count;
+    counts['integration_sync_state'] = syncState.count;
   }
 
   const allowlist = await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.memberId, adminId));

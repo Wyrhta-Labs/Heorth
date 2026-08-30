@@ -10,10 +10,10 @@ import { classify, m365FullResyncIntervalMs } from './sync-runner.js';
 /**
  * The Microsoft 365 area registers as a module but is a NO-OP when the
  * integration is disabled (no `M365_*` env). When enabled it registers itself
- * as a provider into the integrations registry (mounted routes now live at
- * `/api/v1/integrations`, see `src/integrations`) AND installs the Graph To Do
- * provider into the tasks module's write-path seam (the tasks module never
- * imports a Graph type itself).
+ * as a provider into the integrations registry (`registerProvider`, mounted
+ * routes now live at `/api/v1/integrations`, see `src/integrations`) — the
+ * tasks module resolves writes through that registry by the mirror row's
+ * `source` column and never imports a Graph type itself.
  */
 export const m365Module: HeorthModule = {
   name: 'm365',

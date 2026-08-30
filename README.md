@@ -74,7 +74,7 @@ lists `ALL_MODULES`):
 | `/api/v1/ethel/assets`, `/api/v1/ethel/places` | `src/modules/ethel/` | The property register: assets with lifecycle fields (purchase, warranty, decommission/reactivation), search/filter/paginate, plus a `places` tree and per-asset vehicle/facility detail — a standalone, always-on `HeorthModule` (ADR 0013); no dependency on feoh (see [Ethel](#ethel) below) |
 | `/api/v1/weorc/*` | `src/modules/weorc/` | Household routines and due work: recurring chores anchored to assets/places, occurrence history, and projection into Tasks when a provider exists — always on and not gated by M365 (see [Weorc](#weorc) below) |
 | `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills + occurrences, item costs/TCO, account ledger + reconciliation (ADR 0007) — a `HeorthModule`, always on (see [Finance](#finance) below) |
-| `/api/v1/m365/*` | `src/m365/` | Microsoft 365 connection flow — **only mounted when configured** (see below); absent otherwise |
+| `/api/v1/integrations/*` | `src/integrations/`, `src/m365/` | Provider-scoped connection flow (e.g. `/api/v1/integrations/m365/callback`) — **only a provider's routes mount when it's configured** (see below); absent otherwise |
 
 **Heorth serves REST only.** The MCP surface moved out of this service into
 its own container, `Wyrhta-Labs/heorth-mcp` (ADR 0008) — a pure REST client
@@ -235,92 +235,129 @@ read routines and occurrences.
 ## Microsoft 365 (optional integration)
 
 Heorth can mirror the household's M365 calendars and sync Microsoft To Do
-(Phase 2). The foundation lives in `src/m365/` — the **only** place Graph
-types and URLs appear. It is **optional as a group**: set all six `M365_*`
-variables to enable it, or none to leave it fully disabled.
+(Phase 2). The Graph-specific foundation lives in `src/m365/` — the **only**
+place Graph types and URLs appear — on top of the provider-neutral
+connection/sync-state/registry machinery in `src/integrations/` (shared with
+the Google provider planned for Phase 2). It is **optional as a group**: set
+all five `M365_*` variables to enable it, or none to leave it fully disabled.
 
 ```
-# Microsoft 365 — all six or none (partial config is a startup error)
+# Microsoft 365 — all five or none (partial config is a startup error)
 M365_TENANT_ID=<tenant guid>
 M365_CLIENT_ID=<app registration client id>
 M365_CLIENT_SECRET=<client secret>
-M365_REDIRECT_URI=http://localhost:14000/api/v1/m365/callback
+M365_REDIRECT_URI=http://localhost:14000/api/v1/integrations/m365/callback
 M365_FAMILY_MAILBOX=family-calendar@example.com   # shared mailbox (app-only)
-M365_SHARED_TODO_LIST=Household                    # write-target To Do list
 
-# Optional, INDEPENDENT of the group above (a tuning knob, not a credential):
-M365_SYNC_INTERVAL_SECONDS=300                      # mirror poll interval; floored at 60
+# Optional, INDEPENDENT of the group above (a tuning knob, not a credential),
+# and shared by every provider — not M365-specific despite the historical name:
+INTEGRATIONS_SYNC_INTERVAL_SECONDS=300              # mirror poll interval; floored at 60
 ```
 
+**The Entra app registration's redirect URI must be
+`<base>/api/v1/integrations/m365/callback`** — the provider segment moved into
+the path when the connection routes stopped being M365-only. A registration
+still pointed at the old `/api/v1/m365/callback` fails consent with
+`redirect_uri_mismatch`.
+
 - **Disabled (default):** when the group is absent, the M365 module registers
-  as a no-op — no routes are mounted, so `/api/v1/m365/*` returns the app's
-  catch-all `404`. Zero impact on boot, existing routes, or tests.
-- **Enabled:** the connection routes mount at `/api/v1/m365`:
-  - `GET /connect` (auth) → 302 to Microsoft consent; the `state` is a signed
-    token binding the flow to the acting member.
-  - `GET /callback` → exchanges the code, resolves the account via `/me`, and
-    stores the **encrypted** refresh token (one row per member).
-  - `GET /status` (auth) → the acting member's connection + last errors and
-    **per-feed sync state** (feed key, last success, last error, consecutive
-    failures — the delta token is never exposed); admin sees all connections and
-    all feeds. This is the data the Hearth View staleness badges (Task 2.5) read.
-  - `POST /sync` (admin) → runs all calendar feeds then all To Do feeds once and
-    returns the combined per-feed result summary; used by dev/tests to drive sync
-    without the scheduler.
-  - `DELETE /connection` (auth) → the acting member disconnects (row deleted).
-- **Read-only calendar mirror (Task 2.2):** a background poll
-  (`M365_SYNC_INTERVAL_SECONDS`, default 300, floored at 60) pulls each connected
-  member's **default calendar** (delegated) and the **family mailbox** (app-only)
-  via Graph `calendarView/delta` over a rolling window (−60d … +400d). A delta
-  token replays the SAME window it was minted with — it does not itself widen
-  or shift — so the mirror also does a deterministic **full re-window** every
-  `M365_FULL_RESYNC_INTERVAL_SECONDS` (default 7 days, independent of the
-  `M365_SYNC_INTERVAL_SECONDS` poll cadence), tracked per feed via
-  `m365_sync_state.last_full_sync_at`; this is what actually rolls the window
-  forward. Recurring events are mirrored as Graph's expanded occurrences (rules
-  are never reconstructed). Mirrored events land in a sibling
-  `calendar_mirror_events` table and surface in the existing calendar
-  range/week/dashboard queries alongside native events — but are
+  as a no-op — no provider mounts, so `/api/v1/integrations/m365/*` returns the
+  app's catch-all `404`. Zero impact on boot, existing routes, or tests.
+- **Enabled:** the connection routes mount at `/api/v1/integrations`, with a
+  provider segment (`m365`, and `google` in Phase 2) on the per-provider ones:
+  - `GET /:provider/connect` (auth) → 302 to the provider's consent screen; the
+    `state` is a signed token binding the flow to the acting member.
+  - `GET /:provider/callback` → exchanges the code, resolves the account, and
+    stores the **encrypted** refresh token (one row per member per provider).
+  - `GET /status` (auth) → the acting member's connections + last errors,
+    **per-feed sync state** across every registered provider (feed key, last
+    success, last error, consecutive failures — the sync token is never
+    exposed), and `householdListDesignated`; admin/adult sees all connections
+    and all feeds. This is the data the Hearth View staleness badges read.
+  - `POST /sync` (admin) → runs every registered provider's calendar feeds then
+    its To Do feeds once and returns the combined per-feed result summary;
+    used by dev/tests to drive sync without the scheduler.
+  - `DELETE /:provider/connection` (auth) → the acting member disconnects from
+    that provider (row deleted).
+- **Read-only calendar mirror:** a background poll
+  (`INTEGRATIONS_SYNC_INTERVAL_SECONDS`, default 300, floored at 60) pulls each
+  connected member's **default calendar** (delegated) and the **family
+  mailbox** (app-only) via Graph `calendarView/delta` over a rolling window
+  (−60d … +400d). A delta token replays the SAME window it was minted with —
+  it does not itself widen or shift — so the mirror also does a deterministic
+  **full re-window** every `M365_FULL_RESYNC_INTERVAL_SECONDS` (default 7 days,
+  independent of the `INTEGRATIONS_SYNC_INTERVAL_SECONDS` poll cadence),
+  tracked per feed via `integration_sync_state.last_full_sync_at`; this is what
+  actually rolls the window forward. Recurring events are mirrored as Graph's
+  expanded occurrences (rules are never reconstructed). Mirrored events land in
+  a sibling `calendar_mirror_events` table and surface in the existing
+  calendar range/week/dashboard queries alongside native events — but are
   **read-only everywhere**: update/move/delete of a mirrored event
   is rejected (`EVENT_READ_ONLY`), and the web renders them with a subtle
   source marker and no edit affordance. Delta tokens + per-feed errors persist
-  in `m365_sync_state`; an expired token (`410 Gone`) also triggers a full feed
-  re-sync (in addition to the deterministic schedule above), and a connection
-  needing re-consent is recorded as `needs_reauth` and skipped (not
+  in `integration_sync_state`; an expired token (`410 Gone`) also triggers a
+  full feed re-sync (in addition to the deterministic schedule above), and a
+  connection needing re-consent is recorded as `needs_reauth` and skipped (not
   hot-retried). Absolute UTC instants are stored; the source event's own
   timezone is kept as display metadata only (`source_time_zone`) — Heorth does
   not re-localize on write. The scheduler starts at boot only when enabled and
   never runs under tests.
-- **Household tasks + To Do sync (Task 2.3):** the Tasks surface
-  (`/api/v1/tasks`) is backed by Microsoft To Do as the system of record.
-  Sync is **delegated-only** and **allowlist-gated per member** — nothing syncs
-  until a member chooses lists (`GET /api/v1/tasks/lists` discovery,
+- **Household tasks + To Do sync:** the Tasks surface (`/api/v1/tasks`) is
+  backed by Microsoft To Do as the system of record. Sync is
+  **delegated-only** and **allowlist-gated per member** — nothing syncs until a
+  member chooses lists (`GET /api/v1/tasks/lists` discovery,
   `GET/PUT /api/v1/tasks/allowlist`); each allowlisted list becomes a feed
-  `todo:member:<id>:<listId>` pulled via `/me/todo/lists/{listId}/tasks/delta`
-  into a sibling `task_mirror` table (a `410`/periodic full re-sync replaces the
-  feed). Unlike the calendar, tasks are **interactive**:
+  `m365:todo:member:<id>:<listId>` pulled via
+  `/me/todo/lists/{listId}/tasks/delta` into a sibling `task_mirror` table (a
+  `410`/periodic full re-sync reconciles the feed's rows in place — it no
+  longer deletes and re-inserts them, so `task_mirror.id` stays stable across a
+  resync). Unlike the calendar, tasks are **interactive**:
   `POST /api/v1/tasks/:id/complete` writes completion back (optimistic local
   update, sync reconciles) and `POST /api/v1/tasks` creates a task into the
-  **shared household list** (`M365_SHARED_TODO_LIST`), resolved BY NAME through a
-  connected member who has allowlisted it — preferring the acting member, else
-  any member that has it. `GET /api/v1/tasks` lists the mirror with filters
-  (status / member / list / due range). All members may read; any authenticated
-  member (children included) may complete/create; a write against a
-  dead/absent connection returns a **classified** error (409 conflict, or 500
-  when the integration is off / an upstream failure), never a crash and never a
-  silent drop. Task feeds
-  join the same scheduler tick and `POST /api/v1/m365/sync` (sequential after
-  calendar, same per-feed isolation) and appear in `GET /api/v1/m365/status`.
-  Reads work even when the integration is disabled (the mirror is simply empty);
-  only the write/discovery paths need it enabled.
+  **designated household list** — see "Designating the household task list"
+  below — resolved through a connected member who has allowlisted it,
+  preferring the acting member, else any member that has it. `GET /api/v1/tasks`
+  lists the mirror with filters (status / member / list / due range). All
+  members may read; any authenticated member (children included) may
+  complete/create; a write against a dead/absent connection returns a
+  **classified** error (409 conflict, or 500 when the integration is off / an
+  upstream failure), never a crash and never a silent drop. Task feeds join the
+  same scheduler tick and `POST /api/v1/integrations/sync` (sequential after
+  calendar, same per-feed isolation) and appear in
+  `GET /api/v1/integrations/status`. Reads work even when the integration is
+  disabled (the mirror is simply empty); only the write/discovery paths need
+  it enabled.
 - **Auth modes:** per-member **delegated** (auth-code, refresh tokens encrypted
   at rest, access tokens cached in memory, rotated refresh tokens re-stored) for
   calendars + To Do; **app-only** (client-credentials, `.default`) for the
   family shared mailbox, so the family calendar never hangs off one member's
   token.
-- **Secrets:** refresh tokens are AES-256-GCM encrypted (`src/m365/crypto.ts`,
-  key derived from `JWT_SECRET`); token material is never logged or returned
-  over the API.
+- **Secrets:** refresh tokens are AES-256-GCM encrypted
+  (`src/integrations/crypto.ts`, key derived from `JWT_SECRET`); token material
+  is never logged or returned over the API. The HKDF salt/info strings still
+  say `m365` deliberately — they predate the Google provider and changing
+  either would make every already-stored refresh token undecryptable.
+
+### Designating the household task list
+
+There is no `M365_SHARED_TODO_LIST` variable. The household task list — where
+`POST /api/v1/tasks` writes new household-created tasks, and what Weorc
+projects due routines into — is a **database flag**,
+`todo_list_allowlist.is_household`, set with:
+
+```
+PUT /api/v1/tasks/household-list     (admin or adult)
+  { "provider": "m365", "listId": "<a list id from GET /api/v1/tasks/lists>" }
+```
+
+A migration backfills this from a pre-existing `M365_SHARED_TODO_LIST` value by
+matching the old value's list name across every connected member's
+allowlisted lists. **If nothing matches, no list is designated** — household
+task creation and Weorc's projection pass both stop until an adult picks one.
+Heorth surfaces this rather than failing silently: a boot-time console warning
+fires whenever a provider is registered but no list is designated, and
+`GET /api/v1/integrations/status`'s `householdListDesignated` boolean makes the
+same state visible to the web/wall at any time, not just at boot.
 
 Real-tenant behaviour is out of CI scope. A human can smoke-test app-only
 access against the real `.env` with `npx tsx scripts/m365-smoke.ts` (acquires
@@ -653,7 +690,8 @@ else is read-only — no event editing, no forms, no auth flows on the wall.
 **Freshness & staleness.** Data auto-refreshes via TanStack Query polling (tasks
 ~30s, events ~60s, meals ~120s, sync-health ~60s) plus refetch on reconnect, and
 survives Wi-Fi blips without blanking (the last-known view stays up, with an
-"as of HH:MM" stamp). Per-feed staleness comes from `GET /api/v1/m365/status`:
+"as of HH:MM" stamp). Per-feed staleness comes from
+`GET /api/v1/integrations/status`:
 a member whose feed has gone silent has their items greyed and a footer note
 ("<member> — last synced 2h ago"); a feed needing re-auth reads "reconnect from
 your phone" — the wall **never** starts an auth flow itself. `status`'s

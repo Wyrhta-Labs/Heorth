@@ -151,9 +151,33 @@ google:calendar:member:<memberId>:<calendarId>
 google:todo:member:<memberId>:<listId>
 ```
 
-Keys stay opaque — built through `feedKeys` helpers, never parsed. The provider
-segment exists to guarantee uniqueness across providers, not to be read back out.
-`integration_sync_state` rows are located by exact key.
+Keys are built through `feedKeys` helpers. The provider segment exists to guarantee
+uniqueness across providers, and `integration_sync_state` rows are located by exact
+key.
+
+> **Corrected 2026-08-30, during implementation.** This paragraph originally claimed
+> keys "stay opaque — never parsed". **That was wrong about the existing code**, and
+> the error was load-bearing: both Graph providers parse the key back apart to recover
+> ids, so adding the provider segment breaks them.
+>
+> - `src/m365/calendar-provider.ts`: `/^calendar:member:(.+)$/.exec(feedKey)`
+> - `src/m365/task-provider.ts`: `/^todo:member:([^:]+):(.+)$/.exec(feedKey)`
+>
+> Two test fixtures parse positionally as well — `weorc-projection.test.ts` and
+> `weorc-task-seam.test.ts` derive a member id via `feedKey.split(':')[2]`, which the
+> added segment shifts to `[3]`.
+>
+> Verified by mutation: leaving `task-provider.ts` stale fails 20 tests in
+> `tests/m365-tasks-sync.test.ts`, so the suite catches it loudly rather than letting
+> it ship silently.
+>
+> **What this means for Phase 2:** opacity is the right aspiration, but it is not the
+> current reality, and a Google provider must not inherit the habit. `GoogleCalendarProvider`
+> and `GoogleTaskProvider` should resolve a feed's member and list from its
+> `calendar_allowlist` / `todo_list_allowlist` row — which they already read to enumerate
+> feeds — instead of re-parsing the key. Making the M365 providers do the same is worth
+> a follow-up, but is deliberately out of scope here: it is behaviour change inside a
+> refactor.
 
 ## Error classification seam
 

@@ -240,6 +240,17 @@ The maintenance-admin quarantine (`assertNotMaintenanceAdmin`,
 `isMaintenanceAdminId`) carries over unchanged to both providers, including the
 redirect-not-throw behaviour on the callback path.
 
+> **Found 2026-08-30, during Phase 1. A Phase 2 landmine in `src/household/maintenance-admin.ts`.**
+>
+> `stripAdminOwnedData` cleans up after a quarantined maintenance admin. Two of its steps do not survive a second provider:
+>
+> 1. **`staleFeedKeys` hardcodes `'m365'`** (`maintenance-admin.ts:167-169`). It builds the admin's calendar and To Do feed keys to delete their sync state, and its own comment says why this matters: *"Without this, a feed the admin had connected leaves a permanently frozen row in `/status`'s `feeds[]` forever."* Once Google exists, exactly that happens to the admin's Google feeds. **Phase 2 must build these keys for every registered provider**, not just M365.
+> 2. The `counts` keys are now stale labels — `'m365_connections'` and `'m365_sync_state'` name tables called `integration_connections` and `integration_sync_state`. Operator-visible in the repair output.
+>
+> Note the connection delete itself (`maintenance-admin.ts:153`) is provider-**un**scoped, deleting by `memberId` alone — and that is **correct**. Stripping the admin's owned data should remove every connection they hold, whatever the provider. The gap runs the other way: the sync-state cleanup is over-scoped to M365. Do not "fix" the connection delete by adding a provider filter.
+>
+> Not fixed in Phase 1: with only one provider registered, neither issue is reachable, and no test could exercise the fix.
+
 **Operator action, already done:** the Entra app registration's redirect URI was
 updated on 2026-08-29. Phase 1 must verify `M365_REDIRECT_URI` in `deploy/.env`
 matches the registered value (expected `<base>/api/v1/integrations/m365/callback`)

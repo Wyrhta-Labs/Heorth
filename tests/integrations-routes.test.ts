@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { sign } from 'hono/jwt';
+import { db } from '../src/db/index.js';
+import { todoListAllowlist } from '../src/modules/tasks/schema.js';
+import { getHouseholdFeed, setHouseholdList } from '../src/modules/tasks/store.js';
 import { createApp, heorthErrorHandler } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
 import { integrationsRouter } from '../src/integrations/routes.js';
@@ -269,5 +272,23 @@ describe('/api/v1/integrations', () => {
     const { adult } = await seedTestHousehold();
     const res = await createApp(ALL_MODULES).request('/api/v1/m365/status', { headers: authHeaders(adult.jwt) });
     expect(res.status).toBe(404);
+  });
+
+  it('reports whether a household task list is designated', async () => {
+    const { adult } = await seedTestHousehold();
+    const before = await integrationsApp().request('/api/v1/integrations/status', {
+      headers: authHeaders(adult.jwt),
+    });
+    expect((await before.json()).data.householdListDesignated).toBe(false);
+
+    await db.insert(todoListAllowlist).values({
+      memberId: adult.user.id, provider: 'm365', listId: 'l1', listName: 'Household',
+    });
+    await setHouseholdList(adult.user.id, 'm365', 'l1');
+
+    const after = await integrationsApp().request('/api/v1/integrations/status', {
+      headers: authHeaders(adult.jwt),
+    });
+    expect((await after.json()).data.householdListDesignated).toBe(true);
   });
 });

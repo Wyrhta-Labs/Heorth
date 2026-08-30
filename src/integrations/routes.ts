@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../wiring.js';
 import { assertNotMaintenanceAdmin, isMaintenanceAdminId } from '../household/maintenance-admin.js';
+import { getHouseholdFeed } from '../modules/tasks/store.js';
 import { signConnectState, verifyConnectState } from './state.js';
 import { getProvider, listProviders } from './registry.js';
 import type { IntegrationSyncStateRow } from './schema.js';
@@ -49,6 +50,8 @@ integrationsRouter.get('/status', requireAuth, async (c) => {
     ? (await providers[0]!.store.listSyncState()).map(toPublicFeed)
     : [];
 
+  const householdListDesignated = (await getHouseholdFeed()) !== null;
+
   if (auth.role === 'admin' || auth.role === 'adult') {
     const perProvider = await Promise.all(providers.map(async (p) => ({
       connection: await p.store.getConnection(auth.userId),
@@ -58,6 +61,7 @@ integrationsRouter.get('/status', requireAuth, async (c) => {
       connection: perProvider.map((r) => r.connection).find((r) => r !== null) ?? null,
       connections: perProvider.flatMap((r) => r.connections),
       feeds,
+      householdListDesignated,
       providers: providers.map((p) => p.id),
     });
   }

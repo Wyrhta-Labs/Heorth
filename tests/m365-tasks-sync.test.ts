@@ -66,7 +66,7 @@ describe('m365 tasks — list discovery + allowlist', () => {
     expect(lists.map((l) => `${l.id}:${l.name}:${l.enabled}`).sort())
       .toEqual(['L1:Groceries:false', 'L2:Household:false']);
 
-    await tasks.setAllowlist(adult.user.id, ['L1']);
+    await tasks.setAllowlist(adult.user.id, [{ provider: 'm365', listId: 'L1' }]);
     lists = await tasks.listAvailableLists(adult.user.id);
     expect(lists.find((l) => l.id === 'L1')!.enabled).toBe(true);
     expect(lists.find((l) => l.id === 'L2')!.enabled).toBe(false);
@@ -77,7 +77,10 @@ describe('m365 tasks — list discovery + allowlist', () => {
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
     fake.setTodoLists([{ id: 'L1', displayName: 'Groceries' }]);
-    await expect(tasks.setAllowlist(adult.user.id, ['L1', 'NOPE'])).rejects.toMatchObject({ reason: 'unknown_list' });
+    await expect(tasks.setAllowlist(adult.user.id, [
+      { provider: 'm365', listId: 'L1' },
+      { provider: 'm365', listId: 'NOPE' },
+    ])).rejects.toMatchObject({ reason: 'unknown_list' });
   });
 });
 
@@ -517,7 +520,8 @@ describe('m365 tasks — REST', () => {
     fake.setTodoLists([{ id: 'L1', displayName: 'Groceries' }, { id: 'L2', displayName: 'Household' }]);
 
     const put = await app().request('/api/v1/tasks/allowlist', {
-      method: 'PUT', headers: authHeaders(adult.jwt), body: JSON.stringify({ listIds: ['L2'] }),
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ lists: [{ provider: 'm365', listId: 'L2' }] }),
     });
     expect(put.status).toBe(200);
     const get = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });

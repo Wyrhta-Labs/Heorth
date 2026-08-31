@@ -187,10 +187,16 @@ export async function upsertMirroredTask(source: string, feed: TaskFeed, t: Mirr
 
 // --- allowlist --------------------------------------------------------------
 
-export async function getAllowlist(memberId: string, provider: string): Promise<TodoListAllowlistRow[]> {
-  return db.select().from(todoListAllowlist)
-    .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)))
-    .orderBy(asc(todoListAllowlist.listName));
+/**
+ * A member's allowlisted lists. `provider` narrows to one provider; omitted, it
+ * returns every provider's rows — which is what the picker and the settings
+ * surface need now that a member may hold lists at both.
+ */
+export async function getAllowlist(memberId: string, provider?: string): Promise<TodoListAllowlistRow[]> {
+  const where = provider
+    ? and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider))
+    : eq(todoListAllowlist.memberId, memberId);
+  return db.select().from(todoListAllowlist).where(where).orderBy(asc(todoListAllowlist.listName));
 }
 
 /**

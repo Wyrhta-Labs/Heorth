@@ -19,8 +19,17 @@ export const createTaskSchema = z.object({
   dueAt: z.string().datetime().optional().nullable(),
 });
 
+/**
+ * Provider-aware allowlist submission. The old `{ listIds: string[] }` shape
+ * could not express which provider a list belonged to, so a Google list was
+ * unselectable. No alias is kept — the web is the only client, and heorth-mcp
+ * does not touch this route.
+ */
 export const setAllowlistSchema = z.object({
-  listIds: z.array(z.string().min(1)).default([]),
+  lists: z.array(z.object({
+    provider: z.string().min(1),
+    listId: z.string().min(1),
+  })).default([]),
 });
 
 export const setHouseholdListSchema = z.object({

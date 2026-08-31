@@ -17,12 +17,10 @@ import type { TaskFeed, ListTasksQuery } from './store.js';
  * failure — a dead/absent connection never crashes a request and never silently
  * drops the write.
  *
- * The default provider used by `setAllowlist` is 'm365' — it acts BEFORE any
- * mirror row exists (there is no row to read a source from yet). The household
- * list (`createHouseholdTask`) is no longer defaulted to one provider: it is
- * resolved from whichever allowlist row carries `is_household` (Task 12).
+ * The household list (`createHouseholdTask`) is no longer defaulted to one
+ * provider: it is resolved from whichever allowlist row carries `is_household`
+ * (Task 12).
  */
-const DEFAULT_PROVIDER = 'm365';
 
 export type { ListTasksQuery } from './store.js';
 
@@ -71,28 +69,53 @@ export async function listAvailableLists(memberId: string): Promise<AvailableLis
   return out;
 }
 
+/** Every allowlisted list the member holds, across all providers. */
 export async function getAllowlist(memberId: string): Promise<TodoListAllowlistRow[]> {
-  return store.getAllowlist(memberId, DEFAULT_PROVIDER);
+  return store.getAllowlist(memberId);
 }
 
 /**
- * Replace a member's allowlist. The submitted ids are validated against the
- * member's live lists so we can cache the correct display names and reject an id
- * the member cannot actually access.
+ * Replace a member's allowlist across providers.
+ *
+ * The submitted ids are validated against the member's LIVE lists per provider,
+ * so the cached display names are right and an inaccessible id is refused.
+ *
+ * Replacement is scoped to the providers whose discovery SUCCEEDED: a provider
+ * that is unreachable right now could not have shown its lists in the picker,
+ * so an absent entry for it means "not offered", not "de-selected". Wiping it
+ * would silently stop syncing lists the member never touched.
  */
-export async function setAllowlist(memberId: string, listIds: string[]): Promise<TodoListAllowlistRow[]> {
+export async function setAllowlist(
+  memberId: string, entries: Array<{ provider: string; listId: string }>,
+): Promise<TodoListAllowlistRow[]> {
   await assertNotMaintenanceAdmin(memberId);
-  const provider = requireProviderFor(DEFAULT_PROVIDER);
-  const available = await provider.listAvailableLists(memberId); // throws TaskProviderError
-  const byId = new Map(available.map((l) => [l.id, l.name]));
-  const selected: Array<{ id: string; name: string | null }> = [];
-  for (const id of listIds) {
-    if (!byId.has(id)) {
-      throw new TaskProviderError('unknown_list', `List not accessible for this member: ${id}`);
+  for (const p of listProviders()) {
+    if (!p.tasks) continue;
+    let available;
+    try {
+      available = await p.tasks.listAvailableLists(memberId);
+    } catch (e) {
+      // The provider may have already classified this: TaskProviderError carries
+      // a reason. Only fall back to the provider's own classifier for a raw
+      // error — reclassifying an already-classified TaskProviderError through
+      // `classifyError` (which only understands its own raw errors, e.g.
+      // GraphError) loses the reason and rethrows, killing the whole PUT for
+      // every OTHER provider too.
+      const reason = e instanceof TaskProviderError ? e.reason : p.classifyError(e);
+      if (reason === 'no_connection') continue; // not connected: leave its rows alone
+      throw e;
     }
-    selected.push({ id, name: byId.get(id) ?? null });
+    const byId = new Map(available.map((l) => [l.id, l.name]));
+    const selected: Array<{ id: string; name: string | null }> = [];
+    for (const entry of entries.filter((e) => e.provider === p.id)) {
+      if (!byId.has(entry.listId)) {
+        throw new TaskProviderError('unknown_list', `List not accessible for this member: ${entry.listId}`);
+      }
+      selected.push({ id: entry.listId, name: byId.get(entry.listId) ?? null });
+    }
+    await store.setAllowlist(memberId, p.id, selected);
   }
-  return store.setAllowlist(memberId, DEFAULT_PROVIDER, selected);
+  return store.getAllowlist(memberId);
 }
 
 /**

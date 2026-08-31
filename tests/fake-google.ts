@@ -42,6 +42,44 @@ export interface FakeGoogle {
   failEvents: Set<string>;
   setCalendars(list: FakeGoogleCalendar[]): void;
   setEvents(calendarId: string, batches: FakeGoogleEventBatch[]): void;
+  // --- tasks ---
+  /** Lists returned by GET /tasks/v1/users/@me/lists. */
+  taskLists: FakeGoogleTaskList[];
+  /** The full current contents of each list, keyed by listId. */
+  tasks: Map<string, FakeGoogleTask[]>;
+  /** listIds whose next tasks.list returns a 500. */
+  failTasks: Set<string>;
+  /** Page size the fake paginates at (lets a test exercise pageToken). */
+  tasksPageSize: number;
+  /** Number of tasks created via POST. */
+  createdTaskCount: number;
+  setTaskLists(lists: FakeGoogleTaskList[]): void;
+  setTasks(listId: string, tasks: FakeGoogleTask[]): void;
+}
+
+/** A scripted Google Tasks list. */
+export interface FakeGoogleTaskList {
+  id: string;
+  title: string;
+}
+
+/** A scripted Google task, as `tasks.list` returns it. */
+export interface FakeGoogleTask {
+  id: string;
+  title: string;
+  notes?: string;
+  /** Date-only in effect: Google stores UTC midnight and ignores the time. */
+  due?: string;
+  status?: 'needsAction' | 'completed';
+  /** RFC3339 instant — Google Tasks records a real completion timestamp. */
+  completed?: string;
+  /**
+   * A tombstone. Delivered ONLY when the request passes `showDeleted=true`
+   * (Google's default is false) — the provider never asks, so its `t.deleted`
+   * skip is belt-and-braces for a list that carries one anyway.
+   */
+  deleted?: boolean;
+  hidden?: boolean;
 }
 
 /** A scripted calendar from `calendarList`. */
@@ -92,6 +130,14 @@ export function createFakeGoogle(): FakeGoogle {
     failEvents: new Set(),
     setCalendars(list) { state.calendars = list; },
     setEvents(calendarId, batches) { state.events.set(calendarId, batches); },
+    // --- tasks ---
+    taskLists: [],
+    tasks: new Map(),
+    failTasks: new Set(),
+    tasksPageSize: 100,
+    createdTaskCount: 0,
+    setTaskLists(lists) { state.taskLists = lists; },
+    setTasks(listId, tasks) { state.tasks.set(listId, tasks); },
   };
 
   // Token endpoint (authorization_code / refresh_token).
@@ -192,6 +238,83 @@ export function createFakeGoogle(): FakeGoogle {
     const hasMorePages = pi + 1 < batch.pages.length;
     if (hasMorePages) return c.json({ items, nextPageToken: `${bi}.${pi + 1}` });
     return c.json({ items, nextSyncToken: `${bi + 1}.0` });
+  });
+
+  // --- tasks ---
+
+  // GET /tasks/v1/users/@me/lists — list discovery.
+  state.app.get('/tasks/v1/users/@me/lists', (c) => {
+    state.calls.push({ method: 'GET', path: '/tasks/v1/users/@me/lists' });
+    return c.json({ items: state.taskLists.map((l) => ({ id: l.id, title: l.title })) });
+  });
+
+  // GET /tasks/v1/lists/:listId/tasks — the WHOLE list, paged.
+  state.app.get('/tasks/v1/lists/:listId/tasks', (c) => {
+    const listId = decodeURIComponent(c.req.param('listId'));
+    const url = new URL(c.req.url);
+    state.calls.push({ method: 'GET', path: url.pathname, query: url.search.replace(/^\?/, '') });
+
+    if (state.failTasks.has(listId)) {
+      return c.json({ error: { code: 500, message: 'backendError' } }, 500);
+    }
+
+    const all = state.tasks.get(listId) ?? [];
+    // `showDeleted` defaults to FALSE at Google, so a tombstoned task is not
+    // even delivered unless asked for. The provider deliberately does not ask —
+    // it detects deletions structurally by absence — so this filter is what
+    // keeps the fake honest about that.
+    const showDeleted = c.req.query('showDeleted') === 'true';
+    // Honour the flags the way Google does, INCLUDING the defaults
+    // (`showCompleted` defaults to true, `showHidden` to false) — a provider
+    // that forgets showHidden must SEE completed tasks vanish.
+    const showCompleted = (c.req.query('showCompleted') ?? 'true') === 'true';
+    const showHidden = c.req.query('showHidden') === 'true';
+    const visible = all.filter((t) => {
+      if (t.deleted && !showDeleted) return false;
+      if (t.status === 'completed' && !showCompleted) return false;
+      if (t.hidden && !showHidden) return false;
+      return true;
+    });
+
+    const offset = Number(c.req.query('pageToken') ?? '0');
+    const page = visible.slice(offset, offset + state.tasksPageSize);
+    const nextOffset = offset + state.tasksPageSize;
+    return c.json({
+      items: page.map((t) => ({
+        id: t.id,
+        title: t.title,
+        ...(t.notes ? { notes: t.notes } : {}),
+        ...(t.due ? { due: t.due } : {}),
+        status: t.status ?? 'needsAction',
+        ...(t.completed ? { completed: t.completed } : {}),
+        ...(t.deleted ? { deleted: true } : {}),
+        ...(t.hidden ? { hidden: true } : {}),
+      })),
+      ...(nextOffset < visible.length ? { nextPageToken: String(nextOffset) } : {}),
+    });
+  });
+
+  // PATCH /tasks/v1/lists/:listId/tasks/:taskId — completion write-back.
+  state.app.patch('/tasks/v1/lists/:listId/tasks/:taskId', async (c) => {
+    const url = new URL(c.req.url);
+    const body = await c.req.json().catch(() => ({})) as { status?: string };
+    state.calls.push({ method: 'PATCH', path: url.pathname, body });
+    return c.json({ id: c.req.param('taskId'), title: 'task', status: body.status ?? 'needsAction' });
+  });
+
+  // POST /tasks/v1/lists/:listId/tasks — creation.
+  state.app.post('/tasks/v1/lists/:listId/tasks', async (c) => {
+    const url = new URL(c.req.url);
+    const body = await c.req.json().catch(() => ({})) as { title?: string; notes?: string; due?: string };
+    state.calls.push({ method: 'POST', path: url.pathname, body });
+    state.createdTaskCount += 1;
+    return c.json({
+      id: `google-task-created-${state.createdTaskCount}`,
+      title: body.title ?? '(untitled)',
+      status: 'needsAction',
+      ...(body.notes ? { notes: body.notes } : {}),
+      ...(body.due ? { due: body.due } : {}),
+    }, 201);
   });
 
   return state;

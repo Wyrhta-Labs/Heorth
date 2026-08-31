@@ -246,6 +246,19 @@ export async function listAllowlistedFeeds(provider?: string): Promise<TaskFeed[
 }
 
 /**
+ * Resolve one task feed from its key by MATCHING WHOLE KEYS, never by parsing.
+ *
+ * The Graph provider parses its keys with a regex; a Google list id must not be
+ * parsed that way, and the Google provider needs the row anyway (for the cached
+ * list name). Building every candidate key and comparing whole is exact
+ * regardless of what characters an id contains.
+ */
+export async function getTaskFeedByKey(feedKey: string): Promise<TaskFeed | null> {
+  const feeds = await listAllowlistedFeeds();
+  return feeds.find((f) => f.feedKey === feedKey) ?? null;
+}
+
+/**
  * The designated household task feed, or null when none is designated.
  *
  * Replaces resolution by display name (`findAllowlistByName`), which matched

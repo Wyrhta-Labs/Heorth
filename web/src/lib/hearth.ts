@@ -299,6 +299,20 @@ export interface StalenessInfo {
  */
 export function ownerOfFeed(feedKey: string): string | 'family' | null {
   if (/^[^:]+:calendar:family$/.test(feedKey)) return 'family';
+  // KNOWN LIMITATION: a Google household calendar keeps a MEMBER-shaped key
+  // (`google:calendar:member:<id>:<calId>`) — unlike M365, whose family feed
+  // gets its own `m365:calendar:family` key — with only the allowlist row's
+  // `is_household` flag marking it. This regex has no way to see that flag
+  // from the key alone, so staleness on a dead Google household calendar
+  // greys that member's band instead of the family band. Event ATTRIBUTION is
+  // unaffected (a family mirror row's `attendeeIds: []`/`createdBy: ''` is
+  // caught by `isFamilyEvent`'s defensive branch) — only this staleness
+  // grouping is wrong. The correct signal is already fetched by
+  // `useIntegrationsStatus()`: `/status`'s `householdCalendar.memberId` names
+  // the member whose feed is actually the family one. Wiring it through would
+  // mean threading the household feed key into every `ownerOfFeed`/
+  // `deriveStaleness` call site, which is a larger change than this cosmetic
+  // bug warrants on its own — left as a follow-up rather than rushed here.
   const cal = feedKey.match(/^[^:]+:calendar:member:([^:]+)/);
   if (cal) return cal[1]!;
   const todo = feedKey.match(/^[^:]+:todo:member:([^:]+):/);

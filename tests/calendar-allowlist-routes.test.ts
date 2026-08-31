@@ -82,6 +82,48 @@ describe('PUT /api/v1/calendar/allowlist', () => {
     expect(res.status).toBe(409);
     expect((await res.json() as { error: { code: string } }).error.code).toBe('UNKNOWN_CALENDAR');
   });
+
+  it('rejects a body with no calendars key, and the existing allowlist survives', async () => {
+    const { adult } = await seedTestHousehold();
+    registerFakeCalendarProvider('google', fakeCalendarProvider('google', [{ id: 'cal-a', name: 'Anna' }]));
+    await app.request('/api/v1/calendar/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ calendars: [{ provider: 'google', calendarId: 'cal-a' }] }),
+    });
+
+    // `calendars` is required (not defaulted) precisely so a body missing it
+    // entirely (a stale cached bundle, an old tab) is rejected loudly instead
+    // of being silently read as an empty selection that would wipe the row
+    // above — and, for calendars, the feed's mirrored events with it.
+    const res = await app.request('/api/v1/calendar/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+
+    const check = await app.request('/api/v1/calendar/calendars', { headers: authHeaders(adult.jwt) });
+    const { data } = await check.json() as { data: Array<{ id: string; enabled: boolean }> };
+    expect(data.find((c) => c.id === 'cal-a')?.enabled).toBe(true);
+  });
+
+  it('an explicit empty calendars submission still de-selects everything', async () => {
+    const { adult } = await seedTestHousehold();
+    registerFakeCalendarProvider('google', fakeCalendarProvider('google', [{ id: 'cal-a', name: 'Anna' }]));
+    await app.request('/api/v1/calendar/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ calendars: [{ provider: 'google', calendarId: 'cal-a' }] }),
+    });
+
+    const res = await app.request('/api/v1/calendar/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ calendars: [] }),
+    });
+    expect(res.status).toBe(200);
+
+    const check = await app.request('/api/v1/calendar/calendars', { headers: authHeaders(adult.jwt) });
+    const { data } = await check.json() as { data: Array<{ id: string; enabled: boolean }> };
+    expect(data.find((c) => c.id === 'cal-a')?.enabled).toBe(false);
+  });
 });
 
 describe('PUT /api/v1/calendar/household-calendar', () => {

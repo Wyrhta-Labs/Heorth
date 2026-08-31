@@ -386,4 +386,32 @@ describe('GET /api/v1/integrations/status with two providers', () => {
     expect(data.connections).toBeUndefined();
     expect(data.myConnections).toEqual([]);
   });
+
+  // The case above gives the child NO connection anywhere, so it can only prove
+  // the admin/adult gate on `connections` — there is no data to leak, so a
+  // regression to `listConnections()` for `myConnections` would pass it too.
+  // This seeds the CHILD with their own connection AND a different member with
+  // one, so "myConnections is scoped to the caller" is an actual claim about
+  // data, not just about an empty list.
+  it('scopes myConnections to the caller even when the caller has a connection of their own', async () => {
+    const { child, adult } = await seedTestHousehold();
+    registerStubProvider('m365');
+    registerStubProvider('google');
+    await new IntegrationStore('google').upsertConnection({
+      memberId: child.user.id, accountLabel: 'kid@gmail.test', refreshToken: 'r', scopes: '',
+    });
+    await new IntegrationStore('m365').upsertConnection({
+      memberId: adult.user.id, accountLabel: 'a@contoso.test', refreshToken: 'r', scopes: '',
+    });
+
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(child.jwt) });
+    const { data } = await res.json() as {
+      data: { connections?: unknown; myConnections: Array<{ provider: string; accountLabel: string }> };
+    };
+    expect(data.myConnections).toEqual([
+      expect.objectContaining({ provider: 'google', accountLabel: 'kid@gmail.test' }),
+    ]);
+    expect(JSON.stringify(data)).not.toContain('a@contoso.test');
+    expect(data.connections).toBeUndefined();
+  });
 });

@@ -93,7 +93,7 @@ integrationsRouter.get('/status', requireAuth, async (c) => {
   const myConnections = (await Promise.all(providers.map(async (p) => {
     const row = await p.store.getConnection(auth.userId);
     return row ? { ...row, provider: p.id } : null;
-  }))).filter((r) => r !== null);
+  }))).filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (auth.role === 'admin' || auth.role === 'adult') {
     const connections = (await Promise.all(providers.map(async (p) =>

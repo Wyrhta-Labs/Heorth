@@ -3,6 +3,7 @@ import { ok, err } from '@wyrhta/core/http';
 import { requireAuth, requireRole } from '../wiring.js';
 import { assertNotMaintenanceAdmin, isMaintenanceAdminId } from '../household/maintenance-admin.js';
 import { getHouseholdFeed } from '../modules/tasks/store.js';
+import { getHouseholdCalendar } from '../modules/calendar/allowlist-store.js';
 import { signConnectState, verifyConnectState } from './state.js';
 import { getProvider, listProviders } from './registry.js';
 import type { IntegrationSyncStateRow } from './schema.js';
@@ -33,9 +34,22 @@ function toPublicFeed(row: IntegrationSyncStateRow) {
  *    wall can look current while another member's feed is silently dead.
  *  - the household-wide `connections` list is admin AND adult: it carries no
  *    token material, and an adult co-parent must be able to see that another
- *    member's link is dead. Children stay scoped to their own connection.
+ *    member's link is dead. Children stay scoped to their own `myConnections`.
  *  - an admin session may itself be a promoted household member, so it must still
- *    see and be able to disconnect its OWN connection.
+ *    see and be able to disconnect its OWN connection, via `myConnections`.
+ *
+ * `/status`'s `myConnections` is the acting member's own connections, one per
+ * provider they have linked and each tagged with its `provider` id. With two
+ * providers, the old single `connection` field ("first non-null across
+ * providers") would have rendered a Google connection as the M365 card's the
+ * moment a member had only Google linked — so it is a tagged list instead, in
+ * both role branches. `householdCalendar` reports the health of the ONE
+ * connection the designated family calendar rides on: it is a delegated feed
+ * on one member's connection (no Workspace service account, so it also works
+ * for a consumer Gmail account), and the accepted cost is that the family feed
+ * stops when that member disconnects. That cost is only acceptable if it is
+ * visible, hence reporting it here rather than letting it surface as a
+ * silently empty wall.
  */
 export const integrationsRouter = new Hono();
 
@@ -52,25 +66,48 @@ integrationsRouter.get('/status', requireAuth, async (c) => {
 
   const householdListDesignated = (await getHouseholdFeed()) !== null;
 
+  // The designated family calendar is a DELEGATED feed on one member's
+  // connection (no Workspace service account, so it works for consumer Gmail).
+  // The accepted cost is that it stops when that member disconnects, so the
+  // health of that one connection is reported here rather than left to be
+  // discovered as a silently empty wall.
+  const householdCalendarFeed = await getHouseholdCalendar();
+  let householdCalendar: {
+    provider: string; memberId: string; calendarName: string | null; connectionOk: boolean;
+  } | null = null;
+  if (householdCalendarFeed) {
+    const owner = getProvider(householdCalendarFeed.provider);
+    const conn = owner ? await owner.store.getConnection(householdCalendarFeed.memberId) : null;
+    householdCalendar = {
+      provider: householdCalendarFeed.provider,
+      memberId: householdCalendarFeed.memberId,
+      calendarName: householdCalendarFeed.calendarName,
+      connectionOk: conn !== null && conn.status === 'active',
+    };
+  }
+
+  // The acting member's OWN connections, one per provider they have linked.
+  // Provider-tagged, and a list rather than a single row: the old "first
+  // non-null across providers" would have rendered a Google connection on the
+  // Microsoft card as soon as a second provider existed.
+  const myConnections = (await Promise.all(providers.map(async (p) => {
+    const row = await p.store.getConnection(auth.userId);
+    return row ? { ...row, provider: p.id } : null;
+  }))).filter((r) => r !== null);
+
   if (auth.role === 'admin' || auth.role === 'adult') {
-    const perProvider = await Promise.all(providers.map(async (p) => ({
-      connection: await p.store.getConnection(auth.userId),
-      connections: (await p.store.listConnections()).map((row) => ({ ...row, provider: p.id })),
-    })));
+    const connections = (await Promise.all(providers.map(async (p) =>
+      (await p.store.listConnections()).map((row) => ({ ...row, provider: p.id })))))
+      .flat();
     return ok(c, {
-      connection: perProvider.map((r) => r.connection).find((r) => r !== null) ?? null,
-      connections: perProvider.flatMap((r) => r.connections),
-      feeds,
-      householdListDesignated,
+      myConnections, connections, feeds, householdListDesignated, householdCalendar,
       providers: providers.map((p) => p.id),
     });
   }
 
-  const own = await Promise.all(providers.map((p) => p.store.getConnection(auth.userId)));
+  // Children stay scoped to their own connections.
   return ok(c, {
-    connection: own.find((r) => r !== null) ?? null,
-    feeds,
-    householdListDesignated,
+    myConnections, feeds, householdListDesignated, householdCalendar,
     providers: providers.map((p) => p.id),
   });
 });

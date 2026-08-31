@@ -69,6 +69,27 @@ export const listEventsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 
+/**
+ * `calendars` is deliberately NOT defaulted to `[]`. An absent `calendars`
+ * (e.g. a stale cached bundle or an old tab) is a client bug and must 400
+ * loudly; an explicit `calendars: []` is a deliberate instruction to
+ * de-select everything and must be honored. Defaulting the field would make
+ * those two indistinguishable and let a stale client silently wipe a
+ * member's whole allowlist — and, for calendars, the feed's mirrored events
+ * and sync state with it — while reporting 200.
+ */
+export const setCalendarAllowlistSchema = z.object({
+  calendars: z.array(z.object({
+    provider: z.string().min(1),
+    calendarId: z.string().min(1),
+  })),
+});
+
+export const setHouseholdCalendarSchema = z.object({
+  provider: z.string().min(1),
+  calendarId: z.string().min(1),
+});
+
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type MoveEventInput = z.infer<typeof moveEventSchema>;

@@ -7,12 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Google provider: Calendar mirror + Tasks with write-back**, running
+  alongside Microsoft 365 rather than replacing it (`src/google/`). Optional
+  as a group behind three variables (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+  `GOOGLE_REDIRECT_URI`); M365 and Google can each be enabled independently.
+  Google Calendar mirrors read-only into the same `calendar_mirror_events`
+  table M365 uses, on the same delta-plus-periodic-full-rewindow pattern
+  (`GOOGLE_FULL_RESYNC_INTERVAL_SECONDS` beside `M365_FULL_RESYNC_INTERVAL_SECONDS`).
+  Google Tasks syncs into `task_mirror` with completion write-back and
+  household task creation, the same as M365 To Do — except Tasks always pulls
+  a full snapshot rather than a delta, reconciling the mirror against it on
+  every pull. Unlike the M365 providers, the Google providers resolve a feed
+  from its allowlist row rather than parsing the feed key, because a Google
+  calendar id is email-shaped.
+- **`calendar_allowlist` table (migration `0027`)**: per-member, per-provider
+  calendar discovery and selection, the calendar-side sibling of
+  `todo_list_allowlist`, including an `is_household` flag for designating one
+  member's calendar as the shared family calendar. New routes on a
+  **separate** router at `/api/v1/calendar` (not `/api/v1/events`, which
+  `calendarRouter` already occupies): `GET /api/v1/calendar/calendars`,
+  `PUT /api/v1/calendar/allowlist`, `PUT /api/v1/calendar/household-calendar`.
+- **The Google family calendar is designated, not app-only.** There is no
+  Google equivalent of `M365_FAMILY_MAILBOX` / app-only client credentials —
+  the shared family calendar is one member's own delegated Google calendar,
+  flagged via `calendar_allowlist.is_household`. It stops mirroring when that
+  member disconnects; `GET /api/v1/integrations/status`'s new
+  `householdCalendar.connectionOk` reports that.
+- **`.env.example` gains the `GOOGLE_*` group** (`GOOGLE_CLIENT_ID`,
+  `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, plus the non-credential
+  `GOOGLE_FULL_RESYNC_INTERVAL_SECONDS` knob), in the same all-or-nothing
+  shape as `M365_*`.
+- **Weorc module** (`src/modules/weorc/`, ADR 0014): household routines backed
+  by `weorc_routines` and `weorc_occurrences`, with due-work materialisation,
+  completion/skip history, an ungated background scheduler, and task projection
+  through the existing Tasks provider when one is available. The Tasks service
+  now exposes the projected-task create/complete and feed-reference lookup paths
+  Weorc needs without making M365 a requirement.
+- **Heorth can open KithLedger from its navigation.** `GET /api/v1/features`
+  now returns `kithledgerUrl` when the KithLedger integration is configured,
+  and the web shell renders it as an external `KithLedger` launcher. Deployments
+  with internal service URLs can set `KITH_PUBLIC_URL`; otherwise it falls back
+  to `KITH_BASE_URL`.
+
 ### Changed — BREAKING
 
 - **`/api/v1/m365/*` is retired in favour of `/api/v1/integrations/*`**, which
   adds a provider segment to the connection routes (e.g.
   `/api/v1/integrations/m365/connect`, `.../m365/callback`). This is groundwork
-  for a second provider (Google, Phase 2) sitting beside M365 rather than
+  for the Google provider (see "Added" above) sitting beside M365 rather than
   replacing it. **Operator action required:** update the Entra app
   registration's redirect URI to `<base>/api/v1/integrations/m365/callback` —
   a registration still pointing at the old path fails consent with
@@ -33,8 +77,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default — check yours if you had tuned this. (The `deploy/` compose files
   never set it, so a bare-metal or standalone-Heorth deployment with a custom
   `.env` is the only one affected.)
+- **`PUT /api/v1/tasks/allowlist` now takes a provider-tagged body:
+  `{ "lists": [{ "provider": "m365" | "google", "listId": "<id>" }] }`.**
+  `lists` is now REQUIRED — omitting it is a 400 `VALIDATION_ERROR`, and an
+  explicit `[]` de-selects every list across every reachable provider. There
+  is no `listIds` alias for the old single-provider array shape. **Operator
+  action required:** any client calling this endpoint (including the web
+  build shipped with this release) must send the new shape.
+- **`GET /api/v1/integrations/status` replaces `connection` with
+  `myConnections`** (the acting member's own connections, one per provider,
+  provider-tagged) and adds `householdCalendar` (the designated family
+  calendar's health, or `null`). Any caller reading the old singular
+  `connection` field must be updated to read `myConnections` instead.
 
 ### Fixed
+
+- **The maintenance-admin repair now covers every provider the admin has
+  ever connected, not just currently-registered ones.** It clears stale feed
+  state (connections, sync state, and calendar-mirror rows attributed to the
+  admin, including household-designated rows with a null `memberId`) for the
+  UNION of registered providers and providers the admin has historically
+  connected to — registration is env-gated, but the repair runs at every
+  boot, so a provider disabled after use would otherwise leave orphaned rows
+  behind.
+- **`.env.example` no longer contradicts the changes recorded above it in
+  this same file.** It still had the retired `/api/v1/m365/callback` path in
+  `M365_REDIRECT_URI` (fails consent with `redirect_uri_mismatch` if copied),
+  the removed `M365_SHARED_TODO_LIST` variable (silently does nothing), and
+  the old `M365_SYNC_INTERVAL_SECONDS` name (silently ignored in favour of the
+  300s default) — three pre-existing leftovers from the `/api/v1/m365/*`
+  retirement above, not something this branch introduced, corrected in
+  passing while adding the `GOOGLE_*` group (see "Added") below it.
+- **`writeError` in the Tasks routes now maps `google_5xx` to 502, matching
+  the existing `graph_5xx` handling**, so an upstream 5xx from Google is
+  reported the same way as the identical Microsoft failure instead of falling
+  through to a generic 500.
+
+- **De-selecting the designated household calendar or task list is now refused
+  instead of silently honored.** `PUT /api/v1/calendar/allowlist` and
+  `PUT /api/v1/tasks/allowlist` are open to any member for their own
+  calendars/lists, but only an admin/adult can *designate* the household one —
+  so un-designating it by simply omitting it from a de-selection used to
+  require no special role and returned 200. Both routes now reject with 409
+  (`HOUSEHOLD_CALENDAR_IN_USE` / `household_list_in_use`) when the submitted
+  selection would drop the row carrying `is_household`. The tasks half is a
+  pre-existing gap (Phase 1), not introduced by this branch — it broke
+  `createHouseholdTask` and Weorc's projected maintenance tasks.
 
 - **A full resync no longer deletes and re-inserts a feed's mirror rows.**
   `task_mirror.id` and `calendar_mirror_events.id` now stay stable across a
@@ -43,20 +131,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removes an intermittent 404 where the web had a task's id in hand, a resync
   landed between the read and the write, and `POST /api/v1/tasks/:id/complete`
   hit an id that no longer existed.
-
-### Added
-
-- **Weorc module** (`src/modules/weorc/`, ADR 0014): household routines backed
-  by `weorc_routines` and `weorc_occurrences`, with due-work materialisation,
-  completion/skip history, an ungated background scheduler, and task projection
-  through the existing Tasks provider when one is available. The Tasks service
-  now exposes the projected-task create/complete and feed-reference lookup paths
-  Weorc needs without making M365 a requirement.
-- **Heorth can open KithLedger from its navigation.** `GET /api/v1/features`
-  now returns `kithledgerUrl` when the KithLedger integration is configured,
-  and the web shell renders it as an external `KithLedger` launcher. Deployments
-  with internal service URLs can set `KITH_PUBLIC_URL`; otherwise it falls back
-  to `KITH_BASE_URL`.
 
 ## [0.6.0] - 2026-08-25
 

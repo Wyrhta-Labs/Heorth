@@ -2,7 +2,7 @@ import { and, eq, gte, lte, inArray, notInArray, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { feedKeys } from '../../integrations/feed-keys.js';
 import { taskMirror, todoListAllowlist, type TaskMirrorRow, type TodoListAllowlistRow } from './schema.js';
-import type { MirroredTask, TaskPullResult, TaskStatus } from './providers/types.js';
+import { TaskProviderError, type MirroredTask, type TaskPullResult, type TaskStatus } from './providers/types.js';
 
 /**
  * Persistence for the To Do mirror and the per-member list allowlist.
@@ -187,10 +187,16 @@ export async function upsertMirroredTask(source: string, feed: TaskFeed, t: Mirr
 
 // --- allowlist --------------------------------------------------------------
 
-export async function getAllowlist(memberId: string, provider: string): Promise<TodoListAllowlistRow[]> {
-  return db.select().from(todoListAllowlist)
-    .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)))
-    .orderBy(asc(todoListAllowlist.listName));
+/**
+ * A member's allowlisted lists. `provider` narrows to one provider; omitted, it
+ * returns every provider's rows — which is what the picker and the settings
+ * surface need now that a member may hold lists at both.
+ */
+export async function getAllowlist(memberId: string, provider?: string): Promise<TodoListAllowlistRow[]> {
+  const where = provider
+    ? and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider))
+    : eq(todoListAllowlist.memberId, memberId);
+  return db.select().from(todoListAllowlist).where(where).orderBy(asc(todoListAllowlist.listName));
 }
 
 /**
@@ -211,6 +217,18 @@ export async function setAllowlist(
     // Remove de-selected lists + their mirrored tasks.
     for (const row of existing) {
       if (!keepIds.has(row.listId)) {
+        // Un-designating the household list this way is silent and needs only
+        // list ownership, not admin/adult — refuse it. This is the same class
+        // of hole the calendar allowlist has for its household calendar; losing
+        // this row breaks `createHouseholdTask` and Weorc's projected
+        // maintenance tasks with it.
+        if (row.isHousehold) {
+          throw new TaskProviderError(
+            'household_list_in_use',
+            `Cannot de-select ${provider}:${row.listId}: it is the designated household list. `
+            + 'Designate a different household list first.',
+          );
+        }
         await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.id, row.id));
         await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember(provider, memberId, row.listId)));
       }
@@ -243,6 +261,19 @@ export async function listAllowlistedFeeds(provider?: string): Promise<TaskFeed[
     listId: r.listId,
     listName: r.listName,
   }));
+}
+
+/**
+ * Resolve one task feed from its key by MATCHING WHOLE KEYS, never by parsing.
+ *
+ * The Graph provider parses its keys with a regex; a Google list id must not be
+ * parsed that way, and the Google provider needs the row anyway (for the cached
+ * list name). Building every candidate key and comparing whole is exact
+ * regardless of what characters an id contains.
+ */
+export async function getTaskFeedByKey(feedKey: string): Promise<TaskFeed | null> {
+  const feeds = await listAllowlistedFeeds();
+  return feeds.find((f) => f.feedKey === feedKey) ?? null;
 }
 
 /**

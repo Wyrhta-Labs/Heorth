@@ -152,7 +152,21 @@
     "noListsFound": "No lists found.",
     "syncHint": "Nothing syncs until you choose a list. New tasks you add go to the shared household list.",
     "syncedListsUpdated": "Synced lists updated",
-    "couldNotUpdateLists": "Could not update lists"
+    "couldNotUpdateLists": "Could not update lists",
+    "householdListLabel": "Household list",
+    "householdListUpdated": "Household list updated",
+    "couldNotUpdateHouseholdList": "Could not update the household list"
+  },
+  "calendarSync": {
+    "title": "Synced calendars",
+    "hint": "Nothing syncs until you choose a calendar.",
+    "loadError": "We couldn’t load your calendars.",
+    "noneFound": "No calendars found.",
+    "updated": "Synced calendars updated",
+    "couldNotUpdate": "Could not update calendars",
+    "householdLabel": "Household calendar",
+    "householdUpdated": "Household calendar updated",
+    "couldNotUpdateHousehold": "Could not update the household calendar"
   },
   "login": {
     "signInToHome": "Sign in to your home",
@@ -406,13 +420,14 @@
       "done": "Done"
     },
     "connectionsPanel": {
-      "title": "Microsoft 365 connections",
+      "title": "Connections",
       "syncNow": "Sync now",
       "syncSummary_one": "Sync complete: {{count}} feed processed",
       "syncSummary_other": "Sync complete: {{count}} feeds processed",
       "syncFailed": "Could not trigger a sync",
-      "noConnections": "No members have connected a Microsoft 365 account yet.",
+      "noConnections": "No members have connected an account yet.",
       "member": "Member",
+      "provider": "Provider",
       "account": "Account",
       "statusHeader": "Status",
       "status": {
@@ -674,6 +689,10 @@
       "name": "Microsoft 365",
       "description": "Sync your calendar and To Do lists with your Microsoft account."
     },
+    "google": {
+      "name": "Google",
+      "description": "Mirror your Google calendars and sync Google Tasks."
+    },
     "state": {
       "unavailable": "Not available",
       "disconnected": "Not connected",
@@ -698,6 +717,11 @@
       "M365_CALLBACK_INVALID": "The response from Microsoft was invalid. Please try connecting again.",
       "M365_STATE_INVALID": "The connection attempt expired or was tampered with. Please try connecting again.",
       "M365_EXCHANGE_FAILED": "Microsoft couldn’t confirm the connection. Please try again.",
+      "GOOGLE_CONSENT_DENIED": "You declined the Google consent request, so the account wasn’t connected.",
+      "GOOGLE_CALLBACK_INVALID": "The response from Google was invalid. Please try connecting again.",
+      "GOOGLE_STATE_INVALID": "The connection attempt expired or was tampered with. Please try connecting again.",
+      "GOOGLE_EXCHANGE_FAILED": "Google couldn’t confirm the connection. Please try again.",
+      "GOOGLE_NO_REFRESH_TOKEN": "Google didn’t grant offline access, so the connection can’t stay active. Please try connecting again — the sign-in page will ask you to approve access again.",
       "ADMIN_NOT_A_MEMBER": "The maintenance admin account can’t connect a Microsoft 365 account.",
       "unknown": "Something went wrong connecting your account. Please try again."
     }

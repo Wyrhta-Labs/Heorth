@@ -1,34 +1,34 @@
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
-import { getM365Status } from '@/api/m365';
+import { getIntegrationsStatus } from '@/api/m365';
 import { ApiError } from '@/api/client';
 import type { FeedStatus } from '@/lib/hearth';
 // `ProviderState`/`ProviderConnection` are provider-neutral and live in
 // providers.ts alongside the rest of the registry contract; providers.ts in
-// turn imports the *value* `useM365ProviderStatus` from this module. Both
+// turn imports the *value* `useProviderStatus` from this module. Both
 // imports here are type-only, so there is no runtime cycle.
 import type { ProviderState, ProviderConnection } from '@/lib/providers';
 
-const M365_FEED_STATUS_KEY = ['m365', 'feedStatus'] as const;
+const INTEGRATIONS_FEED_STATUS_KEY = ['integrations', 'feedStatus'] as const;
 
 /**
- * Per-feed M365 sync health for the Hearth staleness badges. Polls (default 60s)
+ * Per-feed sync health for the Hearth staleness badges. Polls (default 60s)
  * and refetches on reconnect. The endpoint is provider-neutral and returns 200
- * with an empty feed list when the integration is disabled; any thrown error
+ * with an empty feed list when no integration is configured; any thrown error
  * (network, unexpected 4xx/5xx) is also swallowed to an empty feed list
  * (nothing to grey) rather than treated as an error on the wall. Retry is
  * disabled so a disabled deployment doesn't hammer the endpoint.
  *
- * NOTE: named `FeedStatus` (not `useM365Status`) to avoid colliding with the
- * raw status query below (Task 10) — this one unwraps to `FeedStatus[]` and
- * swallows errors; that one exposes the full envelope for the connection UI.
+ * NOTE: named `FeedStatus` (not `Status`) to avoid colliding with the raw
+ * status query below — this one unwraps to `FeedStatus[]` and swallows
+ * errors; that one exposes the full envelope for the connection UI.
  */
-export function useM365FeedStatus(refetchInterval = 60_000) {
+export function useIntegrationsFeedStatus(refetchInterval = 60_000) {
   return useQuery<FeedStatus[]>({
-    queryKey: M365_FEED_STATUS_KEY,
+    queryKey: INTEGRATIONS_FEED_STATUS_KEY,
     queryFn: async () => {
       try {
-        const res = await getM365Status();
+        const res = await getIntegrationsStatus();
         return res.data.feeds ?? [];
       } catch {
         return [];
@@ -42,34 +42,40 @@ export function useM365FeedStatus(refetchInterval = 60_000) {
 }
 
 /** Raw query — the admin panel needs `connections` and `feeds` too. */
-export function useM365Status() {
+export function useIntegrationsStatus() {
   return useQuery({
-    queryKey: QUERY_KEYS.m365Status,
-    queryFn: getM365Status,
+    queryKey: QUERY_KEYS.integrationsStatus,
+    queryFn: getIntegrationsStatus,
     retry: false,
   });
 }
 
 /**
- * Derived per-member view used by the provider registry. The status endpoint
- * is provider-neutral: a disabled M365 integration no longer 404s (the old
- * signal), it returns 200 with `providers: []`. Either shape means "not
- * available", never an error worth a toast.
+ * Derived per-member view for ONE provider, used by the provider registry.
+ *
+ * Parameterised rather than duplicated per provider: the previous version read
+ * `data.connection`, "the first non-null across providers", which would have
+ * rendered a Google connection on the Microsoft card the moment a second
+ * provider existed. It now selects from `myConnections` BY PROVIDER.
+ *
+ * A provider missing from `providers[]` is `unavailable`, not an error: the
+ * endpoint is provider-neutral and 200s with `providers: []` when nothing is
+ * configured.
  */
-export function useM365ProviderStatus(): {
+export function useProviderStatus(providerId: string): {
   state: ProviderState;
   connection: ProviderConnection | null;
   isLoading: boolean;
 } {
-  const query = useM365Status();
+  const query = useIntegrationsStatus();
 
   const notMounted =
     (query.error instanceof ApiError && query.error.status === 404) ||
-    (query.data !== undefined && !query.data.data.providers.includes('m365'));
-  const raw = query.data?.data.connection ?? null;
+    (query.data !== undefined && !query.data.data.providers.includes(providerId));
+  const raw = query.data?.data.myConnections.find((cnx) => cnx.provider === providerId) ?? null;
 
-  // Map the M365 wire shape onto the provider-neutral contract — the
-  // rendering component never sees the raw `status` string.
+  // Map the wire shape onto the provider-neutral contract — the rendering
+  // component never sees the raw `status` string.
   const connection: ProviderConnection | null = raw
     ? {
         memberId: raw.memberId,

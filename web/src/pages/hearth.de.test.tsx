@@ -17,7 +17,7 @@ vi.mock('@/hooks/use-meals', () => ({
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@/hooks/use-household', () => ({ useHouseholdMembers: () => emptyQuery }));
-vi.mock('@/hooks/use-m365', () => ({ useM365FeedStatus: () => ({ data: [] }) }));
+vi.mock('@/hooks/use-m365', () => ({ useIntegrationsFeedStatus: () => ({ data: [] }) }));
 // KithLedger enabled so the wall's reminders toggle renders (and is asserted in German).
 vi.mock('@/hooks/use-features', () => ({
   useFeatures: () => ({ data: { data: { finance: false, kithledger: true } }, isError: false }),

@@ -21,6 +21,9 @@ process.env['ADMIN_PASSWORD'] ??= 'test-admin-password';
 for (const k of [
   'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
   'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX',
+  // Same reason as the M365 group above: enabled-path Google tests inject a
+  // fake-Google runtime via setGoogleRuntime, never real credentials.
+  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI',
 ]) {
   process.env[k] = '';
 }

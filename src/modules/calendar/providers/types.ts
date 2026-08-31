@@ -91,6 +91,12 @@ export interface PullResult {
   fullResync: boolean;
 }
 
+/** One calendar a member can choose to mirror (from discovery). */
+export interface AvailableCalendar {
+  id: string;
+  name: string;
+}
+
 /**
  * A read-only external calendar source. Implementations are constructed with
  * their own transport/auth; nothing here exposes it.
@@ -100,6 +106,13 @@ export interface CalendarProvider {
   readonly source: string;
   /** Which feeds currently exist given connections/config. */
   listFeeds(): Promise<CalendarFeed[]>;
+  /**
+   * Discover the calendars a member can choose to mirror (delegated). A
+   * provider whose feeds are not member-selectable returns an empty list — the
+   * Graph provider does, because its feeds come from connections and the
+   * configured family mailbox rather than from a pick list.
+   */
+  listAvailableCalendars(memberId: string): Promise<AvailableCalendar[]>;
   /**
    * Pull changes for one feed since `syncToken` (null = initial full sync).
    * Providers handle their own token-invalidation internally and signal it via

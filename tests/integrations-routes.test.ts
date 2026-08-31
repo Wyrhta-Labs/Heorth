@@ -13,6 +13,7 @@ import { IntegrationStore } from '../src/integrations/store.js';
 import { signConnectState } from '../src/integrations/state.js';
 import { householdCore } from '../src/wiring.js';
 import { config } from '../src/config/env.js';
+import { setCalendarAllowlist, setHouseholdCalendar } from '../src/modules/calendar/allowlist-store.js';
 
 const store = new IntegrationStore('m365');
 
@@ -31,6 +32,14 @@ function stubProvider() {
     runCalendarSync: async () => [{ feedKey: 'm365:calendar:family', status: 'ok' as const }],
     runTaskSync: async () => [],
   };
+}
+
+/**
+ * Parameterised sibling of this suite's `stubProvider()`, which hardcodes
+ * 'm365'. A second provider is the whole point of these cases.
+ */
+function registerStubProvider(id: string) {
+  registerProvider({ ...stubProvider(), id, store: new IntegrationStore(id) });
 }
 
 /**
@@ -231,8 +240,9 @@ describe('/api/v1/integrations', () => {
       headers: authHeaders(promotedJwt),
     });
     const body = await res.json();
-    expect(body.data.connection).not.toBeNull();
-    expect(body.data.connection.accountLabel).toBe('a@contoso.test');
+    expect(body.data.myConnections).toHaveLength(1);
+    expect(body.data.myConnections[0].accountLabel).toBe('a@contoso.test');
+    expect(body.data.myConnections[0].provider).toBe('m365');
     expect(body.data.connections).toHaveLength(1);
   });
 
@@ -308,5 +318,100 @@ describe('/api/v1/integrations', () => {
       headers: authHeaders(child.jwt),
     });
     expect((await after.json()).data.householdListDesignated).toBe(true);
+  });
+});
+
+describe('GET /api/v1/integrations/status with two providers', () => {
+  beforeEach(() => {
+    clearProviders();
+    registerProvider(stubProvider());
+  });
+
+  it('tags the acting member\'s own connections with their provider', async () => {
+    const { adult } = await seedTestHousehold();
+    registerStubProvider('m365');
+    registerStubProvider('google');
+    await new IntegrationStore('google').upsertConnection({
+      memberId: adult.user.id, accountLabel: 'anna@gmail.test', refreshToken: 'r', scopes: '',
+    });
+
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const { data } = await res.json() as {
+      data: { myConnections: Array<{ provider: string; accountLabel: string }> };
+    };
+    expect(data.myConnections).toEqual([
+      expect.objectContaining({ provider: 'google', accountLabel: 'anna@gmail.test' }),
+    ]);
+  });
+
+  it('reports no household calendar when none is designated', async () => {
+    const { adult } = await seedTestHousehold();
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const { data } = await res.json() as { data: { householdCalendar: unknown } };
+    expect(data.householdCalendar).toBeNull();
+  });
+
+  it('reports the designated household calendar as disconnected when its member has no connection', async () => {
+    const { adult } = await seedTestHousehold();
+    registerStubProvider('google');
+    await setCalendarAllowlist(adult.user.id, 'google', [{ id: 'cal-a', name: 'Familie' }]);
+    await setHouseholdCalendar(adult.user.id, 'google', 'cal-a');
+
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const { data } = await res.json() as {
+      data: { householdCalendar: { calendarName: string; connectionOk: boolean } };
+    };
+    expect(data.householdCalendar).toMatchObject({ calendarName: 'Familie', connectionOk: false });
+  });
+
+  it('reports it as connected once that member connects', async () => {
+    const { adult } = await seedTestHousehold();
+    registerStubProvider('google');
+    await new IntegrationStore('google').upsertConnection({
+      memberId: adult.user.id, accountLabel: 'anna@gmail.test', refreshToken: 'r', scopes: '',
+    });
+    await setCalendarAllowlist(adult.user.id, 'google', [{ id: 'cal-a', name: 'Familie' }]);
+    await setHouseholdCalendar(adult.user.id, 'google', 'cal-a');
+
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const { data } = await res.json() as { data: { householdCalendar: { connectionOk: boolean } } };
+    expect(data.householdCalendar.connectionOk).toBe(true);
+  });
+
+  it('still scopes the household-wide connections list to admin and adult', async () => {
+    const { child } = await seedTestHousehold();
+    registerStubProvider('google');
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(child.jwt) });
+    const { data } = await res.json() as { data: { connections?: unknown; myConnections: unknown[] } };
+    expect(data.connections).toBeUndefined();
+    expect(data.myConnections).toEqual([]);
+  });
+
+  // The case above gives the child NO connection anywhere, so it can only prove
+  // the admin/adult gate on `connections` — there is no data to leak, so a
+  // regression to `listConnections()` for `myConnections` would pass it too.
+  // This seeds the CHILD with their own connection AND a different member with
+  // one, so "myConnections is scoped to the caller" is an actual claim about
+  // data, not just about an empty list.
+  it('scopes myConnections to the caller even when the caller has a connection of their own', async () => {
+    const { child, adult } = await seedTestHousehold();
+    registerStubProvider('m365');
+    registerStubProvider('google');
+    await new IntegrationStore('google').upsertConnection({
+      memberId: child.user.id, accountLabel: 'kid@gmail.test', refreshToken: 'r', scopes: '',
+    });
+    await new IntegrationStore('m365').upsertConnection({
+      memberId: adult.user.id, accountLabel: 'a@contoso.test', refreshToken: 'r', scopes: '',
+    });
+
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(child.jwt) });
+    const { data } = await res.json() as {
+      data: { connections?: unknown; myConnections: Array<{ provider: string; accountLabel: string }> };
+    };
+    expect(data.myConnections).toEqual([
+      expect.objectContaining({ provider: 'google', accountLabel: 'kid@gmail.test' }),
+    ]);
+    expect(JSON.stringify(data)).not.toContain('a@contoso.test');
+    expect(data.connections).toBeUndefined();
   });
 });

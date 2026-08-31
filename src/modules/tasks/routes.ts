@@ -23,10 +23,10 @@ tasksRouter.use('*', requireAuth);
  * Map a classified provider error to an HTTP status; rethrow anything else.
  *  - 409 CONFLICT: a member-actionable state — the relevant connection needs
  *    re-consent / is absent, or the shared/requested list is unavailable.
- *  - 502 (upstream Graph said 5xx, `graph_5xx`) / 503 (`network_error` — Graph
- *    unreachable): transient upstream failures, distinguished the same way
- *    library/routes.ts (upstream failure → 502) already splits failure classes,
- *    so the signal isn't flattened into a generic 500.
+ *  - 502 (upstream said 5xx, `graph_5xx` / `google_5xx`) / 503 (`network_error`
+ *    — the provider is unreachable): transient upstream failures, distinguished
+ *    the same way library/routes.ts (upstream failure → 502) already splits
+ *    failure classes, so the signal isn't flattened into a generic 500.
  *  - 500: everything else — the integration is off (`provider_unavailable`), a
  *    non-5xx Graph error, or an unclassified failure.
  */
@@ -34,9 +34,13 @@ function writeError(c: Context, e: unknown): Response {
   if (e instanceof TaskProviderError) {
     const conflict =
       e.reason === 'needs_reauth' || e.reason === 'no_connection'
-      || e.reason === 'shared_list_unavailable' || e.reason === 'unknown_list';
+      || e.reason === 'shared_list_unavailable' || e.reason === 'unknown_list'
+      || e.reason === 'household_list_in_use';
     if (conflict) return err(c, e.reason.toUpperCase(), e.message, 409);
-    if (/^graph_5\d\d$/.test(e.reason)) {
+    // Upstream said 5xx. Both providers' tokens are matched: `graph_503` and
+    // `google_503` are the same failure class and must not be reported
+    // differently just because of which service was unreachable.
+    if (/^(graph|google)_5\d\d$/.test(e.reason)) {
       return c.json({ error: { code: e.reason.toUpperCase(), message: e.message } }, 502);
     }
     if (e.reason === 'network_error') {
@@ -68,7 +72,7 @@ tasksRouter.put('/allowlist', async (c) => {
   const body = setAllowlistSchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
   try {
-    return ok(c, await service.setAllowlist(c.get('auth').userId, body.data.listIds));
+    return ok(c, await service.setAllowlist(c.get('auth').userId, body.data.lists));
   } catch (e) {
     return writeError(c, e);
   }

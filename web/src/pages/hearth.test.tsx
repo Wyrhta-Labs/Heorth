@@ -24,7 +24,7 @@ vi.mock('@/hooks/use-meals', () => ({
 }));
 vi.mock('@/hooks/use-household', () => ({ useHouseholdMembers: () => emptyQuery }));
 const useM365FeedStatusMock = vi.fn(() => ({ data: [] as unknown[] }));
-vi.mock('@/hooks/use-m365', () => ({ useM365FeedStatus: () => useM365FeedStatusMock() }));
+vi.mock('@/hooks/use-m365', () => ({ useIntegrationsFeedStatus: () => useM365FeedStatusMock() }));
 const useFeaturesMock = vi.fn();
 vi.mock('@/hooks/use-features', () => ({ useFeatures: () => useFeaturesMock() }));
 type KithQueryStub = { data?: { data: KithReminder[] }; isError: boolean; dataUpdatedAt: number };

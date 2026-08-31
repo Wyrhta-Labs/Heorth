@@ -31,6 +31,15 @@ export function getAllowlist(): Promise<SingleResponse<TodoAllowlistEntry[]>> {
   return apiGet('/tasks/allowlist');
 }
 
-export function setAllowlist(listIds: string[]): Promise<SingleResponse<TodoAllowlistEntry[]>> {
-  return apiPut('/tasks/allowlist', { listIds });
+export function setAllowlist(
+  lists: Array<{ provider: string; listId: string }>,
+): Promise<SingleResponse<TodoAllowlistEntry[]>> {
+  return apiPut('/tasks/allowlist', { lists });
+}
+
+/** Designate the household task list (admin/adult only, enforced server-side). */
+export function setHouseholdList(
+  provider: string, listId: string,
+): Promise<SingleResponse<unknown>> {
+  return apiPut('/tasks/household-list', { provider, listId });
 }

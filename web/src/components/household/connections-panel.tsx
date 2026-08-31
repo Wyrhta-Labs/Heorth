@@ -9,8 +9,8 @@ import { useToast } from '@/components/ui/toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import { useMembers } from '@/hooks/use-household';
-import { useM365Status } from '@/hooks/use-m365';
-import { triggerM365Sync } from '@/api/m365';
+import { useIntegrationsStatus } from '@/hooks/use-m365';
+import { triggerIntegrationsSync } from '@/api/m365';
 import { useFormatters } from '@/hooks/use-formatters';
 import type { Member } from '@/lib/types';
 
@@ -20,14 +20,16 @@ interface Props {
 }
 
 /**
- * Household-wide overview of Microsoft 365 connections and their feed health,
- * plus a manual "sync now" trigger. Who may mount this panel is the caller's
- * decision; `readOnly` hides the sync trigger for a viewer who may not trigger
- * a sync (`POST /integrations/sync` is admin-gated server-side). Reads the raw
- * `connections` array from `GET /integrations/status` (the M365-specific wire type),
- * joined against the raw member list for display names — the neutral
- * `ProviderConnection` shape used on /profile does not apply here. Members
- * without a connection are deliberately not listed.
+ * Household-wide overview of integration connections (any provider) and their
+ * feed health, plus a manual "sync now" trigger. Who may mount this panel is
+ * the caller's decision; `readOnly` hides the sync trigger for a viewer who
+ * may not trigger a sync (`POST /integrations/sync` is admin-gated
+ * server-side). Reads the raw `connections` array from `GET
+ * /integrations/status`, joined against the raw member list for display
+ * names — the neutral `ProviderConnection` shape used on /profile does not
+ * apply here. Members without a connection are deliberately not listed. Each
+ * row now carries a `provider` field, since with two providers a bare list of
+ * account labels no longer says which service a dead connection belongs to.
  */
 export default function ConnectionsPanel({ readOnly = false }: Props) {
   const { t } = useTranslation();
@@ -35,7 +37,7 @@ export default function ConnectionsPanel({ readOnly = false }: Props) {
   const qc = useQueryClient();
   const { formatDate, formatTime } = useFormatters();
   const membersQuery = useMembers();
-  const statusQuery = useM365Status();
+  const statusQuery = useIntegrationsStatus();
   const [syncing, setSyncing] = useState(false);
 
   const membersById = new Map<string, Member>((membersQuery.data?.data ?? []).map((m) => [m.id, m]));
@@ -45,10 +47,10 @@ export default function ConnectionsPanel({ readOnly = false }: Props) {
   const syncNow = async () => {
     setSyncing(true);
     try {
-      const res = await triggerM365Sync();
+      const res = await triggerIntegrationsSync();
       const count = res.data.results.length;
       toast(t('settings.connectionsPanel.syncSummary', { count }), 'success');
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.m365Status });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.integrationsStatus });
     } catch (e) {
       toast((e as Error).message || t('settings.connectionsPanel.syncFailed'), 'error');
     } finally {
@@ -79,6 +81,7 @@ export default function ConnectionsPanel({ readOnly = false }: Props) {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('settings.connectionsPanel.member')}</TableHead>
+                  <TableHead>{t('settings.connectionsPanel.provider')}</TableHead>
                   <TableHead>{t('settings.connectionsPanel.account')}</TableHead>
                   <TableHead>{t('settings.connectionsPanel.statusHeader')}</TableHead>
                   <TableHead>{t('settings.connectionsPanel.lastSync')}</TableHead>
@@ -87,8 +90,9 @@ export default function ConnectionsPanel({ readOnly = false }: Props) {
               </TableHeader>
               <TableBody>
                 {connections.map((c) => (
-                  <TableRow key={c.memberId}>
+                  <TableRow key={`${c.memberId}:${c.provider}`}>
                     <TableCell>{membersById.get(c.memberId)?.displayName ?? c.memberId}</TableCell>
+                    <TableCell><Badge variant="outline">{c.provider}</Badge></TableCell>
                     <TableCell>{c.accountLabel}</TableCell>
                     <TableCell>{statusLabel(c.status)}</TableCell>
                     <TableCell>{lastSync(c.lastRefreshSuccessAt)}</TableCell>

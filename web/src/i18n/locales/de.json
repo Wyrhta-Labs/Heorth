@@ -152,7 +152,21 @@
     "noListsFound": "Keine Listen gefunden.",
     "syncHint": "Es wird erst synchronisiert, wenn du eine Liste auswählst. Neue Aufgaben landen auf der gemeinsamen Haushaltsliste.",
     "syncedListsUpdated": "Synchronisierte Listen aktualisiert",
-    "couldNotUpdateLists": "Die Listen konnten nicht aktualisiert werden"
+    "couldNotUpdateLists": "Die Listen konnten nicht aktualisiert werden",
+    "householdListLabel": "Haushaltsliste",
+    "householdListUpdated": "Haushaltsliste aktualisiert",
+    "couldNotUpdateHouseholdList": "Die Haushaltsliste konnte nicht aktualisiert werden"
+  },
+  "calendarSync": {
+    "title": "Synchronisierte Kalender",
+    "hint": "Es wird erst synchronisiert, wenn du einen Kalender auswählst.",
+    "loadError": "Deine Kalender konnten nicht geladen werden.",
+    "noneFound": "Keine Kalender gefunden.",
+    "updated": "Synchronisierte Kalender aktualisiert",
+    "couldNotUpdate": "Die Kalender konnten nicht aktualisiert werden",
+    "householdLabel": "Haushaltskalender",
+    "householdUpdated": "Haushaltskalender aktualisiert",
+    "couldNotUpdateHousehold": "Der Haushaltskalender konnte nicht aktualisiert werden"
   },
   "login": {
     "signInToHome": "Melde dich in deinem Zuhause an",
@@ -406,13 +420,14 @@
       "done": "Fertig"
     },
     "connectionsPanel": {
-      "title": "Microsoft-365-Verbindungen",
+      "title": "Verbindungen",
       "syncNow": "Jetzt synchronisieren",
       "syncSummary_one": "Synchronisierung abgeschlossen: {{count}} Feed verarbeitet",
       "syncSummary_other": "Synchronisierung abgeschlossen: {{count}} Feeds verarbeitet",
       "syncFailed": "Synchronisierung konnte nicht gestartet werden",
-      "noConnections": "Noch kein Mitglied hat ein Microsoft-365-Konto verbunden.",
+      "noConnections": "Noch kein Mitglied hat ein Konto verbunden.",
       "member": "Mitglied",
+      "provider": "Anbieter",
       "account": "Konto",
       "statusHeader": "Status",
       "status": {
@@ -674,6 +689,10 @@
       "name": "Microsoft 365",
       "description": "Synchronisiere deinen Kalender und deine To-Do-Listen mit deinem Microsoft-Konto."
     },
+    "google": {
+      "name": "Google",
+      "description": "Google-Kalender spiegeln und Google Tasks synchronisieren."
+    },
     "state": {
       "unavailable": "Nicht verfügbar",
       "disconnected": "Nicht verbunden",
@@ -698,6 +717,11 @@
       "M365_CALLBACK_INVALID": "Die Antwort von Microsoft war ungültig. Bitte versuche die Verbindung erneut.",
       "M365_STATE_INVALID": "Der Verbindungsversuch ist abgelaufen oder wurde manipuliert. Bitte versuche die Verbindung erneut.",
       "M365_EXCHANGE_FAILED": "Microsoft konnte die Verbindung nicht bestätigen. Bitte versuche es erneut.",
+      "GOOGLE_CONSENT_DENIED": "Du hast der Google-Zustimmung nicht zugestimmt, das Konto wurde daher nicht verbunden.",
+      "GOOGLE_CALLBACK_INVALID": "Die Antwort von Google war ungültig. Bitte versuche die Verbindung erneut.",
+      "GOOGLE_STATE_INVALID": "Der Verbindungsversuch ist abgelaufen oder wurde manipuliert. Bitte versuche die Verbindung erneut.",
+      "GOOGLE_EXCHANGE_FAILED": "Google konnte die Verbindung nicht bestätigen. Bitte versuche es erneut.",
+      "GOOGLE_NO_REFRESH_TOKEN": "Google hat keinen dauerhaften Zugriff gewährt, daher kann die Verbindung nicht aktiv bleiben. Bitte versuche die Verbindung erneut — die Anmeldeseite fragt dann erneut nach deiner Zustimmung.",
       "ADMIN_NOT_A_MEMBER": "Das Wartungskonto (Admin) kann kein Microsoft-365-Konto verbinden.",
       "unknown": "Beim Verbinden deines Kontos ist etwas schiefgelaufen. Bitte versuche es erneut."
     }

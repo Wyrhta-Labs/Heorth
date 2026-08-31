@@ -2,7 +2,7 @@ import type { M365Runtime } from './runtime.js';
 import { GraphError } from './graph.js';
 import { feedKeys } from '../integrations/feed-keys.js';
 import type {
-  CalendarProvider, CalendarFeed, MirroredEvent, PullResult,
+  AvailableCalendar, CalendarProvider, CalendarFeed, MirroredEvent, PullResult,
 } from '../modules/calendar/providers/types.js';
 
 /**
@@ -117,6 +117,16 @@ export class GraphCalendarProvider implements CalendarProvider {
     // The shared family mailbox (app-only) is always a feed when enabled.
     feeds.push({ feedKey: feedKeys.calendarFamily('m365'), memberId: null, kind: 'family' });
     return feeds;
+  }
+
+  /**
+   * M365 calendar feeds are not member-selectable: a member's default calendar
+   * plus the configured family mailbox is the whole set (see `listFeeds`).
+   * Returning an empty list keeps the picker honest rather than offering
+   * choices that would change nothing.
+   */
+  async listAvailableCalendars(): Promise<AvailableCalendar[]> {
+    return [];
   }
 
   async pullChanges(

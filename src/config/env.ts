@@ -39,6 +39,16 @@ export function buildEnvSchema() {
     M365_CLIENT_SECRET: emptyToUndefined(z.string().min(1)),
     M365_REDIRECT_URI: emptyToUndefined(z.string().url()),
     M365_FAMILY_MAILBOX: emptyToUndefined(z.string().min(1)),
+    // Google integration (Calendar + Tasks). Optional AS A GROUP with exactly
+    // the same contract as M365_* above: all three present (enabled) or all
+    // absent (the google module registers as a no-op). Partial presence is a
+    // startup error (see superRefine). There is no family-mailbox equivalent —
+    // the shared family calendar is a designated `calendar_allowlist` row — and
+    // no shared-list equivalent: the household task list is a flag on
+    // `todo_list_allowlist`.
+    GOOGLE_CLIENT_ID: emptyToUndefined(z.string().min(1)),
+    GOOGLE_CLIENT_SECRET: emptyToUndefined(z.string().min(1)),
+    GOOGLE_REDIRECT_URI: emptyToUndefined(z.string().url()),
     // Background mirror poll interval. OPTIONAL and INDEPENDENT of the all-or-
     // nothing group above (a tuning knob, not a credential): default 300s, floored
     // at 60s by the scheduler. Absent when the integration is disabled anyway.
@@ -141,6 +151,18 @@ export function buildEnvSchema() {
         path: ['M365'],
         message:
           `M365 integration is partially configured — set all of [${m365Keys.join(', ')}] ` +
+          `or none. Missing: ${missing.join(', ')}.`,
+      });
+    }
+    const googleKeys = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'] as const;
+    const googlePresent = googleKeys.filter((k) => env[k] !== undefined && env[k] !== '');
+    if (googlePresent.length > 0 && googlePresent.length < googleKeys.length) {
+      const missing = googleKeys.filter((k) => env[k] === undefined || env[k] === '');
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['GOOGLE'],
+        message:
+          `Google integration is partially configured — set all of [${googleKeys.join(', ')}] ` +
           `or none. Missing: ${missing.join(', ')}.`,
       });
     }
@@ -272,6 +294,17 @@ export const config = {
           familyMailbox: parsed.M365_FAMILY_MAILBOX!,
         }
       : null,
+  // Resolved Google config, or null when the integration is disabled (env
+  // absent). All-or-nothing like m365 above: GOOGLE_CLIENT_ID present implies
+  // the rest of the group is present.
+  google:
+    parsed.GOOGLE_CLIENT_ID
+      ? {
+          clientId: parsed.GOOGLE_CLIENT_ID,
+          clientSecret: parsed.GOOGLE_CLIENT_SECRET!,
+          redirectUri: parsed.GOOGLE_REDIRECT_URI!,
+        }
+      : null,
   // Resolved KithLedger config, or null when the integration is disabled
   // (env absent). All-or-nothing like m365 above: KITH_BASE_URL present
   // implies KITH_API_KEY is present too.
@@ -333,6 +366,9 @@ export const config = {
 
 /** The resolved Microsoft 365 config shape (present only when enabled). */
 export type M365Config = NonNullable<typeof config.m365>;
+
+/** The resolved Google config shape (present only when enabled). */
+export type GoogleConfig = NonNullable<typeof config.google>;
 
 /** The resolved KithLedger config shape (present only when enabled). */
 export type KithConfig = NonNullable<typeof config.kith>;

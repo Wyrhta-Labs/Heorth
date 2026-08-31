@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { seedTestHousehold } from './helpers.js';
 import { createFakeGoogle, runtimeForFakeGoogle, type FakeGoogle } from './fake-google.js';
 import { GoogleCalendarProvider } from '../src/google/calendar-provider.js';
@@ -6,6 +7,9 @@ import {
   setCalendarAllowlist, setHouseholdCalendar,
 } from '../src/modules/calendar/allowlist-store.js';
 import type { GoogleRuntime } from '../src/google/runtime.js';
+import { db } from '../src/db/index.js';
+import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
+import { runGoogleCalendarSync } from '../src/google/calendar-sync.js';
 
 let fake: FakeGoogle;
 let rt: GoogleRuntime;
@@ -203,5 +207,69 @@ describe('GoogleCalendarProvider.pullChanges', () => {
     await expect(
       provider().pullChanges(`google:calendar:member:${memberId}:not-allowlisted`, null),
     ).rejects.toThrow(/Unknown Google calendar feed/);
+  });
+});
+
+describe('runGoogleCalendarSync', () => {
+  it('writes the mirror and records per-feed success', async () => {
+    const memberId = await connectedMember();
+    await setCalendarAllowlist(memberId, 'google', [{ id: 'cal-a', name: 'Anna' }]);
+    fake.setEvents('cal-a', [{ pages: [{ events: [
+      { id: 'ev-1', summary: 'Dentist', startUtc: '2026-09-01T09:00:00Z', endUtc: '2026-09-01T10:00:00Z' },
+    ] }] }]);
+
+    const results = await runGoogleCalendarSync(rt, provider());
+    expect(results).toEqual([{
+      feedKey: `google:calendar:member:${memberId}:cal-a`, status: 'ok', upserted: 1, deleted: 0,
+    }]);
+
+    const rows = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.source, 'google'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.title).toBe('Dentist');
+  });
+
+  it('skips a feed whose member has no connection', async () => {
+    const { child } = await seedTestHousehold();
+    await setCalendarAllowlist(child.user.id, 'google', [{ id: 'cal-x', name: 'X' }]);
+    const results = await runGoogleCalendarSync(rt, provider());
+    expect(results).toEqual([{
+      feedKey: `google:calendar:member:${child.user.id}:cal-x`, status: 'skipped', reason: 'no_connection',
+    }]);
+  });
+
+  it('classifies an upstream failure as google_<status>, never graph_<n>', async () => {
+    const memberId = await connectedMember();
+    await setCalendarAllowlist(memberId, 'google', [{ id: 'cal-a', name: 'Anna' }]);
+    fake.failEvents.add('cal-a');
+
+    const [result] = await runGoogleCalendarSync(rt, provider());
+    expect(result).toMatchObject({ status: 'error', reason: 'google_500' });
+    const state = await rt.store.getSyncState(`google:calendar:member:${memberId}:cal-a`);
+    expect(state!.lastError).toBe('google_500');
+  });
+
+  it('reconciles a full pull: an event absent from the snapshot is deleted, survivors keep their id', async () => {
+    const memberId = await connectedMember();
+    await setCalendarAllowlist(memberId, 'google', [{ id: 'cal-a', name: 'Anna' }]);
+    fake.setEvents('cal-a', [{ pages: [{ events: [
+      { id: 'ev-1', summary: 'Stays', startUtc: '2026-09-01T09:00:00Z', endUtc: '2026-09-01T10:00:00Z' },
+      { id: 'ev-2', summary: 'Goes', startUtc: '2026-09-02T09:00:00Z', endUtc: '2026-09-02T10:00:00Z' },
+    ] }] }]);
+    await runGoogleCalendarSync(rt, provider());
+    const before = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.externalId, 'ev-1'));
+
+    // A second FULL pull carrying only ev-1.
+    fake.setEvents('cal-a', [{ pages: [{ events: [
+      { id: 'ev-1', summary: 'Stays', startUtc: '2026-09-01T09:00:00Z', endUtc: '2026-09-01T10:00:00Z' },
+    ] }] }]);
+    await rt.store.recordSyncSuccess(`google:calendar:member:${memberId}:cal-a`, null, false);
+    await runGoogleCalendarSync(rt, provider());
+
+    const after = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.source, 'google'));
+    expect(after.map((r) => r.externalId)).toEqual(['ev-1']);
+    expect(after[0]!.id).toBe(before[0]!.id);
   });
 });

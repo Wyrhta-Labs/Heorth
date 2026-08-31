@@ -57,7 +57,14 @@ export async function listAvailableLists(memberId: string): Promise<AvailableLis
         out.push({ provider: p.id, id: l.id, name: l.name, enabled: enabled.has(l.id) });
       }
     } catch (e) {
-      if (p.classifyError(e) === 'no_connection') continue; // not connected: normal
+      // The provider may have already classified this: TaskProviderError carries
+      // a reason. Only fall back to the provider's own classifier for a raw
+      // error — reclassifying an already-classified TaskProviderError through
+      // `classifyError` (which only understands its own raw errors, e.g.
+      // GraphError) loses the reason and rethrows, killing discovery for every
+      // OTHER provider too.
+      const reason = e instanceof TaskProviderError ? e.reason : p.classifyError(e);
+      if (reason === 'no_connection') continue; // not connected: normal
       throw e;
     }
   }

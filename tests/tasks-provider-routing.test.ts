@@ -4,6 +4,7 @@ import { taskMirror } from '../src/modules/tasks/schema.js';
 import { clearProviders, registerProvider, getTaskProviderFor } from '../src/integrations/registry.js';
 import { IntegrationStore } from '../src/integrations/store.js';
 import * as service from '../src/modules/tasks/service.js';
+import { TaskProviderError } from '../src/modules/tasks/providers/types.js';
 import { seedTestHousehold } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { ALL_MODULES } from '../src/modules/index.js';
@@ -88,6 +89,45 @@ describe('task write-back routing', () => {
 
     await expect(service.completeTask(row!.id, true))
       .rejects.toMatchObject({ reason: 'provider_unavailable' });
+  });
+
+  it('does not let one unreachable provider hide another provider\'s lists', async () => {
+    // The first provider's listAvailableLists already classifies its own
+    // failure into a TaskProviderError('no_connection') — exactly what
+    // GraphTaskProvider does. Discovery must recognize that reason directly
+    // rather than re-classifying it through the SECOND provider's
+    // classifyError (which only understands its own raw errors and would
+    // fall through to 'error', rethrowing and killing discovery entirely).
+    clearProviders();
+    registerProvider({
+      ...recordingProvider('m365', calls),
+      tasks: {
+        source: 'm365',
+        listAvailableLists: async () => {
+          throw new TaskProviderError('no_connection', 'not connected');
+        },
+        pullChanges: async () => ({ upserts: [], deletions: [], nextToken: null, fullResync: false }),
+        setCompleted: async () => {},
+        createTask: async () => { throw new Error('not used'); },
+      },
+    });
+    registerProvider({
+      ...recordingProvider('google', calls),
+      tasks: {
+        source: 'google',
+        listAvailableLists: async () => [{ id: 'l1', name: 'Google List' }],
+        pullChanges: async () => ({ upserts: [], deletions: [], nextToken: null, fullResync: false }),
+        setCompleted: async () => {},
+        createTask: async () => { throw new Error('not used'); },
+      },
+    });
+
+    const { adult } = await seedTestHousehold();
+    const lists = await service.listAvailableLists(adult.user.id);
+
+    expect(lists).toEqual([
+      { provider: 'google', id: 'l1', name: 'Google List', enabled: false },
+    ]);
   });
 });
 

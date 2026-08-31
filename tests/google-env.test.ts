@@ -11,6 +11,8 @@ async function loadConfig() {
   return (await import('../src/config/env.js')).config;
 }
 
+// singleFork shares process.env and console mocks across test files — we must
+// restore both so later files aren't affected by spies/stubs created here.
 describe('GOOGLE_* env group', () => {
   beforeEach(() => { clearGoogle(); });
   afterEach(() => { clearGoogle(); vi.resetModules(); });
@@ -37,9 +39,10 @@ describe('GOOGLE_* env group', () => {
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => {
       throw new Error('process.exit');
     }) as never);
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await expect(loadConfig()).rejects.toThrow('process.exit');
     exit.mockRestore();
+    errSpy.mockRestore();
   });
 
   it('treats a blank value as absent, not as a validation error', async () => {

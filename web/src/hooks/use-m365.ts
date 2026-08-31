@@ -13,10 +13,11 @@ const M365_FEED_STATUS_KEY = ['m365', 'feedStatus'] as const;
 
 /**
  * Per-feed M365 sync health for the Hearth staleness badges. Polls (default 60s)
- * and refetches on reconnect. When the integration is disabled the endpoint
- * 404s; we swallow that to an empty feed list (nothing to grey) rather than
- * treat it as an error on the wall. Retry is disabled so a disabled deployment
- * doesn't hammer the endpoint.
+ * and refetches on reconnect. The endpoint is provider-neutral and returns 200
+ * with an empty feed list when the integration is disabled; any thrown error
+ * (network, unexpected 4xx/5xx) is also swallowed to an empty feed list
+ * (nothing to grey) rather than treated as an error on the wall. Retry is
+ * disabled so a disabled deployment doesn't hammer the endpoint.
  *
  * NOTE: named `FeedStatus` (not `useM365Status`) to avoid colliding with the
  * raw status query below (Task 10) — this one unwraps to `FeedStatus[]` and
@@ -50,9 +51,10 @@ export function useM365Status() {
 }
 
 /**
- * Derived per-member view used by the provider registry. A 404 means the
- * integration is disabled server-side (the routes are not mounted at all).
- * That is "not available", never an error worth a toast.
+ * Derived per-member view used by the provider registry. The status endpoint
+ * is provider-neutral: a disabled M365 integration no longer 404s (the old
+ * signal), it returns 200 with `providers: []`. Either shape means "not
+ * available", never an error worth a toast.
  */
 export function useM365ProviderStatus(): {
   state: ProviderState;
@@ -61,7 +63,9 @@ export function useM365ProviderStatus(): {
 } {
   const query = useM365Status();
 
-  const notMounted = query.error instanceof ApiError && query.error.status === 404;
+  const notMounted =
+    (query.error instanceof ApiError && query.error.status === 404) ||
+    (query.data !== undefined && !query.data.data.providers.includes('m365'));
   const raw = query.data?.data.connection ?? null;
 
   // Map the M365 wire shape onto the provider-neutral contract — the

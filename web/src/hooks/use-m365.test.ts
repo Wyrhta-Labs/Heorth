@@ -24,7 +24,7 @@ describe('useM365ProviderStatus', () => {
 
   it('maps no connection to "disconnected"', () => {
     useQueryMock.mockReturnValue({
-      data: { data: { connection: null, feeds: [] } },
+      data: { data: { connection: null, feeds: [], providers: ['m365'] } },
       error: null,
       isLoading: false,
     });
@@ -35,11 +35,28 @@ describe('useM365ProviderStatus', () => {
     expect(result.current.connection).toBeNull();
   });
 
+  it('maps a 200 with providers: [] to "unavailable", not "disconnected"', () => {
+    // The status endpoint is provider-neutral: a disabled integration no
+    // longer 404s, it returns 200 with an empty provider list. Misreading
+    // this as "disconnected" shows a Connect button that 404s when pressed.
+    useQueryMock.mockReturnValue({
+      data: { data: { connection: null, feeds: [], providers: [] } },
+      error: null,
+      isLoading: false,
+    });
+
+    const { result } = renderHook(() => useM365ProviderStatus());
+
+    expect(result.current.state).toBe('unavailable');
+    expect(result.current.connection).toBeNull();
+  });
+
   it('maps an active connection to "connected", using provider-neutral field names', () => {
     useQueryMock.mockReturnValue({
       data: {
         data: {
           feeds: [],
+          providers: ['m365'],
           connection: {
             memberId: 'm1',
             accountLabel: 'anna@example.com',
@@ -69,6 +86,7 @@ describe('useM365ProviderStatus', () => {
       data: {
         data: {
           feeds: [],
+          providers: ['m365'],
           connection: {
             memberId: 'm1',
             accountLabel: 'anna@example.com',

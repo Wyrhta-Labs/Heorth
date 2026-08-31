@@ -15,8 +15,9 @@ export interface M365Connection {
  * GET /api/v1/integrations/status — the health surface (Task 2.2/2.3). Returns per-feed
  * sync state used for the Hearth View staleness badges. The member view returns
  * their own feeds; admin sees all. `feeds` is the only field the wall reads.
- * When the M365 integration is disabled the route 404s — callers treat that as
- * "no feeds" (no staleness to show), not an error worth surfacing on the wall.
+ * The route is provider-neutral and always returns 200; when M365 is disabled
+ * `providers` simply omits `'m365'` — callers treat that as "no feeds" (no
+ * staleness to show), not an error worth surfacing on the wall.
  */
 export interface M365Status {
   feeds: FeedStatus[];

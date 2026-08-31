@@ -5,6 +5,13 @@ import { eq, and, or, lte, gte, isNull, isNotNull, inArray, sql } from 'drizzle-
 import type { CreateEventInput, UpdateEventInput, ListEventsQuery } from './validators.js';
 import { listMirrorInRange, mirrorRowToOccurrence, isMirrorEvent, getMirrorEvent } from './mirror-store.js';
 import { assertNotMaintenanceAdmin, assertNoneAreMaintenanceAdmin } from '../../household/maintenance-admin.js';
+import { listProviders } from '../../integrations/registry.js';
+import {
+  getCalendarAllowlist, setCalendarAllowlist, getHouseholdCalendar, setHouseholdCalendar,
+  type CalendarAllowlistFeed,
+} from './allowlist-store.js';
+import type { CalendarAllowlistRow } from './allowlist-schema.js';
+import type { AvailableCalendar } from './providers/types.js';
 
 /** An occurrence carrying its source; native events are `'native'`. */
 export type OccurrenceView = EventOccurrence & {
@@ -200,4 +207,106 @@ export async function listUpcoming(memberId: string | null, limit: number) {
 export async function getEventOwner(id: string): Promise<string | null> {
   const [row] = await db.select({ createdBy: events.createdBy }).from(events).where(eq(events.id, id)).limit(1);
   return row?.createdBy ?? null;
+}
+
+/**
+ * Calendar discovery + allowlist management. The shape deliberately mirrors the
+ * tasks module's list picker: every entry is tagged with its provider, so the
+ * picker can group them and `setCalendarAllowlistFor` knows which provider a
+ * chosen calendar belongs to.
+ */
+export interface AvailableCalendarView {
+  provider: string;
+  id: string;
+  name: string;
+  enabled: boolean;
+  isHousehold: boolean;
+}
+
+/** Thrown for a calendar the member cannot access or has not allowlisted. */
+export class UnknownCalendarError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnknownCalendarError';
+  }
+}
+
+export async function listAvailableCalendars(memberId: string): Promise<AvailableCalendarView[]> {
+  await assertNotMaintenanceAdmin(memberId);
+  const out: AvailableCalendarView[] = [];
+  for (const p of listProviders()) {
+    if (!p.calendar) continue;
+    // One provider being unreachable must not hide another's calendars — the
+    // same rule the tasks picker learned the hard way in Phase 1.
+    let calendars: AvailableCalendar[];
+    try {
+      calendars = await p.calendar.listAvailableCalendars(memberId);
+    } catch (e) {
+      if (p.classifyError(e) === 'no_connection') continue;
+      throw e;
+    }
+    const rows = await getCalendarAllowlist(memberId, p.id);
+    const byId = new Map(rows.map((r) => [r.calendarId, r]));
+    for (const c of calendars) {
+      const row = byId.get(c.id);
+      out.push({
+        provider: p.id, id: c.id, name: c.name,
+        enabled: row !== undefined, isHousehold: row?.isHousehold ?? false,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Replace the member's calendar selection. Scoped per provider: a provider
+ * whose discovery failed with `no_connection` keeps its rows untouched, so a
+ * temporarily unreachable account cannot silently wipe a selection the member
+ * never saw in the picker.
+ */
+export async function setCalendarAllowlistFor(
+  memberId: string, entries: Array<{ provider: string; calendarId: string }>,
+): Promise<CalendarAllowlistRow[]> {
+  await assertNotMaintenanceAdmin(memberId);
+  const out: CalendarAllowlistRow[] = [];
+  for (const p of listProviders()) {
+    if (!p.calendar) continue;
+    let available: AvailableCalendar[];
+    try {
+      available = await p.calendar.listAvailableCalendars(memberId);
+    } catch (e) {
+      if (p.classifyError(e) === 'no_connection') continue;
+      throw e;
+    }
+    const byId = new Map(available.map((c) => [c.id, c.name]));
+    const selected: Array<{ id: string; name: string | null }> = [];
+    for (const entry of entries.filter((e) => e.provider === p.id)) {
+      if (!byId.has(entry.calendarId)) {
+        throw new UnknownCalendarError(`Calendar not accessible for this member: ${entry.calendarId}`);
+      }
+      selected.push({ id: entry.calendarId, name: byId.get(entry.calendarId) ?? null });
+    }
+    out.push(...await setCalendarAllowlist(memberId, p.id, selected));
+  }
+  return out;
+}
+
+/**
+ * Designate the household calendar. It must already be allowlisted —
+ * designating an unsynced calendar would produce a family feed nothing pulls.
+ */
+export async function designateHouseholdCalendar(
+  memberId: string, provider: string, calendarId: string,
+): Promise<void> {
+  const owned = await getCalendarAllowlist(memberId, provider);
+  if (!owned.some((r) => r.calendarId === calendarId)) {
+    throw new UnknownCalendarError(
+      "That calendar is not in the member's allowlist — allowlist it before designating it",
+    );
+  }
+  await setHouseholdCalendar(memberId, provider, calendarId);
+}
+
+export async function getHouseholdCalendarView(): Promise<CalendarAllowlistFeed | null> {
+  return getHouseholdCalendar();
 }

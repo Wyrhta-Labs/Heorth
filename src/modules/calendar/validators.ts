@@ -69,6 +69,18 @@ export const listEventsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 
+export const setCalendarAllowlistSchema = z.object({
+  calendars: z.array(z.object({
+    provider: z.string().min(1),
+    calendarId: z.string().min(1),
+  })).default([]),
+});
+
+export const setHouseholdCalendarSchema = z.object({
+  provider: z.string().min(1),
+  calendarId: z.string().min(1),
+});
+
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type MoveEventInput = z.infer<typeof moveEventSchema>;

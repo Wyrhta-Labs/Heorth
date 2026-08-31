@@ -197,8 +197,15 @@ npm run typecheck && npm run build
 export DATABASE_URL=postgres://<user>:<pw>@localhost:<port>/heorth_test
 npm test                         # backend suite (real Postgres, _test db only)
 cd web && npm test               # web suite
+cd web && npm run build          # web TYPECHECK + build — see below, do not skip
 npx tsx scripts/m365-smoke.ts    # manual M365 app-only smoke (real .env)
 ```
+
+- **`cd web && npm run build` is the ONLY thing that typechecks the web.** The root
+  `tsconfig.json` includes `src/**/*` only, and `web/` has no `typecheck` script — its
+  `tsc -b` runs inside `build`. So `npm run typecheck && npm test && (cd web && npm test)`
+  can be entirely green while `web/` does not compile, and CI then fails on a push that
+  every local check passed. This has happened; run the web build before you push.
 
 Git operations against GitHub go through `gh`. Do not add AI co-author trailers
 to commits.

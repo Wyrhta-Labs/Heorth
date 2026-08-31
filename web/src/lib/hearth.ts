@@ -35,7 +35,8 @@ export interface Attribution {
 
 /** Whether an occurrence is the shared family feed (household-wide, no member). */
 export function isFamilyEvent(o: EventOccurrence): boolean {
-  if (/^[^:]+:calendar:family$/.test(o.feedKey)) return true;
+  // `feedKey` is optional — a native event has none — so guard before testing.
+  if (o.feedKey && /^[^:]+:calendar:family$/.test(o.feedKey)) return true;
   // Defensive: a mirrored event with no resolvable member attribution is
   // household-shared too.
   return isMirroredEvent(o) && (o.attendeeIds ?? []).filter(Boolean).length === 0 && !o.createdBy;

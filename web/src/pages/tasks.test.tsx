@@ -76,6 +76,25 @@ describe('TasksPage list settings', () => {
     ]));
   });
 
+  it('preserves an already-enabled other-provider list when toggling this one on', async () => {
+    mocked(listAvailableLists).mockResolvedValue({ data: [
+      { provider: 'm365', id: 'm-1', name: 'Work', enabled: true },
+      { provider: 'google', id: 'g-1', name: 'Groceries', enabled: false },
+    ] });
+    mocked(getAllowlist).mockResolvedValue({ data: [
+      { id: 'a1', provider: 'm365', memberId: 'm1', listId: 'm-1', listName: 'Work', isHousehold: false },
+    ] });
+
+    renderWithProviders(<TasksPage />);
+    await userEvent.click(screen.getByRole('button', { name: /Lists/i }));
+    await userEvent.click(await screen.findByLabelText('Groceries'));
+
+    await waitFor(() => expect(setAllowlist).toHaveBeenCalledWith([
+      { provider: 'm365', listId: 'm-1' },
+      { provider: 'google', listId: 'g-1' },
+    ]));
+  });
+
   it('designates the household list when the radio is picked, for an adult', async () => {
     mocked(listAvailableLists).mockResolvedValue({ data: [
       { provider: 'google', id: 'g-1', name: 'Groceries', enabled: true },

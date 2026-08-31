@@ -67,6 +67,21 @@ describe('CalendarSyncSettings', () => {
     ]));
   });
 
+  it('preserves an already-enabled other-provider calendar when toggling this one on', async () => {
+    mocked(listCalendars).mockResolvedValue({ data: [
+      { provider: 'm365', id: 'm-1', name: 'Work', enabled: true, isHousehold: false },
+      { provider: 'google', id: 'cal-a', name: 'Anna', enabled: false, isHousehold: false },
+    ] });
+
+    renderWithProviders(<CalendarSyncSettings canDesignate />);
+    await userEvent.click(await screen.findByLabelText('Anna'));
+
+    await waitFor(() => expect(setCalendarAllowlist).toHaveBeenCalledWith([
+      { provider: 'm365', calendarId: 'm-1' },
+      { provider: 'google', calendarId: 'cal-a' },
+    ]));
+  });
+
   it('offers the household radio only for a synced calendar, and only to an adult', async () => {
     mocked(listCalendars).mockResolvedValue({ data: [
       { provider: 'google', id: 'cal-a', name: 'Anna', enabled: true, isHousehold: false },

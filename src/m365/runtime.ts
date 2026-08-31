@@ -1,21 +1,21 @@
 import { config, type M365Config } from '../config/env.js';
 import { graphFetch } from './graph.js';
-import { M365Store } from './store.js';
+import { IntegrationStore } from '../integrations/store.js';
 import { DelegatedClient } from './delegated.js';
 import { AppOnlyClient } from './app-only.js';
 
 /**
  * The live M365 dependencies route handlers and (later) providers resolve per
  * request. Consumers in Tasks 2.2/2.3 depend only on this surface:
- *  - `config`     — resolved M365 settings (tenant, family mailbox, shared list).
- *  - `store`      — connections + generic sync state (see `store.ts`).
+ *  - `config`     — resolved M365 settings (tenant, family mailbox).
+ *  - `store`      — connections + generic sync state (`src/integrations/store.ts`).
  *  - `delegated`  — per-member access tokens (auth-code flow).
  *  - `appOnly`    — tenant-scoped token for the family mailbox.
  *  - `graphFetch` — bearer JSON call with 429 retry + typed GraphError mapping.
  */
 export interface M365Runtime {
   config: M365Config;
-  store: M365Store;
+  store: IntegrationStore;
   delegated: DelegatedClient;
   appOnly: AppOnlyClient;
   graphFetch: <T>(accessToken: string, path: string, init?: RequestInit) => Promise<T>;
@@ -31,7 +31,7 @@ export function isM365Enabled(): boolean {
  * validated env config and the global fetch; tests pass a fake-Graph fetch).
  */
 export function createM365Runtime(cfg: M365Config, fetchImpl: typeof fetch = fetch): M365Runtime {
-  const store = new M365Store();
+  const store = new IntegrationStore('m365');
   const delegated = new DelegatedClient(cfg, store, fetchImpl);
   const appOnly = new AppOnlyClient(cfg, fetchImpl);
   return {

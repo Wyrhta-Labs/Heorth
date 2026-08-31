@@ -15,7 +15,7 @@ import { useFormatters } from '@/hooks/use-formatters';
 import type { Member } from '@/lib/types';
 
 interface Props {
-  /** Presentation only — `POST /m365/sync` is admin-gated server-side. */
+  /** Presentation only — `POST /integrations/sync` is admin-gated server-side. */
   readOnly?: boolean;
 }
 
@@ -23,8 +23,8 @@ interface Props {
  * Household-wide overview of Microsoft 365 connections and their feed health,
  * plus a manual "sync now" trigger. Who may mount this panel is the caller's
  * decision; `readOnly` hides the sync trigger for a viewer who may not trigger
- * a sync (`POST /m365/sync` is admin-gated server-side). Reads the raw
- * `connections` array from `GET /m365/status` (the M365-specific wire type),
+ * a sync (`POST /integrations/sync` is admin-gated server-side). Reads the raw
+ * `connections` array from `GET /integrations/status` (the M365-specific wire type),
  * joined against the raw member list for display names — the neutral
  * `ProviderConnection` shape used on /profile does not apply here. Members
  * without a connection are deliberately not listed.
@@ -89,7 +89,7 @@ export default function ConnectionsPanel({ readOnly = false }: Props) {
                 {connections.map((c) => (
                   <TableRow key={c.memberId}>
                     <TableCell>{membersById.get(c.memberId)?.displayName ?? c.memberId}</TableCell>
-                    <TableCell>{c.accountUpn}</TableCell>
+                    <TableCell>{c.accountLabel}</TableCell>
                     <TableCell>{statusLabel(c.status)}</TableCell>
                     <TableCell>{lastSync(c.lastRefreshSuccessAt)}</TableCell>
                     <TableCell>{c.lastRefreshError ?? t('settings.connectionsPanel.none')}</TableCell>

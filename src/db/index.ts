@@ -30,9 +30,9 @@ import * as schema from './schema/index.js';
  * SUPERUSER attribute`, hook timeouts in the truncate `beforeEach`, and — the
  * signature case — a handler that issues CONCURRENT queries failing while every
  * sequential query in the same file kept working on the one socket the pool
- * already held (`GET /api/v1/m365/status` does `Promise.all([...])`; that is why
- * tests/m365-routes.test.ts appeared to fail "only on /status", and only in a
- * full-suite run).
+ * already held (`GET /api/v1/integrations/status` does `Promise.all([...])`;
+ * that is why tests/integrations-routes.test.ts (then tests/m365-routes.test.ts)
+ * appeared to fail "only on /status", and only in a full-suite run).
  *
  * `globalThis` is the only state that survives a module-registry reset, so the
  * memo has to live there — the same pattern used to keep one database client

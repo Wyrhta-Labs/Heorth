@@ -7,6 +7,7 @@ import { ethelModule } from './ethel/index.js';
 import { weorcModule } from './weorc/index.js';
 import { tasksModule } from './tasks/index.js';
 import { m365Module } from '../m365/index.js';
+import { integrationsModule } from '../integrations/index.js';
 import { feohModule } from './feoh/index.js';
 import { kithModule } from './kith/index.js';
 
@@ -23,6 +24,9 @@ export const ALL_MODULES: HeorthModule[] = [
   tasksModule,
   // M365 is a no-op when its env is absent (integration disabled) — see src/m365.
   m365Module,
+  // Integrations hosts the routes for every provider; providers register from
+  // their own module, so this MUST come after them in this list.
+  integrationsModule,
   // Finance (ADR 0007) is always on — see src/modules/feoh.
   feohModule,
   // KithLedger reminders proxy is a no-op when the KITH_* env group is absent — see src/modules/kith.

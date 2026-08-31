@@ -20,7 +20,7 @@ process.env['ADMIN_PASSWORD'] ??= 'test-admin-password';
 // setM365Runtime instead.
 for (const k of [
   'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
-  'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX', 'M365_SHARED_TODO_LIST',
+  'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX',
 ]) {
   process.env[k] = '';
 }

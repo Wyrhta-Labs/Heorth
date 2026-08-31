@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, inArray, or } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray, or, notInArray } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { calendarMirrorEvents, type CalendarMirrorEventRow } from './mirror-schema.js';
 import type { EventOccurrence } from './schema.js';
@@ -30,7 +30,13 @@ function toRow(source: string, feedKey: string, e: MirroredEvent) {
 
 /**
  * Apply one feed's pull to the mirror.
- *  - `fullResync`: replace ALL of the feed's rows with `upserts` (410 recovery).
+ *  - `fullResync`: `upserts` IS the complete current contents of the feed (a
+ *    freshly-windowed snapshot, or a 410 recovery). Rows are RECONCILED, not
+ *    replaced: everything present is upserted, then everything absent is
+ *    deleted. Reconciling rather than truncating keeps `calendar_mirror_events.id`
+ *    stable across a resync. Because a re-windowed snapshot contains only events
+ *    inside the window, this also correctly drops events that aged out of the
+ *    window's past edge — which is what the previous truncate achieved.
  *  - otherwise: upsert `upserts` (by feed + externalId), delete `deletions`
  *    (cascading over `seriesMasterId`) and `masterPurges` (externalId only).
  * Returns the row count now stored for the feed's changed set (for logging).
@@ -41,47 +47,6 @@ export async function applyMirrorPull(
   result: PullResult,
 ): Promise<{ upserted: number; deleted: number }> {
   return db.transaction(async (tx) => {
-    if (result.fullResync) {
-      await tx.delete(calendarMirrorEvents).where(eq(calendarMirrorEvents.feedKey, feedKey));
-    }
-
-    // Deletions and purges FIRST, so they can never eat same-pull upserts.
-    // Two channels with different blast radii:
-    //  - `deletions` (genuine @removed tombstones): a deleted series is
-    //    tombstoned by its MASTER id only, so the delete matches externalId OR
-    //    seriesMasterId (the cascade).
-    //  - `masterPurges` (still-ALIVE series masters, never displayable): delete
-    //    by externalId ONLY. The cascade must not apply — an incremental delta
-    //    re-delivers the master without re-delivering the series' unchanged
-    //    occurrences, and those mirrored rows must survive.
-    // Skipped on fullResync: the feed was already replaced wholesale above.
-    let deleted = 0;
-    if (!result.fullResync) {
-      if (result.deletions.length > 0) {
-        const rows = await tx
-          .delete(calendarMirrorEvents)
-          .where(and(
-            eq(calendarMirrorEvents.feedKey, feedKey),
-            or(
-              inArray(calendarMirrorEvents.externalId, result.deletions),
-              inArray(calendarMirrorEvents.seriesMasterId, result.deletions),
-            ),
-          ))
-          .returning({ id: calendarMirrorEvents.id });
-        deleted = rows.length;
-      }
-      if (result.masterPurges.length > 0) {
-        const rows = await tx
-          .delete(calendarMirrorEvents)
-          .where(and(
-            eq(calendarMirrorEvents.feedKey, feedKey),
-            inArray(calendarMirrorEvents.externalId, result.masterPurges),
-          ))
-          .returning({ id: calendarMirrorEvents.id });
-        deleted += rows.length;
-      }
-    }
-
     let upserted = 0;
     for (const e of result.upserts) {
       await tx.insert(calendarMirrorEvents).values(toRow(source, feedKey, e)).onConflictDoUpdate({
@@ -101,6 +66,59 @@ export async function applyMirrorPull(
         },
       });
       upserted += 1;
+    }
+
+    let deleted = 0;
+
+    if (result.fullResync) {
+      // Reconcile against the snapshot. `deletions` / `masterPurges` are NOT
+      // consulted here: an event the snapshot omits is already deleted below,
+      // and a snapshot cannot be trusted to repeat tombstones from before the
+      // gap that caused the resync.
+      const seen = result.upserts.map((e) => e.externalId);
+      const rows = await tx
+        .delete(calendarMirrorEvents)
+        .where(seen.length > 0
+          ? and(
+              eq(calendarMirrorEvents.feedKey, feedKey),
+              notInArray(calendarMirrorEvents.externalId, seen),
+            )
+          : eq(calendarMirrorEvents.feedKey, feedKey))
+        .returning({ id: calendarMirrorEvents.id });
+      deleted = rows.length;
+      return { upserted, deleted };
+    }
+
+    // Incremental pull. Two channels with different blast radii:
+    //  - `deletions` (genuine @removed tombstones): a deleted series is
+    //    tombstoned by its MASTER id only, so the delete matches externalId OR
+    //    seriesMasterId (the cascade).
+    //  - `masterPurges` (still-ALIVE series masters, never displayable): delete
+    //    by externalId ONLY. The cascade must not apply — an incremental delta
+    //    re-delivers the master without re-delivering the series' unchanged
+    //    occurrences, and those mirrored rows must survive.
+    if (result.deletions.length > 0) {
+      const rows = await tx
+        .delete(calendarMirrorEvents)
+        .where(and(
+          eq(calendarMirrorEvents.feedKey, feedKey),
+          or(
+            inArray(calendarMirrorEvents.externalId, result.deletions),
+            inArray(calendarMirrorEvents.seriesMasterId, result.deletions),
+          ),
+        ))
+        .returning({ id: calendarMirrorEvents.id });
+      deleted = rows.length;
+    }
+    if (result.masterPurges.length > 0) {
+      const rows = await tx
+        .delete(calendarMirrorEvents)
+        .where(and(
+          eq(calendarMirrorEvents.feedKey, feedKey),
+          inArray(calendarMirrorEvents.externalId, result.masterPurges),
+        ))
+        .returning({ id: calendarMirrorEvents.id });
+      deleted += rows.length;
     }
 
     return { upserted, deleted };

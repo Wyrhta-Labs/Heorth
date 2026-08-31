@@ -10,6 +10,6 @@ export * from '../../modules/meals/schema.js';
 export * from '../../modules/feoh/schema.js';
 export * from '../../modules/library/schema.js';
 export * from '../../modules/tasks/schema.js';
-export * from '../../m365/schema.js';
+export * from '../../integrations/schema.js';
 export * from '../../modules/ethel/schema.js';
 export * from '../../modules/weorc/schema.js';

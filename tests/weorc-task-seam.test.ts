@@ -1,10 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
-import { setTaskProvider } from '../src/modules/tasks/provider.js';
+import { setHouseholdList } from '../src/modules/tasks/store.js';
+import { clearProviders } from '../src/integrations/registry.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { TaskProviderError, type TaskProvider, type MirroredTask } from '../src/modules/tasks/providers/types.js';
-import { seedTestHousehold } from './helpers.js';
+import { seedTestHousehold, registerFakeTaskProvider } from './helpers.js';
+
+/** Register `p` as the 'm365' provider. The household list is designated
+ * separately, by the caller, via `setHouseholdList`. */
+function wireProvider(p: TaskProvider): void {
+  registerFakeTaskProvider('m365', p);
+}
 
 function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { created: unknown[]; completed: unknown[] } {
   const created: unknown[] = [];
@@ -29,7 +36,7 @@ function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { create
         status: 'open',
         listId: 'list-1',
         listName: 'Household',
-        memberId: feedKey.split(':')[2]!,
+        memberId: feedKey.split(':')[3]!,
       };
     },
     ...over,
@@ -38,30 +45,33 @@ function fakeProvider(over: Partial<TaskProvider> = {}): TaskProvider & { create
 }
 
 describe('the tasks seam Weorc needs', () => {
-  beforeEach(() => setTaskProvider(null));
+  beforeEach(() => { clearProviders(); });
 
   it('createHouseholdTask works with NO acting principal', async () => {
     const { adult } = await seedTestHousehold();
     await db.insert(todoListAllowlist).values({ memberId: adult.user.id, listId: 'list-1', listName: 'Household' });
+    await setHouseholdList(adult.user.id, 'm365', 'list-1');
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
+    wireProvider(provider);
 
     const row = await tasks.createHouseholdTask({ title: 'Put the bins out' }, null);
     expect(row.title).toBe('Put the bins out');
     expect(provider.created).toHaveLength(1);
   });
 
-  it('createHouseholdTask prefers the named member when they have the list', async () => {
+  it('createHouseholdTask resolves through the DESIGNATED list, ignoring the (now decorative) preferMemberId', async () => {
     const { admin, adult } = await seedTestHousehold();
     await db.insert(todoListAllowlist).values([
       { memberId: admin.user.id, listId: 'list-1', listName: 'Household' },
-      { memberId: adult.user.id, listId: 'list-1', listName: 'Household' },
+      { memberId: adult.user.id, listId: 'list-2', listName: 'Household' },
     ]);
+    await setHouseholdList(admin.user.id, 'm365', 'list-1');
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
+    wireProvider(provider);
 
+    // preferMemberId names the adult, but the DESIGNATED list belongs to admin.
     const row = await tasks.createHouseholdTask({ title: 'Descale the kettle' }, adult.user.id);
-    expect(row.memberId).toBe(adult.user.id);
+    expect(row.memberId).toBe(admin.user.id);
   });
 
   it('createHouseholdTask throws a CLASSIFIED error when no provider is installed', async () => {
@@ -83,7 +93,7 @@ describe('the tasks seam Weorc needs', () => {
       status: 'open',
     });
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
+    wireProvider(provider);
 
     await tasks.completeProjectedTask(feedKey, 'ext-9', true);
     expect(provider.completed).toEqual([{ feedKey, externalId: 'ext-9', value: true }]);
@@ -91,11 +101,17 @@ describe('the tasks seam Weorc needs', () => {
     expect(row!.status).toBe('completed');
   });
 
-  it('completeProjectedTask still calls the provider when NO mirror row exists', async () => {
+  // Task 11 changed this: `completeProjectedTask` used to call the provider
+  // BEFORE looking for the mirror row, so it would complete upstream even with
+  // no local row. It now requires the row first, because the row is what names
+  // the provider (there is no source to resolve without it) — a missing row is
+  // reported as `provider_unavailable` rather than guessed at.
+  it('completeProjectedTask reports provider_unavailable when NO mirror row exists', async () => {
     const provider = fakeProvider();
-    setTaskProvider(provider, 'Household');
-    await tasks.completeProjectedTask('todo:member:x:list-1', 'ext-gone', true);
-    expect(provider.completed).toHaveLength(1);
+    wireProvider(provider);
+    await expect(tasks.completeProjectedTask('todo:member:x:list-1', 'ext-gone', true))
+      .rejects.toMatchObject({ reason: 'provider_unavailable' });
+    expect(provider.completed).toHaveLength(0);
   });
 
   it('finds a mirrored task by a notes marker', async () => {

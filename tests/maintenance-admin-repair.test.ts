@@ -6,8 +6,8 @@ import { repairMaintenanceAdmin } from '../src/household/maintenance-admin.js';
 import { events, eventAttendees } from '../src/modules/calendar/schema.js';
 import { recipes, mealPlanEntries } from '../src/modules/meals/schema.js';
 import { todoListAllowlist } from '../src/modules/tasks/schema.js';
-import { m365SyncState } from '../src/m365/schema.js';
-import { feedKeys } from '../src/m365/feed-keys.js';
+import { integrationSyncState } from '../src/integrations/schema.js';
+import { feedKeys } from '../src/integrations/feed-keys.js';
 import { identity, householdCore } from '../src/wiring.js';
 import { seedTestHousehold } from './helpers.js';
 
@@ -116,10 +116,10 @@ describe('repairMaintenanceAdmin', () => {
     await db.insert(todoListAllowlist).values({
       memberId: admin.user.id, listId: 'list-1', listName: 'Admin List',
     });
-    const adminCalendarKey = feedKeys.calendarMember(admin.user.id);
-    const adminTodoKey = feedKeys.todoMember(admin.user.id, 'list-1');
-    const familyKey = feedKeys.calendarFamily();
-    await db.insert(m365SyncState).values([
+    const adminCalendarKey = feedKeys.calendarMember('m365', admin.user.id);
+    const adminTodoKey = feedKeys.todoMember('m365', admin.user.id, 'list-1');
+    const familyKey = feedKeys.calendarFamily('m365');
+    await db.insert(integrationSyncState).values([
       { feedKey: adminCalendarKey, lastError: null },
       { feedKey: adminTodoKey, lastError: null },
       { feedKey: familyKey, lastError: null },
@@ -127,7 +127,7 @@ describe('repairMaintenanceAdmin', () => {
 
     await repairMaintenanceAdmin(CREDS);
 
-    const remaining = await db.select().from(m365SyncState);
+    const remaining = await db.select().from(integrationSyncState);
     const remainingKeys = remaining.map((r) => r.feedKey);
     expect(remainingKeys).not.toContain(adminCalendarKey);
     expect(remainingKeys).not.toContain(adminTodoKey);

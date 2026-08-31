@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { ethelAssets, ethelPlaces } from '../ethel/schema.js';
 import * as tasks from '../tasks/service.js';
-import { getTaskProvider } from '../tasks/provider.js';
+import { hasTaskProvider } from '../../integrations/registry.js';
 import { TaskProviderError } from '../tasks/providers/types.js';
 import { advanceRoutine, projectOccurrence, terminalDateOf, type ProjectionOutcome } from './engine.js';
 import { householdToday } from './dates.js';
@@ -174,7 +174,7 @@ async function terminate(
   const terminated = (await store.terminateOccurrence(id, status, at, memberId, note))!;
 
   let projection: ProjectionOutcome = { ok: false };
-  if (status === 'completed' && occ.taskFeedKey && occ.taskExternalId && getTaskProvider()) {
+  if (status === 'completed' && occ.taskFeedKey && occ.taskExternalId && hasTaskProvider()) {
     try {
       await tasks.completeProjectedTask(occ.taskFeedKey, occ.taskExternalId, true);
       projection = { ok: true };
@@ -187,7 +187,7 @@ async function terminate(
   const today = await householdToday();
   const next = await advanceRoutine(occ.routineId, today);
   let projectedNext = next;
-  if (next && getTaskProvider()) {
+  if (next && hasTaskProvider()) {
     await projectOccurrence(next);
     projectedNext = await store.getOccurrence(next.id);
   }

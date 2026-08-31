@@ -1,34 +1,31 @@
 import type { TaskProvider } from './providers/types.js';
+import { TaskProviderError } from './providers/types.js';
+import { getTaskProviderFor } from '../../integrations/registry.js';
 
 /**
- * Provider seam for the write paths (completion + creation + list discovery).
- * The sync runner constructs its own provider, but the module's REST/MCP write
- * handlers resolve the provider through this seam so the module never imports a
- * Graph type. When the M365 integration is enabled, `m365Module.register`
- * installs the Graph provider here (plus the configured shared-list display
- * name); tests install a fake-backed one. When the integration is disabled the
- * seam stays null and write paths return a classified `provider_unavailable`
- * error (reads still work off the mirror).
+ * Provider resolution for the tasks write paths (completion, creation, list
+ * discovery).
  *
- * The shared-list name travels with the provider (rather than being read from
- * the global config) so it is resolved from the SAME source as the provider —
- * keeping the module free of the M365 config and test-injectable.
+ * This used to be a single global slot holding "the" provider, installed by the
+ * M365 module. That could only ever be correct with one provider configured:
+ * completing a Google-mirrored task would have been written to whichever
+ * provider registered last. Resolution is now BY THE MIRROR ROW'S `source`, via
+ * the integrations registry.
+ *
+ * When no provider is registered for a source, write paths get a classified
+ * `provider_unavailable` error and reads still work off the mirror.
  */
-let provider: TaskProvider | null = null;
-let sharedListName: string | null = null;
-
-/** Install (or clear) the active task provider + the shared household list name. */
-export function setTaskProvider(next: TaskProvider | null, shared: string | null = null): void {
-  provider = next;
-  sharedListName = shared;
+export function getProviderFor(source: string): TaskProvider | null {
+  return getTaskProviderFor(source);
 }
 
-/** The active task provider, or null when the integration is disabled. */
-export function getTaskProvider(): TaskProvider | null {
-  return provider;
-}
-
-/** The configured shared household list display name, or null when disabled. */
-export function getSharedListName(): string | null {
-  return sharedListName;
+export function requireProviderFor(source: string): TaskProvider {
+  const p = getTaskProviderFor(source);
+  if (!p) {
+    throw new TaskProviderError(
+      'provider_unavailable',
+      `No task provider is available for source "${source}"`,
+    );
+  }
+  return p;
 }

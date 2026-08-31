@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../src/db/index.js';
 import { taskMirror } from '../src/modules/tasks/schema.js';
-import { setTaskProvider } from '../src/modules/tasks/provider.js';
+import { clearProviders } from '../src/integrations/registry.js';
 import * as store from '../src/modules/weorc/store.js';
 import { runWeorcTick, advanceRoutine, occurrenceMarker } from '../src/modules/weorc/engine.js';
 import { householdToday, householdMidnightUtc } from '../src/modules/weorc/dates.js';
@@ -9,7 +9,7 @@ import { seedTestHousehold } from './helpers.js';
 import { addDays, nextDueOn } from '../src/modules/weorc/recurrence.js';
 
 describe('the tick with NO provider - the demo stack, permanently', () => {
-  beforeEach(() => setTaskProvider(null));
+  beforeEach(() => clearProviders());
 
   it('materialises a due occurrence and records NO projection error', async () => {
     const today = await householdToday();
@@ -69,7 +69,7 @@ describe('the tick with NO provider - the demo stack, permanently', () => {
 });
 
 describe('the reconcile pass', () => {
-  beforeEach(() => setTaskProvider(null));
+  beforeEach(() => clearProviders());
 
   it('completes an occurrence but defers its successor outside the horizon', async () => {
     const { adult } = await seedTestHousehold();
@@ -175,7 +175,7 @@ describe('the reconcile pass', () => {
 });
 
 describe('fixed mode must never drift on a late completion', () => {
-  beforeEach(() => setTaskProvider(null));
+  beforeEach(() => clearProviders());
 
   it('a weekly fixed routine completed 14 days late is next due on the completion day, not a week past it', async () => {
     // Worked example from the spec: grid origin/last due 2026-08-11, completed

@@ -1,6 +1,6 @@
 import { getM365Runtime, type M365Runtime } from './runtime.js';
 import { GraphTaskProvider } from './task-provider.js';
-import { syncOneFeed, type FeedSyncResult } from './sync-runner.js';
+import { syncOneFeed, type FeedSyncResult, classify, m365FullResyncIntervalMs } from './sync-runner.js';
 import { listAllowlistedFeeds, applyTaskPull } from '../modules/tasks/store.js';
 import type { TaskProvider } from '../modules/tasks/providers/types.js';
 
@@ -16,14 +16,18 @@ export async function runTaskSync(
   rt: M365Runtime = getM365Runtime(),
   provider: TaskProvider = new GraphTaskProvider(rt),
 ): Promise<FeedSyncResult[]> {
-  const feeds = await listAllowlistedFeeds();
+  const feeds = await listAllowlistedFeeds('m365');
   const results: FeedSyncResult[] = [];
   for (const feed of feeds) {
-    results.push(await syncOneFeed(rt, feed, async (syncToken, forceFullResync) => {
-      const result = await provider.pullChanges(feed.feedKey, syncToken, forceFullResync);
-      const { upserted, deleted } = await applyTaskPull(provider.source, feed, result);
-      return { nextToken: result.nextToken, fullResync: result.fullResync, upserted, deleted };
-    }));
+    results.push(await syncOneFeed(
+      { store: rt.store, classifyError: classify, fullResyncIntervalMs: m365FullResyncIntervalMs() },
+      feed,
+      async (syncToken, forceFullResync) => {
+        const result = await provider.pullChanges(feed.feedKey, syncToken, forceFullResync);
+        const { upserted, deleted } = await applyTaskPull(provider.source, feed, result);
+        return { nextToken: result.nextToken, fullResync: result.fullResync, upserted, deleted };
+      },
+    ));
   }
   return results;
 }

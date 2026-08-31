@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, unique, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, uuid, timestamp, unique, index, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from '@wyrhta/core/identity';
 
@@ -23,7 +23,7 @@ export const taskMirror = pgTable('task_mirror', {
   syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().default(sql`now()`),
   // Source discriminator (e.g. 'm365'); future providers reuse this table.
   source: text('source').notNull(),
-  // Canonical sync feed key (todo:member:<id>:<listId>).
+  // Canonical sync feed key (<provider>:todo:member:<id>:<listId>).
   feedKey: text('feed_key').notNull(),
   // Stable id within the feed (Graph todoTask id).
   externalId: text('external_id').notNull(),
@@ -50,8 +50,7 @@ export const taskMirror = pgTable('task_mirror', {
 /**
  * Per-member To Do list allowlist. Nothing syncs by default; a member selects
  * which of their lists sync. Presence of a row = that list is allowlisted (its
- * feed `todo:member:<memberId>:<listId>` is enumerated by the sync runner). The
- * cached `listName` also backs shared-household-list resolution BY NAME.
+ * feed `todo:member:<memberId>:<listId>` is enumerated by the sync runner).
  */
 export const todoListAllowlist = pgTable('todo_list_allowlist', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -60,9 +59,19 @@ export const todoListAllowlist = pgTable('todo_list_allowlist', {
   memberId: uuid('member_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   listId: text('list_id').notNull(),
   listName: text('list_name'),
+  // Which provider this list belongs to. Defaults to 'm365' so existing rows
+  // backfill correctly; a member may allowlist lists from both providers.
+  provider: text('provider').notNull().default('m365'),
+  // Marks THE household's shared task list — the one Heorth creates tasks into
+  // (including Weorc's projected maintenance work). At most one row household-wide
+  // carries this, enforced by a partial unique index below. Replaces resolution by
+  // display name, which broke silently whenever a member renamed the list.
+  isHousehold: boolean('is_household').notNull().default(false),
 }, (t) => [
-  unique('todo_allowlist_member_list_unique').on(t.memberId, t.listId),
+  unique('todo_allowlist_provider_member_list_unique').on(t.provider, t.memberId, t.listId),
   index('todo_allowlist_member_idx').on(t.memberId),
+  uniqueIndex('todo_allowlist_single_household')
+    .on(t.isHousehold).where(sql`${t.isHousehold}`),
 ]);
 
 export type TaskMirrorRow = typeof taskMirror.$inferSelect;

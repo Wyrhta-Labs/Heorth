@@ -35,7 +35,7 @@ export interface Attribution {
 
 /** Whether an occurrence is the shared family feed (household-wide, no member). */
 export function isFamilyEvent(o: EventOccurrence): boolean {
-  if (o.feedKey === 'calendar:family') return true;
+  if (/^[^:]+:calendar:family$/.test(o.feedKey)) return true;
   // Defensive: a mirrored event with no resolvable member attribution is
   // household-shared too.
   return isMirroredEvent(o) && (o.attendeeIds ?? []).filter(Boolean).length === 0 && !o.createdBy;
@@ -272,7 +272,7 @@ export function computeMealSwap(
 }
 
 // ---------------------------------------------------------------------------
-// Per-feed staleness derivation from GET /api/v1/m365/status feeds[]
+// Per-feed staleness derivation from GET /api/v1/integrations/status feeds[]
 // ---------------------------------------------------------------------------
 export interface FeedStatus {
   feedKey: string;
@@ -288,12 +288,19 @@ export interface StalenessInfo {
   lastSuccessAt: string | null;
 }
 
-/** Map a feed key to the member it belongs to, or 'family', or null. */
+/**
+ * Map a feed key to the member it belongs to, or 'family', or null.
+ *
+ * Feed keys carry a provider segment (`m365:`, `google:`) — see
+ * src/integrations/feed-keys.ts. The provider is deliberately NOT part of the
+ * answer: the wall groups staleness by member, not by which provider a feed
+ * came from, and a member may hold feeds from several providers at once.
+ */
 export function ownerOfFeed(feedKey: string): string | 'family' | null {
-  if (feedKey === 'calendar:family') return 'family';
-  const cal = feedKey.match(/^calendar:member:(.+)$/);
+  if (/^[^:]+:calendar:family$/.test(feedKey)) return 'family';
+  const cal = feedKey.match(/^[^:]+:calendar:member:([^:]+)/);
   if (cal) return cal[1]!;
-  const todo = feedKey.match(/^todo:member:([^:]+):/);
+  const todo = feedKey.match(/^[^:]+:todo:member:([^:]+):/);
   if (todo) return todo[1]!;
   return null;
 }

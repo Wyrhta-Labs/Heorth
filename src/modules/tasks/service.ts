@@ -1,10 +1,10 @@
 import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
-import { feedKeys } from '../../m365/feed-keys.js';
-import { getTaskProvider, getSharedListName } from './provider.js';
+import { listProviders } from '../../integrations/registry.js';
+import { requireProviderFor } from './provider.js';
 import * as store from './store.js';
 import {
   TaskProviderError,
-  type CreateTaskInput, type TaskProvider,
+  type CreateTaskInput,
 } from './providers/types.js';
 import type { TaskMirrorRow, TodoListAllowlistRow } from './schema.js';
 import type { TaskFeed, ListTasksQuery } from './store.js';
@@ -16,16 +16,13 @@ import type { TaskFeed, ListTasksQuery } from './store.js';
  * provider seam and surface a classified {@link TaskProviderError} on any
  * failure — a dead/absent connection never crashes a request and never silently
  * drops the write.
+ *
+ * The default provider used by `setAllowlist` is 'm365' — it acts BEFORE any
+ * mirror row exists (there is no row to read a source from yet). The household
+ * list (`createHouseholdTask`) is no longer defaulted to one provider: it is
+ * resolved from whichever allowlist row carries `is_household` (Task 12).
  */
-
-/** The provider, or a classified `provider_unavailable` when the integration is off. */
-function requireProvider(): TaskProvider {
-  const provider = getTaskProvider();
-  if (!provider) {
-    throw new TaskProviderError('provider_unavailable', 'Microsoft 365 integration is not enabled');
-  }
-  return provider;
-}
+const DEFAULT_PROVIDER = 'm365';
 
 export type { ListTasksQuery } from './store.js';
 
@@ -35,22 +32,47 @@ export async function listTasks(query: ListTasksQuery = {}): Promise<TaskMirrorR
 }
 
 export interface AvailableListView {
+  provider: string;   // NEW — which provider this list belongs to
   id: string;
   name: string;
-  enabled: boolean;
+  enabled: boolean;   // already allowlisted by this member
 }
 
-/** A member's To Do lists, each flagged with whether it is currently allowlisted. */
+/**
+ * Discover the lists a member can sync, across EVERY registered provider. Each
+ * entry is tagged with its provider so the picker can group them and so
+ * `setAllowlist` knows which provider a chosen list belongs to.
+ */
 export async function listAvailableLists(memberId: string): Promise<AvailableListView[]> {
   await assertNotMaintenanceAdmin(memberId);
-  const provider = requireProvider();
-  const lists = await provider.listAvailableLists(memberId); // throws TaskProviderError
-  const enabled = new Set((await store.getAllowlist(memberId)).map((a) => a.listId));
-  return lists.map((l) => ({ id: l.id, name: l.name, enabled: enabled.has(l.id) }));
+  const out: AvailableListView[] = [];
+  for (const p of listProviders()) {
+    if (!p.tasks) continue;
+    // One provider being unreachable must not hide another's lists: a member
+    // connected to Google but not to M365 is a normal state, not an error.
+    try {
+      const lists = await p.tasks.listAvailableLists(memberId);
+      const enabled = new Set((await store.getAllowlist(memberId, p.id)).map((a) => a.listId));
+      for (const l of lists) {
+        out.push({ provider: p.id, id: l.id, name: l.name, enabled: enabled.has(l.id) });
+      }
+    } catch (e) {
+      // The provider may have already classified this: TaskProviderError carries
+      // a reason. Only fall back to the provider's own classifier for a raw
+      // error — reclassifying an already-classified TaskProviderError through
+      // `classifyError` (which only understands its own raw errors, e.g.
+      // GraphError) loses the reason and rethrows, killing discovery for every
+      // OTHER provider too.
+      const reason = e instanceof TaskProviderError ? e.reason : p.classifyError(e);
+      if (reason === 'no_connection') continue; // not connected: normal
+      throw e;
+    }
+  }
+  return out;
 }
 
 export async function getAllowlist(memberId: string): Promise<TodoListAllowlistRow[]> {
-  return store.getAllowlist(memberId);
+  return store.getAllowlist(memberId, DEFAULT_PROVIDER);
 }
 
 /**
@@ -60,7 +82,7 @@ export async function getAllowlist(memberId: string): Promise<TodoListAllowlistR
  */
 export async function setAllowlist(memberId: string, listIds: string[]): Promise<TodoListAllowlistRow[]> {
   await assertNotMaintenanceAdmin(memberId);
-  const provider = requireProvider();
+  const provider = requireProviderFor(DEFAULT_PROVIDER);
   const available = await provider.listAvailableLists(memberId); // throws TaskProviderError
   const byId = new Map(available.map((l) => [l.id, l.name]));
   const selected: Array<{ id: string; name: string | null }> = [];
@@ -70,27 +92,28 @@ export async function setAllowlist(memberId: string, listIds: string[]): Promise
     }
     selected.push({ id, name: byId.get(id) ?? null });
   }
-  return store.setAllowlist(memberId, selected);
+  return store.setAllowlist(memberId, DEFAULT_PROVIDER, selected);
 }
 
 /**
- * Complete / uncomplete a task: write back through the provider FIRST (the feed's
- * owning member's connection must be healthy — a classified error otherwise),
- * then optimistically update the local mirror. Returns null if the id is unknown.
+ * Complete / uncomplete one mirrored task. The provider is resolved from the
+ * ROW's source, not from a global: with two providers connected, a
+ * Google-mirrored task must be written back to Google.
  */
-export async function completeTask(taskId: string, completed: boolean): Promise<TaskMirrorRow | null> {
-  const provider = requireProvider();
+export async function completeTask(
+  taskId: string, completed: boolean,
+): Promise<TaskMirrorRow | null> {
   const row = await store.getTaskById(taskId);
   if (!row) return null;
+  const provider = requireProviderFor(row.source);
   await provider.setCompleted(row.feedKey, row.externalId, completed); // throws TaskProviderError
   return store.setTaskCompletedLocal(taskId, completed);
 }
 
 /**
- * Create a task into the shared household list. Resolves the shared list BY NAME
- * (env `M365_SHARED_TODO_LIST`) through a connected member who has allowlisted it
- * — preferring the acting member, else any connected member that has it. Writes
- * outward through that member's connection, then mirrors the created task locally.
+ * Create a task into the household task list. Resolves the DESIGNATED list
+ * (`todo_list_allowlist.is_household`), then writes outward through whichever
+ * member/provider owns that list and mirrors the created task locally.
  */
 export async function createTask(input: CreateTaskInput, actingMemberId: string): Promise<TaskMirrorRow> {
   await assertNotMaintenanceAdmin(actingMemberId);
@@ -98,32 +121,45 @@ export async function createTask(input: CreateTaskInput, actingMemberId: string)
 }
 
 /**
- * Create a task into the shared household list without an authenticated actor.
- * `preferMemberId` only influences which allowlisted member feed is chosen.
+ * Create a task into the household task list without an authenticated actor.
+ *
+ * `_preferMemberId` is now UNUSED: the designated list is the same for every
+ * member, which is the point of Task 12. The parameter is kept anyway because
+ * `src/modules/weorc/engine.ts` calls this with `routine.ownerMemberId` as the
+ * second argument — removing it would force an edit there for no behavioral
+ * gain.
  */
 export async function createHouseholdTask(
   input: CreateTaskInput,
-  preferMemberId: string | null,
+  _preferMemberId: string | null,
 ): Promise<TaskMirrorRow> {
-  const provider = requireProvider();
-  const feed = await resolveSharedFeed(preferMemberId);
+  const feed = await resolveHouseholdFeed();
+  const provider = requireProviderFor(feed.provider);
   const created = await provider.createTask(feed.feedKey, input); // throws TaskProviderError
   return store.upsertMirroredTask(provider.source, feed, created);
 }
 
 /**
- * Complete / uncomplete a projected task by the stable provider key. The
- * provider is called first; the local mirror is updated only if the row exists.
+ * Complete / uncomplete a projected task by its stable provider key. The mirror
+ * row is loaded FIRST here (it was loaded after the provider call before) —
+ * without it there is no `source`, so there is no provider to call. A missing
+ * row is reported as `provider_unavailable` rather than guessed at.
  */
 export async function completeProjectedTask(
   feedKey: string,
   externalId: string,
   completed: boolean,
 ): Promise<void> {
-  const provider = requireProvider();
-  await provider.setCompleted(feedKey, externalId, completed); // throws TaskProviderError
   const row = await store.getTaskByFeedRef(feedKey, externalId);
-  if (row) await store.setTaskCompletedLocal(row.id, completed);
+  if (!row) {
+    throw new TaskProviderError(
+      'provider_unavailable',
+      'No mirrored task for that feed reference — cannot resolve a provider',
+    );
+  }
+  const provider = requireProviderFor(row.source);
+  await provider.setCompleted(feedKey, externalId, completed);
+  await store.setTaskCompletedLocal(row.id, completed);
 }
 
 export async function findTaskByFeedRef(feedKey: string, externalId: string): Promise<TaskMirrorRow | null> {
@@ -134,27 +170,48 @@ export async function findTaskByNotesMarker(marker: string): Promise<TaskMirrorR
   return store.getTaskByNotesMarker(marker);
 }
 
-/** Resolve the shared-household-list feed by display name via the allowlist store. */
-async function resolveSharedFeed(preferMemberId: string | null): Promise<TaskFeed> {
-  const name = getSharedListName();
-  if (!name) {
-    throw new TaskProviderError('shared_list_unavailable', 'No shared To Do list is configured');
-  }
-  const entries = await store.findAllowlistByName(name);
-  if (entries.length === 0) {
+/** Resolve the designated household task feed, or fail with a classified reason. */
+async function resolveHouseholdFeed(): Promise<TaskFeed> {
+  const feed = await store.getHouseholdFeed();
+  if (!feed) {
     throw new TaskProviderError(
       'shared_list_unavailable',
-      `No connected member has allowlisted a list named "${name}"`,
+      'No household task list is designated — an adult must pick one in the task list settings',
     );
   }
-  // Prefer the acting member if they have the shared list; else any member that does.
-  const chosen = entries.find((e) => e.memberId === preferMemberId) ?? entries[0]!;
+  return feed;
+}
+
+/** The designated household list, as the picker UI shows it. Null when none. */
+export async function getHouseholdList(): Promise<{
+  provider: string; memberId: string; listId: string; listName: string | null;
+} | null> {
+  const feed = await store.getHouseholdFeed();
+  if (!feed) return null;
   return {
-    feedKey: feedKeys.todoMember(chosen.memberId, chosen.listId),
-    memberId: chosen.memberId,
-    listId: chosen.listId,
-    listName: chosen.listName,
+    provider: feed.provider,
+    memberId: feed.memberId,
+    listId: feed.listId,
+    listName: feed.listName,
   };
+}
+
+/**
+ * Designate one allowlisted list as the household list. The list must already be
+ * allowlisted by that member — designating an unsynced list would produce a feed
+ * nothing ever pulls, so this fails loudly instead.
+ */
+export async function setHouseholdList(
+  memberId: string, provider: string, listId: string,
+): Promise<void> {
+  const owned = await store.getAllowlist(memberId, provider);
+  if (!owned.some((r) => r.listId === listId)) {
+    throw new TaskProviderError(
+      'unknown_list',
+      'That list is not in the member\'s allowlist — allowlist it before designating it',
+    );
+  }
+  await store.setHouseholdList(memberId, provider, listId);
 }
 
 /** Re-export so routes/MCP can classify without importing the providers module. */

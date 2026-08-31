@@ -27,7 +27,7 @@ export function buildEnvSchema() {
     TRAKT_CLIENT_ID: z.string().min(1).optional(),
     TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
     LIBRARY_ENCRYPTION_KEY: z.string().min(1).optional(),
-    // Microsoft 365 integration (Phase 2). Optional AS A GROUP: either all six
+    // Microsoft 365 integration (Phase 2). Optional AS A GROUP: either all five
     // present (integration enabled) or all absent (integration disabled). Partial
     // presence is a startup error (see superRefine). Absent = zero impact: the
     // m365 area does not register any routes and boot/tests are unaffected.
@@ -39,11 +39,10 @@ export function buildEnvSchema() {
     M365_CLIENT_SECRET: emptyToUndefined(z.string().min(1)),
     M365_REDIRECT_URI: emptyToUndefined(z.string().url()),
     M365_FAMILY_MAILBOX: emptyToUndefined(z.string().min(1)),
-    M365_SHARED_TODO_LIST: emptyToUndefined(z.string().min(1)),
     // Background mirror poll interval. OPTIONAL and INDEPENDENT of the all-or-
     // nothing group above (a tuning knob, not a credential): default 300s, floored
     // at 60s by the scheduler. Absent when the integration is disabled anyway.
-    M365_SYNC_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
+    INTEGRATIONS_SYNC_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
     // KithLedger integration. Optional AS A GROUP, same contract as M365_*:
     // both present → the kith module mounts and proxies upcoming reminders;
     // both absent → zero impact (routes fall through to the catch-all 404);
@@ -132,7 +131,7 @@ export function buildEnvSchema() {
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
-      'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX', 'M365_SHARED_TODO_LIST',
+      'M365_REDIRECT_URI', 'M365_FAMILY_MAILBOX',
     ] as const;
     const present = m365Keys.filter((k) => env[k] !== undefined && env[k] !== '');
     if (present.length > 0 && present.length < m365Keys.length) {
@@ -259,7 +258,7 @@ export const config = {
   libraryEncryptionKey: parsed.LIBRARY_ENCRYPTION_KEY,
   // Mirror poll interval (seconds). Independent optional tuning knob; the
   // scheduler floors it at 60s and only runs when the integration is enabled.
-  m365SyncIntervalSeconds: parsed.M365_SYNC_INTERVAL_SECONDS,
+  integrationsSyncIntervalSeconds: parsed.INTEGRATIONS_SYNC_INTERVAL_SECONDS,
   // Resolved M365 config, or null when the integration is disabled (env absent).
   // The env schema guarantees this is all-or-nothing, so the presence of
   // M365_TENANT_ID implies the whole group is present.
@@ -271,7 +270,6 @@ export const config = {
           clientSecret: parsed.M365_CLIENT_SECRET!,
           redirectUri: parsed.M365_REDIRECT_URI!,
           familyMailbox: parsed.M365_FAMILY_MAILBOX!,
-          sharedTodoList: parsed.M365_SHARED_TODO_LIST!,
         }
       : null,
   // Resolved KithLedger config, or null when the integration is disabled

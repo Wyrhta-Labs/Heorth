@@ -1,6 +1,6 @@
-import { and, eq, gte, lte, inArray, asc, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, inArray, notInArray, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { feedKeys } from '../../m365/feed-keys.js';
+import { feedKeys } from '../../integrations/feed-keys.js';
 import { taskMirror, todoListAllowlist, type TaskMirrorRow, type TodoListAllowlistRow } from './schema.js';
 import type { MirroredTask, TaskPullResult, TaskStatus } from './providers/types.js';
 
@@ -12,8 +12,9 @@ import type { MirroredTask, TaskPullResult, TaskStatus } from './providers/types
  * the delta payload itself does not repeat the list name on every task.
  */
 
-/** A feed = one allowlisted To Do list of one member. */
+/** A feed = one allowlisted task list of one member, at one provider. */
 export interface TaskFeed {
+  provider: string;
   feedKey: string;
   memberId: string;
   listId: string;
@@ -38,8 +39,17 @@ function toRow(source: string, feed: TaskFeed, t: MirroredTask) {
 
 /**
  * Apply one feed's pull to the mirror.
- *  - `fullResync`: replace ALL of the feed's rows with `upserts` (410 / periodic).
+ *  - `fullResync`: `upserts` IS the complete current contents of the feed.
+ *    Rows are RECONCILED, not replaced: everything present is upserted, then
+ *    everything absent is deleted. This is what keeps `task_mirror.id` stable
+ *    for a task that survives the resync — the previous implementation deleted
+ *    the whole feed and re-inserted it, changing every uuid. `GET /api/v1/tasks`
+ *    hands those ids to the web, which then calls `/:id/complete` with one, so
+ *    churning them turns into an intermittent 404.
  *  - otherwise: upsert `upserts` (by feed + externalId) and delete `deletions`.
+ *
+ * A provider with no delta API (Google Tasks) sets `fullResync` on EVERY pull;
+ * the reconcile is what detects a deletion structurally, with no tombstone.
  */
 export async function applyTaskPull(
   source: string,
@@ -47,10 +57,6 @@ export async function applyTaskPull(
   result: TaskPullResult,
 ): Promise<{ upserted: number; deleted: number }> {
   return db.transaction(async (tx) => {
-    if (result.fullResync) {
-      await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feed.feedKey));
-    }
-
     let upserted = 0;
     for (const t of result.upserts) {
       await tx.insert(taskMirror).values(toRow(source, feed, t)).onConflictDoUpdate({
@@ -72,7 +78,19 @@ export async function applyTaskPull(
     }
 
     let deleted = 0;
-    if (!result.fullResync && result.deletions.length > 0) {
+    if (result.fullResync) {
+      // Reconcile: anything in the feed that this snapshot did not carry is gone
+      // at the source. An EMPTY snapshot legitimately empties the feed, so the
+      // seen-list being empty must delete everything rather than short-circuit.
+      const seen = result.upserts.map((t) => t.externalId);
+      const rows = await tx
+        .delete(taskMirror)
+        .where(seen.length > 0
+          ? and(eq(taskMirror.feedKey, feed.feedKey), notInArray(taskMirror.externalId, seen))
+          : eq(taskMirror.feedKey, feed.feedKey))
+        .returning({ id: taskMirror.id });
+      deleted = rows.length;
+    } else if (result.deletions.length > 0) {
       const rows = await tx
         .delete(taskMirror)
         .where(and(
@@ -124,8 +142,9 @@ export async function getTaskById(id: string): Promise<TaskMirrorRow | null> {
 }
 
 /**
- * One mirrored task by the stable feed reference. `task_mirror.id` is recreated
- * by full resync; `(feedKey, externalId)` is the table's unique provider key.
+ * One mirrored task by the stable feed reference. A full resync now reconciles
+ * `task_mirror` rows in place rather than recreating ids; `(feedKey,
+ * externalId)` is the table's unique provider key regardless.
  */
 export async function getTaskByFeedRef(feedKey: string, externalId: string): Promise<TaskMirrorRow | null> {
   const [row] = await db.select().from(taskMirror)
@@ -168,60 +187,105 @@ export async function upsertMirroredTask(source: string, feed: TaskFeed, t: Mirr
 
 // --- allowlist --------------------------------------------------------------
 
-export async function getAllowlist(memberId: string): Promise<TodoListAllowlistRow[]> {
+export async function getAllowlist(memberId: string, provider: string): Promise<TodoListAllowlistRow[]> {
   return db.select().from(todoListAllowlist)
-    .where(eq(todoListAllowlist.memberId, memberId))
+    .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)))
     .orderBy(asc(todoListAllowlist.listName));
 }
 
 /**
- * Replace a member's allowlist with the given lists. Rows for lists removed from
- * the selection are deleted and their mirrored tasks cleared, so a de-selected
- * list stops syncing and disappears immediately.
+ * Replace a member's allowlist for one provider with the given lists. Rows for
+ * lists removed from the selection are deleted and their mirrored tasks cleared,
+ * so a de-selected list stops syncing and disappears immediately. Only this
+ * provider's rows for the member are touched — an allowlist from the other
+ * provider is untouched.
  */
 export async function setAllowlist(
-  memberId: string, lists: Array<{ id: string; name: string | null }>,
+  memberId: string, provider: string, lists: Array<{ id: string; name: string | null }>,
 ): Promise<TodoListAllowlistRow[]> {
   const keepIds = new Set(lists.map((l) => l.id));
   return db.transaction(async (tx) => {
     const existing = await tx.select().from(todoListAllowlist)
-      .where(eq(todoListAllowlist.memberId, memberId));
+      .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)));
 
     // Remove de-selected lists + their mirrored tasks.
     for (const row of existing) {
       if (!keepIds.has(row.listId)) {
         await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.id, row.id));
-        await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember(memberId, row.listId)));
+        await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember(provider, memberId, row.listId)));
       }
     }
 
     // Upsert the selected lists (refresh cached names).
     for (const l of lists) {
-      await tx.insert(todoListAllowlist).values({ memberId, listId: l.id, listName: l.name })
+      await tx.insert(todoListAllowlist).values({ memberId, provider, listId: l.id, listName: l.name })
         .onConflictDoUpdate({
-          target: [todoListAllowlist.memberId, todoListAllowlist.listId],
+          target: [todoListAllowlist.provider, todoListAllowlist.memberId, todoListAllowlist.listId],
           set: { listName: l.name, updatedAt: new Date() },
         });
     }
 
     return tx.select().from(todoListAllowlist)
-      .where(eq(todoListAllowlist.memberId, memberId))
+      .where(and(eq(todoListAllowlist.memberId, memberId), eq(todoListAllowlist.provider, provider)))
       .orderBy(asc(todoListAllowlist.listName));
   });
 }
 
-/** All allowlisted lists across every member, as sync feeds. */
-export async function listAllowlistedFeeds(): Promise<TaskFeed[]> {
-  const rows = await db.select().from(todoListAllowlist);
+/** All allowlisted lists across every member and provider, as sync feeds. */
+export async function listAllowlistedFeeds(provider?: string): Promise<TaskFeed[]> {
+  const rows = provider
+    ? await db.select().from(todoListAllowlist).where(eq(todoListAllowlist.provider, provider))
+    : await db.select().from(todoListAllowlist);
   return rows.map((r) => ({
-    feedKey: feedKeys.todoMember(r.memberId, r.listId),
+    provider: r.provider,
+    feedKey: feedKeys.todoMember(r.provider, r.memberId, r.listId),
     memberId: r.memberId,
     listId: r.listId,
     listName: r.listName,
   }));
 }
 
-/** Allowlist entries (any member) for a list with the given display name. */
-export async function findAllowlistByName(name: string): Promise<TodoListAllowlistRow[]> {
-  return db.select().from(todoListAllowlist).where(eq(todoListAllowlist.listName, name));
+/**
+ * The designated household task feed, or null when none is designated.
+ *
+ * Replaces resolution by display name (`findAllowlistByName`), which matched
+ * `M365_SHARED_TODO_LIST` against every member's allowlist and tie-broke with
+ * "prefer the acting member, else the first row". That broke silently when a
+ * member renamed the list at the source, and with two providers the tie-break
+ * could route a task to either one.
+ */
+export async function getHouseholdFeed(): Promise<TaskFeed | null> {
+  const [row] = await db.select().from(todoListAllowlist)
+    .where(eq(todoListAllowlist.isHousehold, true)).limit(1);
+  if (!row) return null;
+  return {
+    provider: row.provider,
+    feedKey: feedKeys.todoMember(row.provider, row.memberId, row.listId),
+    memberId: row.memberId,
+    listId: row.listId,
+    listName: row.listName,
+  };
+}
+
+/**
+ * Designate one allowlisted list as the household list. Clearing every other
+ * flag and setting the new one happen in ONE transaction — the partial unique
+ * index would otherwise reject the update, and a non-transactional clear-then-set
+ * could leave the household with no list at all if the second statement failed.
+ */
+export async function setHouseholdList(
+  memberId: string, provider: string, listId: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.update(todoListAllowlist)
+      .set({ isHousehold: false, updatedAt: new Date() })
+      .where(eq(todoListAllowlist.isHousehold, true));
+    await tx.update(todoListAllowlist)
+      .set({ isHousehold: true, updatedAt: new Date() })
+      .where(and(
+        eq(todoListAllowlist.memberId, memberId),
+        eq(todoListAllowlist.provider, provider),
+        eq(todoListAllowlist.listId, listId),
+      ));
+  });
 }

@@ -45,7 +45,7 @@ const reminder = (over: Partial<KithReminder> & { id: string; dueAt: string }): 
 });
 
 const task = (over: Partial<Task> & { id: string; title: string; dueAt: string }): Task => ({
-  source: 'todo', feedKey: 'todo:member:m1:L1', externalId: 'e1', memberId: 'm1',
+  source: 'todo', feedKey: 'm365:todo:member:m1:L1', externalId: 'e1', memberId: 'm1',
   listId: 'L1', listName: null, notes: null, completedAt: null, status: 'open',
   createdAt: '', updatedAt: '', syncedAt: '',
   ...over,
@@ -220,7 +220,7 @@ describe('HearthPage display settings modal', () => {
     // A feed that last synced far in the past → a stale note renders.
     useM365FeedStatusMock.mockReturnValue({
       data: [{
-        feedKey: 'calendar:family', lastSuccessAt: '2026-07-23T00:00:00Z',
+        feedKey: 'm365:calendar:family', lastSuccessAt: '2026-07-23T00:00:00Z',
         lastError: null, consecutiveFailures: 5, updatedAt: '2026-07-24T12:00:00Z',
       }],
     });

@@ -2,16 +2,20 @@ import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:cr
 import { config } from '../config/env.js';
 
 /**
- * Refresh-token encryption at rest for the M365 area.
+ * Refresh-token encryption at rest for every integration provider.
  *
- * This is a deliberate SIBLING of the Library's credential crypto
+ * A deliberate SIBLING of the Library's credential crypto
  * (`src/modules/library/crypto.ts`) — same AES-256-GCM `iv:tag:ct` envelope and
- * the same HKDF-over-`JWT_SECRET` key derivation, but with an M365-specific salt
- * and info string so the two areas derive independent keys from the same secret.
- * A verbatim shared helper was not extracted because the Library variant is
- * coupled to its own `LIBRARY_ENCRYPTION_KEY` env + startup warning; the M365
- * group is intentionally self-contained (no extra env var — the six canonical
- * `M365_*` names plus `JWT_SECRET` are all it needs).
+ * the same HKDF-over-`JWT_SECRET` derivation, with its own salt and info string
+ * so the two areas derive independent keys from the same secret.
+ *
+ * !!! THE SALT AND INFO STRINGS BELOW STILL SAY `m365`. THAT IS DELIBERATE. !!!
+ * They are INPUTS TO THE KEY, not labels. This file was moved here from
+ * `src/m365/crypto.ts`; changing either string would derive a different key and
+ * make every already-stored refresh token undecryptable, forcing every member to
+ * reconnect. They are frozen. Google tokens are encrypted with this same key —
+ * same process, same secret, same threat model, so a per-provider derivation
+ * would add a second thing to get wrong and buy nothing.
  *
  * Token material is NEVER logged.
  */
@@ -32,7 +36,7 @@ export function encryptToken(plaintext: string): string {
 
 export function decryptToken(stored: string): string {
   const [ivB64, tagB64, ctB64] = stored.split(':');
-  if (!ivB64 || !tagB64 || !ctB64) throw new Error('Malformed M365 token ciphertext');
+  if (!ivB64 || !tagB64 || !ctB64) throw new Error('Malformed integration token ciphertext');
   const decipher = createDecipheriv(ALGO, KEY, Buffer.from(ivB64, 'base64'));
   decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
   return Buffer.concat([decipher.update(Buffer.from(ctB64, 'base64')), decipher.final()]).toString('utf8');

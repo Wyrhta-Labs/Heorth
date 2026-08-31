@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encryptToken, decryptToken } from '../src/m365/crypto.js';
+import { encryptToken, decryptToken } from '../src/integrations/crypto.js';
 
 describe('m365 crypto', () => {
   it('round-trips a refresh token', () => {

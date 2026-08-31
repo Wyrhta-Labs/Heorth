@@ -3,28 +3,29 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { taskMirror, todoListAllowlist } from '../src/modules/tasks/schema.js';
+import { applyTaskPull, setHouseholdList } from '../src/modules/tasks/store.js';
 import * as tasks from '../src/modules/tasks/service.js';
 import { tasksRouter } from '../src/modules/tasks/routes.js';
-import { setTaskProvider } from '../src/modules/tasks/provider.js';
+import { clearProviders } from '../src/integrations/registry.js';
 import { TaskProviderError, type TaskProvider } from '../src/modules/tasks/providers/types.js';
 import { runTaskSync } from '../src/m365/task-sync.js';
 import { runCalendarSync } from '../src/m365/calendar-sync.js';
 import { GraphTaskProvider } from '../src/m365/task-provider.js';
-import { feedKeys } from '../src/m365/feed-keys.js';
+import { feedKeys } from '../src/integrations/feed-keys.js';
 import { setM365Runtime, type M365Runtime } from '../src/m365/runtime.js';
-import { createFakeGraph, runtimeForFakeGraph, fakeM365Config, type FakeGraph } from './fake-graph.js';
+import { createFakeGraph, runtimeForFakeGraph, type FakeGraph } from './fake-graph.js';
 import { localDateOf } from '../src/lib/local-date.js';
-import { seedTestHousehold, authHeaders } from './helpers.js';
+import { seedTestHousehold, authHeaders, registerFakeTaskProvider } from './helpers.js';
 
 afterEach(() => {
   setM365Runtime(null);
-  setTaskProvider(null);
+  clearProviders();
 });
 
 /** Seed a household + a connected M365 connection for a given member. */
 async function connect(rt: M365Runtime, memberId: string, upn = 'member@contoso.test') {
   await rt.store.upsertConnection({
-    memberId, accountUpn: upn, refreshToken: 'refresh-initial', scopes: 'Tasks.ReadWrite offline_access',
+    memberId, accountLabel: upn, refreshToken: 'refresh-initial', scopes: 'Tasks.ReadWrite offline_access',
   });
 }
 
@@ -42,12 +43,12 @@ function task(id: string, title: string, extra: Partial<Record<string, unknown>>
 }
 
 /** Wire a fake-Graph runtime + provider seam and return both. */
-function wire(shared = fakeM365Config.sharedTodoList) {
+function wire() {
   const fake = createFakeGraph();
   const rt = runtimeForFakeGraph(fake);
   setM365Runtime(rt);
   const provider = new GraphTaskProvider(rt);
-  setTaskProvider(provider, shared);
+  registerFakeTaskProvider('m365', provider);
   return { fake, rt, provider };
 }
 
@@ -90,10 +91,10 @@ describe('m365 tasks — sync', () => {
     fake.setTodoTasks('L2', [{ pages: [{ upserts: [task('t2', 'Secret')] }] }]);
 
     const results = await runTaskSync(rt);
-    const l1Key = feedKeys.todoMember(adult.user.id, 'L1');
+    const l1Key = feedKeys.todoMember('m365', adult.user.id, 'L1');
     expect(results.find((r) => r.feedKey === l1Key)!.status).toBe('ok');
     // L2 never enumerated (not allowlisted).
-    expect(results.some((r) => r.feedKey === feedKeys.todoMember(adult.user.id, 'L2'))).toBe(false);
+    expect(results.some((r) => r.feedKey === feedKeys.todoMember('m365', adult.user.id, 'L2'))).toBe(false);
     expect((await mirrorRows(l1Key)).map((r) => r.externalId)).toEqual(['t1']);
     const all = await db.select().from(taskMirror);
     expect(all.every((r) => r.externalId !== 't2')).toBe(true);
@@ -104,7 +105,7 @@ describe('m365 tasks — sync', () => {
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
     await allow(adult.user.id, 'L1', 'Groceries');
-    const key = feedKeys.todoMember(adult.user.id, 'L1');
+    const key = feedKeys.todoMember('m365', adult.user.id, 'L1');
 
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
     await runTaskSync(rt);
@@ -132,7 +133,7 @@ describe('m365 tasks — sync', () => {
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
     await allow(adult.user.id, 'L1', 'Groceries');
-    const key = feedKeys.todoMember(adult.user.id, 'L1');
+    const key = feedKeys.todoMember('m365', adult.user.id, 'L1');
 
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk'), task('t2', 'Eggs')] }] }]);
     await runTaskSync(rt);
@@ -147,7 +148,7 @@ describe('m365 tasks — sync', () => {
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
     await allow(adult.user.id, 'L1', 'Groceries');
-    const key = feedKeys.todoMember(adult.user.id, 'L1');
+    const key = feedKeys.todoMember('m365', adult.user.id, 'L1');
 
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk'), task('t2', 'Eggs')] }] }]);
     await runTaskSync(rt);
@@ -172,7 +173,7 @@ describe('m365 tasks — write-back', () => {
     await allow(adult.user.id, 'L1', 'Groceries');
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
     await runTaskSync(rt);
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+    const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
     const updated = await tasks.completeTask(row!.id, true);
     expect(updated!.status).toBe('completed');
@@ -181,11 +182,12 @@ describe('m365 tasks — write-back', () => {
     expect(patch).toBeTruthy();
   });
 
-  it('creates a task into the shared list (resolution by name)', async () => {
-    const { fake, rt } = wire(); // shared list name = 'Household'
+  it('creates a task into the designated household list', async () => {
+    const { fake, rt } = wire();
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
-    await allow(adult.user.id, 'L2', 'Household'); // the shared list, allowlisted by the actor
+    await allow(adult.user.id, 'L2', 'Household'); // the household list, allowlisted by the actor
+    await setHouseholdList(adult.user.id, 'm365', 'L2');
 
     const created = await tasks.createTask({ title: 'Buy stamps', notes: 'first class', dueAt: null }, adult.user.id);
     expect(created.title).toBe('Buy stamps');
@@ -194,30 +196,31 @@ describe('m365 tasks — write-back', () => {
     const post = fake.calls.find((c) => c.method === 'POST' && c.path.includes('/todo/lists/L2/tasks'));
     expect(post).toBeTruthy();
     // It is mirrored locally immediately.
-    expect((await mirrorRows(feedKeys.todoMember(adult.user.id, 'L2'))).length).toBe(1);
+    expect((await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L2'))).length).toBe(1);
   });
 
-  it('creates into the shared list via a fallback member when the actor lacks it', async () => {
+  it('creates into the designated list even when the acting member does not own it', async () => {
     const { fake, rt } = wire();
     const { adult, child } = await seedTestHousehold();
     await connect(rt, adult.user.id, 'adult@contoso.test');
     await connect(rt, child.user.id, 'child@contoso.test');
-    // The actor (adult) has only a non-shared list; the child has the shared 'Household'.
+    // The actor (adult) has only a non-household list; the CHILD's list is designated.
     await allow(adult.user.id, 'L1', 'Groceries');
     await allow(child.user.id, 'L2', 'Household');
+    await setHouseholdList(child.user.id, 'm365', 'L2');
 
     const created = await tasks.createTask({ title: 'Trash night', dueAt: null }, adult.user.id);
-    expect(created.memberId).toBe(child.user.id); // resolved through the member who has the list
+    expect(created.memberId).toBe(child.user.id); // resolved through the designated list's owner
     expect(created.listId).toBe('L2');
     const post = fake.calls.find((c) => c.method === 'POST' && c.path.includes('/todo/lists/L2/tasks'));
     expect(post).toBeTruthy();
   });
 
-  it('errors (classified) when no member has the shared list', async () => {
+  it('errors (classified) when no household list is designated', async () => {
     const { rt } = wire();
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
-    await allow(adult.user.id, 'L1', 'Groceries'); // no 'Household' anywhere
+    await allow(adult.user.id, 'L1', 'Groceries'); // allowlisted, but never designated
     await expect(tasks.createTask({ title: 'x' }, adult.user.id))
       .rejects.toMatchObject({ reason: 'shared_list_unavailable' });
   });
@@ -229,7 +232,7 @@ describe('m365 tasks — write-back', () => {
     await allow(adult.user.id, 'L1', 'Groceries');
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
     await runTaskSync(rt);
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+    const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
     // Simulate a dead connection: drop the row + the cached access token.
     await rt.store.deleteConnection(adult.user.id);
@@ -237,13 +240,17 @@ describe('m365 tasks — write-back', () => {
 
     await expect(tasks.completeTask(row!.id, true)).rejects.toMatchObject({ reason: 'no_connection' });
     // Local state untouched — not silently completed.
-    const after = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+    const after = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
     expect(after[0]!.status).toBe('open');
   });
 
   it('write paths return provider_unavailable when the integration is disabled', async () => {
-    setTaskProvider(null); // no provider installed
     const { adult } = await seedTestHousehold();
+    // A household list must be DESIGNATED first — otherwise resolution fails
+    // with shared_list_unavailable before the provider is even looked up.
+    await allow(adult.user.id, 'L1', 'Groceries');
+    await setHouseholdList(adult.user.id, 'm365', 'L1');
+    clearProviders(); // no provider installed
     await expect(tasks.createTask({ title: 'x' }, adult.user.id))
       .rejects.toMatchObject({ reason: 'provider_unavailable' });
   });
@@ -270,7 +277,7 @@ describe('m365 tasks — To Do date semantics (dueDateTime/completedDateTime are
       task('t1', 'Milk', { dueUtc: '2026-07-24T22:00:00.0000000' }),
     ] }] }]);
 
-    const pull = await provider.pullChanges(feedKeys.todoMember(adult.user.id, 'L1'), null);
+    const pull = await provider.pullChanges(feedKeys.todoMember('m365', adult.user.id, 'L1'), null);
     const due = pull.upserts[0]!.dueAt!;
     expect(new Date(due).toISOString()).toBe('2026-07-24T22:00:00.000Z'); // Berlin midnight of Jul 25
     expect(localDateOf(due, 'Europe/Berlin')).toBe('2026-07-25');
@@ -285,7 +292,7 @@ describe('m365 tasks — To Do date semantics (dueDateTime/completedDateTime are
       task('t1', 'Done', { status: 'completed', completedUtc: '2026-07-24T00:00:00.0000000' }),
     ] }] }]);
 
-    const pull = await provider.pullChanges(feedKeys.todoMember(adult.user.id, 'L1'), null);
+    const pull = await provider.pullChanges(feedKeys.todoMember('m365', adult.user.id, 'L1'), null);
     const completedAt = pull.upserts[0]!.completedAt!;
     expect(localDateOf(completedAt, 'Europe/Berlin')).toBe('2026-07-24');
     expect(new Date(completedAt).toISOString()).toBe('2026-07-23T22:00:00.000Z'); // Berlin midnight of Jul 24
@@ -302,7 +309,7 @@ describe('m365 tasks — To Do date semantics (dueDateTime/completedDateTime are
       task('t2', 'UTC-stamped', { dueUtc: '2026-07-25T00:00:00.0000000' }),
     ] }] }]);
 
-    const pull = await provider.pullChanges(feedKeys.todoMember(adult.user.id, 'L1'), null);
+    const pull = await provider.pullChanges(feedKeys.todoMember('m365', adult.user.id, 'L1'), null);
     const byId = new Map(pull.upserts.map((u) => [u.externalId, u]));
     expect(localDateOf(byId.get('t1')!.dueAt!, 'America/New_York')).toBe('2026-07-25');
     expect(localDateOf(byId.get('t2')!.dueAt!, 'America/New_York')).toBe('2026-07-25');
@@ -313,7 +320,7 @@ describe('m365 tasks — To Do date semantics (dueDateTime/completedDateTime are
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
 
-    await provider.setCompleted(feedKeys.todoMember(adult.user.id, 'L1'), 't1', true);
+    await provider.setCompleted(feedKeys.todoMember('m365', adult.user.id, 'L1'), 't1', true);
 
     const patch = fake.calls.find((c) => c.method === 'PATCH' && c.path.includes('/todo/lists/L1/tasks/t1'));
     expect(patch).toBeTruthy();
@@ -329,7 +336,7 @@ describe('m365 tasks — To Do date semantics (dueDateTime/completedDateTime are
     const { adult } = await seedTestHousehold();
     await connect(rt, adult.user.id);
 
-    await provider.setCompleted(feedKeys.todoMember(adult.user.id, 'L1'), 't1', false);
+    await provider.setCompleted(feedKeys.todoMember('m365', adult.user.id, 'L1'), 't1', false);
 
     const patch = fake.calls.find((c) => c.method === 'PATCH' && c.path.includes('/todo/lists/L1/tasks/t1'));
     expect(patch!.body).toMatchObject({ status: 'notStarted', completedDateTime: null });
@@ -341,7 +348,7 @@ describe('m365 tasks — To Do date semantics (dueDateTime/completedDateTime are
     await connect(rt, adult.user.id);
 
     // 2026-08-01T22:00Z IS Aug 2 in Berlin.
-    await provider.createTask(feedKeys.todoMember(adult.user.id, 'L1'), {
+    await provider.createTask(feedKeys.todoMember('m365', adult.user.id, 'L1'), {
       title: 'Buy stamps', dueAt: '2026-08-01T22:00:00.000Z',
     });
 
@@ -369,14 +376,14 @@ describe('m365 tasks — scheduler isolation (mixed calendar + todo feeds)', () 
     const calendar = await runCalendarSync(rt);
     const todo = await runTaskSync(rt);
 
-    const l1 = todo.find((r) => r.feedKey === feedKeys.todoMember(adult.user.id, 'L1'))!;
-    const l2 = todo.find((r) => r.feedKey === feedKeys.todoMember(adult.user.id, 'L2'))!;
+    const l1 = todo.find((r) => r.feedKey === feedKeys.todoMember('m365', adult.user.id, 'L1'))!;
+    const l2 = todo.find((r) => r.feedKey === feedKeys.todoMember('m365', adult.user.id, 'L2'))!;
     expect(l1.status).toBe('error');
     expect(l1.reason).toBe('graph_500');
     expect(l2.status).toBe('ok'); // sibling todo feed unaffected
-    expect(calendar.find((r) => r.feedKey === feedKeys.calendarMember(adult.user.id))!.status).toBe('ok');
+    expect(calendar.find((r) => r.feedKey === feedKeys.calendarMember('m365', adult.user.id))!.status).toBe('ok');
 
-    const state = await rt.store.getSyncState(feedKeys.todoMember(adult.user.id, 'L1'));
+    const state = await rt.store.getSyncState(feedKeys.todoMember('m365', adult.user.id, 'L1'));
     expect(state?.lastError).toBe('graph_500');
     expect(state?.consecutiveFailures).toBe(1);
   });
@@ -394,6 +401,7 @@ describe('m365 tasks — REST', () => {
     const { adult, child } = await seedTestHousehold();
     await connect(rt, adult.user.id);
     await allow(adult.user.id, 'L2', 'Household');
+    await setHouseholdList(adult.user.id, 'm365', 'L2');
     fake.setTodoTasks('L2', [{ pages: [{ upserts: [
       task('t1', 'Milk'),
       task('t2', 'Done thing', { status: 'completed', completedUtc: '2026-07-20T08:00:00.000Z' }),
@@ -407,7 +415,7 @@ describe('m365 tasks — REST', () => {
     expect(openBody.data.map((t) => t.externalId)).toEqual(['t1']);
 
     // A child completes a task (household task list — children allowed).
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L2'));
+    const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L2'));
     const done = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
       method: 'POST', headers: authHeaders(child.jwt), body: JSON.stringify({ completed: true }),
     });
@@ -429,7 +437,7 @@ describe('m365 tasks — REST', () => {
     await allow(adult.user.id, 'L1', 'Groceries');
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
     await runTaskSync(rt);
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+    const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
     await rt.store.deleteConnection(adult.user.id);
     rt.delegated.clearCache();
 
@@ -458,9 +466,9 @@ describe('m365 tasks — REST', () => {
     await allow(adult.user.id, 'L1', 'Groceries');
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
     await runTaskSync(rt);
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+    const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
-    setTaskProvider(failingProvider('graph_503'));
+    registerFakeTaskProvider('m365', failingProvider('graph_503'));
     const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
       method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
     });
@@ -475,9 +483,9 @@ describe('m365 tasks — REST', () => {
     await allow(adult.user.id, 'L1', 'Groceries');
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
     await runTaskSync(rt);
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+    const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
-    setTaskProvider(failingProvider('network_error'));
+    registerFakeTaskProvider('m365', failingProvider('network_error'));
     const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
       method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
     });
@@ -492,9 +500,9 @@ describe('m365 tasks — REST', () => {
     await allow(adult.user.id, 'L1', 'Groceries');
     fake.setTodoTasks('L1', [{ pages: [{ upserts: [task('t1', 'Milk')] }] }]);
     await runTaskSync(rt);
-    const [row] = await mirrorRows(feedKeys.todoMember(adult.user.id, 'L1'));
+    const [row] = await mirrorRows(feedKeys.todoMember('m365', adult.user.id, 'L1'));
 
-    setTaskProvider(failingProvider('graph_404'));
+    registerFakeTaskProvider('m365', failingProvider('graph_404'));
     const res = await app().request(`/api/v1/tasks/${row!.id}/complete`, {
       method: 'POST', headers: authHeaders(adult.jwt), body: JSON.stringify({ completed: true }),
     });
@@ -515,5 +523,94 @@ describe('m365 tasks — REST', () => {
     const get = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     const body = await get.json() as { data: Array<{ listId: string }> };
     expect(body.data.map((r) => r.listId)).toEqual(['L2']);
+  });
+});
+
+describe('applyTaskPull fullResync reconciles instead of truncating', () => {
+  const feed = { feedKey: 'todo:member:x:list1', memberId: '', listId: 'list1', listName: 'List' };
+
+  function task(externalId: string, title: string, memberId: string) {
+    return {
+      externalId, title, notes: null, dueAt: null, completedAt: null,
+      status: 'open' as const, listId: 'list1', listName: 'List', memberId,
+    };
+  }
+
+  it('preserves the row id of a task that survives a full resync', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = { ...feed, memberId: adult.user.id };
+
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Buy milk', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+    const before = await db.select().from(taskMirror).where(eq(taskMirror.externalId, 't1'));
+    const idBefore = before[0]!.id;
+
+    // Same task re-delivered by a second full snapshot, with an edited title.
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Buy oat milk', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+    const after = await db.select().from(taskMirror).where(eq(taskMirror.externalId, 't1'));
+
+    expect(after).toHaveLength(1);
+    expect(after[0]!.id).toBe(idBefore);          // the id survived
+    expect(after[0]!.title).toBe('Buy oat milk'); // and the update applied
+  });
+
+  it('deletes rows absent from a full snapshot, with no tombstone', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = { ...feed, memberId: adult.user.id };
+
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Keep me', adult.user.id), task('t2', 'Delete me', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+
+    // t2 is simply not in the next snapshot — no deletions[] entry.
+    const res = await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Keep me', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+
+    const rows = await db.select().from(taskMirror).where(eq(taskMirror.feedKey, f.feedKey));
+    expect(rows.map((r) => r.externalId)).toEqual(['t1']);
+    expect(res.deleted).toBe(1);
+  });
+
+  it('empties the feed when a full snapshot is empty', async () => {
+    const { adult } = await seedTestHousehold();
+    const f = { ...feed, memberId: adult.user.id };
+
+    await applyTaskPull('m365', f, {
+      upserts: [task('t1', 'Gone soon', adult.user.id)],
+      deletions: [], nextToken: null, fullResync: true,
+    });
+    await applyTaskPull('m365', f, {
+      upserts: [], deletions: [], nextToken: null, fullResync: true,
+    });
+
+    const rows = await db.select().from(taskMirror).where(eq(taskMirror.feedKey, f.feedKey));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('does not touch another feed', async () => {
+    const { adult } = await seedTestHousehold();
+    const a = { ...feed, memberId: adult.user.id };
+    const b = { ...feed, feedKey: 'todo:member:x:list2', memberId: adult.user.id, listId: 'list2' };
+
+    await applyTaskPull('m365', a, {
+      upserts: [task('t1', 'Feed A', adult.user.id)], deletions: [], nextToken: null, fullResync: true,
+    });
+    await applyTaskPull('m365', b, {
+      upserts: [task('t9', 'Feed B', adult.user.id)], deletions: [], nextToken: null, fullResync: true,
+    });
+    await applyTaskPull('m365', a, {
+      upserts: [], deletions: [], nextToken: null, fullResync: true,
+    });
+
+    const rowsB = await db.select().from(taskMirror).where(eq(taskMirror.feedKey, b.feedKey));
+    expect(rowsB).toHaveLength(1);
   });
 });

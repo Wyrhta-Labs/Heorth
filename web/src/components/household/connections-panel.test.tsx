@@ -21,12 +21,12 @@ vi.mock('@/hooks/use-m365', () => ({
   useM365Status: () => ({
     data: { data: {
       connections: [{
-        memberId: 'b', accountUpn: 'anna@example.com', status: 'active',
+        memberId: 'b', accountLabel: 'anna@example.com', status: 'active',
         lastRefreshSuccessAt: '2026-08-04T10:00:00Z', lastRefreshError: null,
       }],
       feeds: [
-        { feedKey: 'calendar:member:b', lastSuccessAt: '2026-08-04T10:00:00Z', lastError: null, consecutiveFailures: 0, updatedAt: '' },
-        { feedKey: 'todo:member:b:list1', lastSuccessAt: null, lastError: 'needs_reauth', consecutiveFailures: 3, updatedAt: '' },
+        { feedKey: 'm365:calendar:member:b', lastSuccessAt: '2026-08-04T10:00:00Z', lastError: null, consecutiveFailures: 0, updatedAt: '' },
+        { feedKey: 'm365:todo:member:b:list1', lastSuccessAt: null, lastError: 'needs_reauth', consecutiveFailures: 3, updatedAt: '' },
       ],
     } },
     isLoading: false,
@@ -66,13 +66,13 @@ describe('ConnectionsPanel', () => {
 
   it('lists every feed and flags the failing one', () => {
     renderPanel();
-    expect(screen.getByText('calendar:member:b')).toBeInTheDocument();
-    expect(screen.getByText('todo:member:b:list1')).toBeInTheDocument();
+    expect(screen.getByText('m365:calendar:member:b')).toBeInTheDocument();
+    expect(screen.getByText('m365:todo:member:b:list1')).toBeInTheDocument();
     expect(screen.getByText(/needs_reauth/)).toBeInTheDocument();
   });
 
   it('triggers a manual sync, toasts the result summary, and invalidates the status query', async () => {
-    syncNow.mockResolvedValue({ data: { results: [{ feedKey: 'calendar:member:b', status: 'ok' }] } });
+    syncNow.mockResolvedValue({ data: { results: [{ feedKey: 'm365:calendar:member:b', status: 'ok' }] } });
     const { invalidateSpy } = renderPanel();
     fireEvent.click(screen.getByRole('button', { name: /sync/i }));
 

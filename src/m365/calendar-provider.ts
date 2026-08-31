@@ -1,6 +1,6 @@
 import type { M365Runtime } from './runtime.js';
 import { GraphError } from './graph.js';
-import { feedKeys } from './feed-keys.js';
+import { feedKeys } from '../integrations/feed-keys.js';
 import type {
   CalendarProvider, CalendarFeed, MirroredEvent, PullResult,
 } from '../modules/calendar/providers/types.js';
@@ -15,7 +15,7 @@ import type {
  * Uses `calendarView/delta` over a rolling window so Graph expands recurring
  * events into individual occurrences for us; we mirror expanded occurrences and
  * never reconstruct recurrence rules. Delta tokens are opaque `@odata.deltaLink`
- * URLs, persisted by the sync runner in `m365_sync_state`.
+ * URLs, persisted by the sync runner in `integration_sync_state`.
  *
  * Recurring series need special handling — `calendarView/delta` delivers them
  * in pieces:
@@ -110,12 +110,12 @@ export class GraphCalendarProvider implements CalendarProvider {
   async listFeeds(): Promise<CalendarFeed[]> {
     const connections = await this.rt.store.listConnections();
     const feeds: CalendarFeed[] = connections.map((c) => ({
-      feedKey: feedKeys.calendarMember(c.memberId),
+      feedKey: feedKeys.calendarMember('m365', c.memberId),
       memberId: c.memberId,
       kind: 'member',
     }));
     // The shared family mailbox (app-only) is always a feed when enabled.
-    feeds.push({ feedKey: feedKeys.calendarFamily(), memberId: null, kind: 'family' });
+    feeds.push({ feedKey: feedKeys.calendarFamily('m365'), memberId: null, kind: 'family' });
     return feeds;
   }
 
@@ -274,10 +274,10 @@ export class GraphCalendarProvider implements CalendarProvider {
   }
 
   private parseFeed(feedKey: string): CalendarFeed {
-    if (feedKey === feedKeys.calendarFamily()) {
+    if (feedKey === feedKeys.calendarFamily('m365')) {
       return { feedKey, memberId: null, kind: 'family' };
     }
-    const m = /^calendar:member:(.+)$/.exec(feedKey);
+    const m = /^m365:calendar:member:(.+)$/.exec(feedKey);
     if (!m) throw new Error(`Unsupported calendar feed key: ${feedKey}`);
     return { feedKey, memberId: m[1]!, kind: 'member' };
   }

@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — BREAKING
+
+- **`/api/v1/m365/*` is retired in favour of `/api/v1/integrations/*`**, which
+  adds a provider segment to the connection routes (e.g.
+  `/api/v1/integrations/m365/connect`, `.../m365/callback`). This is groundwork
+  for a second provider (Google, Phase 2) sitting beside M365 rather than
+  replacing it. **Operator action required:** update the Entra app
+  registration's redirect URI to `<base>/api/v1/integrations/m365/callback` —
+  a registration still pointing at the old path fails consent with
+  `redirect_uri_mismatch`.
+- **`M365_SHARED_TODO_LIST` is gone.** The household task list — where
+  household-created tasks land and what Weorc projects into — is now
+  designated in the database (`todo_list_allowlist.is_household`) via
+  `PUT /api/v1/tasks/household-list`, not by matching a list's name. **No list
+  is designated automatically** — every way of inferring one from the old env
+  value was unsafe — so household task creation and Weorc's projection pass
+  both stay paused until an adult designates a list once after upgrading. A
+  boot-time warning and
+  `GET /api/v1/integrations/status`'s new `householdListDesignated` field make
+  that state visible instead of a silent stop.
+- **`M365_SYNC_INTERVAL_SECONDS` is renamed to
+  `INTEGRATIONS_SYNC_INTERVAL_SECONDS`.** An un-renamed value in a hand-edited
+  `.env` is silently ignored and the mirror poll falls back to its 300s
+  default — check yours if you had tuned this. (The `deploy/` compose files
+  never set it, so a bare-metal or standalone-Heorth deployment with a custom
+  `.env` is the only one affected.)
+
+### Fixed
+
+- **A full resync no longer deletes and re-inserts a feed's mirror rows.**
+  `task_mirror.id` and `calendar_mirror_events.id` now stay stable across a
+  `410`/periodic full resync — rows are reconciled (upserted where present,
+  deleted where absent) instead of the whole feed being wiped and rebuilt. This
+  removes an intermittent 404 where the web had a task's id in hand, a resync
+  landed between the read and the write, and `POST /api/v1/tasks/:id/complete`
+  hit an id that no longer existed.
+
 ### Added
 
 - **Weorc module** (`src/modules/weorc/`, ADR 0014): household routines backed

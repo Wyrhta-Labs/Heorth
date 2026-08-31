@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
-import { m365Connections } from '../src/m365/schema.js';
+import { integrationConnections } from '../src/integrations/schema.js';
 import { GraphError } from '../src/m365/graph.js';
 import { createFakeGraph, runtimeForFakeGraph } from './fake-graph.js';
 import { seedTestHousehold } from './helpers.js';
@@ -22,7 +22,7 @@ describe('m365 delegated client', () => {
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedTestHousehold();
     await rt.store.upsertConnection({
-      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
+      memberId: adult.user.id, accountLabel: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
     });
 
     // First call refreshes → rotates the stored refresh token to refresh-r1.
@@ -50,7 +50,7 @@ describe('m365 delegated client', () => {
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedTestHousehold();
     await rt.store.upsertConnection({
-      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
+      memberId: adult.user.id, accountLabel: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
     });
 
     await expect(rt.delegated.getAccessToken(adult.user.id)).rejects.toBeInstanceOf(GraphError);
@@ -64,14 +64,14 @@ describe('m365 delegated client', () => {
     const rt = runtimeForFakeGraph(fake);
     const { adult } = await seedTestHousehold();
     await rt.store.upsertConnection({
-      memberId: adult.user.id, accountUpn: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
+      memberId: adult.user.id, accountLabel: 'adult@contoso.test', refreshToken: 'refresh-initial', scopes: '',
     });
 
     // Simulate a JWT_SECRET rotation (or any at-rest corruption): the derived
     // key no longer matches, so decryptToken's AES-GCM auth-tag check fails.
-    await db.update(m365Connections)
+    await db.update(integrationConnections)
       .set({ refreshTokenEncrypted: 'not:valid:ciphertext' })
-      .where(eq(m365Connections.memberId, adult.user.id));
+      .where(eq(integrationConnections.memberId, adult.user.id));
 
     // Does not throw a raw/opaque error — surfaces a typed GraphError.
     const err = await rt.delegated.getAccessToken(adult.user.id).catch((e: unknown) => e);

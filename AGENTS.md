@@ -127,7 +127,10 @@ both files are wrong — fix them.
   token material.** → `README.md`, "Token exchange".
 - **Never log or return token material**, anywhere. Refresh tokens are stored
   encrypted at rest (`src/integrations/crypto.ts`, AES-256-GCM keyed off
-  `JWT_SECRET`) and rotated on refresh.
+  `JWT_SECRET`); rotation on refresh is provider-dependent — Microsoft rotates
+  and the rotated token is re-stored, Google deliberately does not
+  (`src/google/oauth.ts` calls `recordRefreshSuccess(memberId)` with no token
+  argument) and the stored ciphertext is left untouched.
 
 ## Integration provider rules (`src/integrations/`, `src/m365/`, `src/google/`)
 

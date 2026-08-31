@@ -473,6 +473,8 @@ export interface Task {
 }
 
 export interface AvailableTaskList {
+  /** Which provider this list belongs to — a member may hold lists at both. */
+  provider: string;
   id: string;
   name: string;
   enabled: boolean;
@@ -480,7 +482,19 @@ export interface AvailableTaskList {
 
 export interface TodoAllowlistEntry {
   id: string;
+  provider: string;
   memberId: string;
   listId: string;
   listName: string | null;
+  /** THE household list: what Heorth (and Weorc) create tasks into. */
+  isHousehold: boolean;
+}
+
+/** One calendar from `GET /api/v1/calendar/calendars`. */
+export interface AvailableCalendar {
+  provider: string;
+  id: string;
+  name: string;
+  enabled: boolean;
+  isHousehold: boolean;
 }

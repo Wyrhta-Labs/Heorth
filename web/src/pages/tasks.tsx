@@ -9,9 +9,11 @@ import { useToast } from '@/components/ui/toast';
 import { retryOf } from '@/lib/query-error';
 import { useFormatters } from '@/hooks/use-formatters';
 import {
-  useTasks, useAvailableLists, useCompleteTask, useCreateTask, useSetAllowlist,
+  useTasks, useAvailableLists, useAllowlist, useCompleteTask, useCreateTask, useSetAllowlist, useSetHouseholdList,
 } from '@/hooks/use-tasks';
-import type { Task } from '@/lib/types';
+import { useWhoami } from '@/hooks/use-household';
+import { PROVIDERS } from '@/lib/providers';
+import type { AvailableTaskList, Task } from '@/lib/types';
 
 type Bucket = 'overdue' | 'soon' | 'someday';
 
@@ -128,22 +130,50 @@ export default function TasksPage() {
   );
 }
 
+function providerName(provider: string): string {
+  return PROVIDERS.find((p) => p.id === provider)?.nameKey ?? provider;
+}
+
 function ListSettings() {
   const { t } = useTranslation();
   const listsQuery = useAvailableLists(true);
+  const allowlistQuery = useAllowlist(true);
   const setAllowlist = useSetAllowlist();
+  const setHouseholdList = useSetHouseholdList();
+  const whoamiQuery = useWhoami();
   const { toast } = useToast();
 
   const lists = listsQuery.data?.data ?? [];
+  const allowlist = allowlistQuery.data?.data ?? [];
+  const role = whoamiQuery.data?.data.role;
+  const canDesignate = role === 'admin' || role === 'adult';
 
-  const toggle = async (listId: string, enabled: boolean) => {
-    const next = new Set(lists.filter((l) => l.enabled).map((l) => l.id));
-    if (enabled) next.add(listId); else next.delete(listId);
+  const householdListId = (provider: string): string | undefined =>
+    allowlist.find((a) => a.provider === provider && a.isHousehold)?.listId;
+
+  const byProvider = lists.reduce<Record<string, AvailableTaskList[]>>((acc, l) => {
+    (acc[l.provider] ??= []).push(l);
+    return acc;
+  }, {});
+
+  const toggle = async (provider: string, listId: string, enabled: boolean) => {
+    const next = lists
+      .filter((l) => (l.provider === provider && l.id === listId ? enabled : l.enabled))
+      .map((l) => ({ provider: l.provider, listId: l.id }));
     try {
-      await setAllowlist.mutateAsync([...next]);
+      await setAllowlist.mutateAsync(next);
       toast(t('tasks.syncedListsUpdated'), 'success');
     } catch (e) {
       toast((e as Error).message || t('tasks.couldNotUpdateLists'), 'error');
+    }
+  };
+
+  const designate = async (provider: string, listId: string) => {
+    try {
+      await setHouseholdList.mutateAsync({ provider, listId });
+      toast(t('tasks.householdListUpdated'), 'success');
+    } catch (e) {
+      toast((e as Error).message || t('tasks.couldNotUpdateHouseholdList'), 'error');
     }
   };
 
@@ -155,7 +185,7 @@ function ListSettings() {
           <RefreshCw className="h-4 w-4" />
         </Button>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-4">
         {listsQuery.isError && (
           <p className="text-sm text-red-600">
             {t('tasks.listsLoadError')}
@@ -164,16 +194,36 @@ function ListSettings() {
         {!listsQuery.isError && lists.length === 0 && (
           <p className="text-sm text-muted-foreground">{t('tasks.noListsFound')}</p>
         )}
-        {lists.map((l) => (
-          <label key={l.id} className="flex items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-gray-300 accent-ember"
-              checked={l.enabled}
-              onChange={(e) => void toggle(l.id, e.target.checked)}
-            />
-            {l.name}
-          </label>
+        {Object.entries(byProvider).map(([provider, providerLists]) => (
+          <div key={provider} className="space-y-2">
+            <h3 className="text-sm font-semibold text-ink">{t(providerName(provider), { defaultValue: provider })}</h3>
+            {providerLists.map((l) => (
+              <div key={l.id} className="flex items-center gap-3 text-sm">
+                <label className="flex flex-1 items-center gap-3">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 accent-ember"
+                    checked={l.enabled}
+                    aria-label={l.name}
+                    onChange={(e) => void toggle(l.provider, l.id, e.target.checked)}
+                  />
+                  {l.name}
+                </label>
+                {canDesignate && l.enabled && (
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <input
+                      type="radio"
+                      name={`household-list-${provider}`}
+                      className="h-4 w-4 accent-ember"
+                      checked={householdListId(provider) === l.id}
+                      onChange={() => void designate(l.provider, l.id)}
+                    />
+                    {t('tasks.householdListLabel')}
+                  </label>
+                )}
+              </div>
+            ))}
+          </div>
         ))}
         <p className="pt-1 text-xs text-muted-foreground">
           {t('tasks.syncHint')}

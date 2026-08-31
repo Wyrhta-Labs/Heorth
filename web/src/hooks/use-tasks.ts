@@ -12,6 +12,10 @@ export function useAvailableLists(enabled: boolean) {
   return useQuery({ queryKey: QUERY_KEYS.taskLists, queryFn: () => api.listAvailableLists(), enabled });
 }
 
+export function useAllowlist(enabled: boolean) {
+  return useQuery({ queryKey: QUERY_KEYS.taskAllowlist, queryFn: () => api.getAllowlist(), enabled });
+}
+
 export function useCompleteTask() {
   const qc = useQueryClient();
   return useMutation({
@@ -31,10 +35,22 @@ export function useCreateTask() {
 export function useSetAllowlist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (listIds: string[]) => api.setAllowlist(listIds),
+    mutationFn: (lists: Array<{ provider: string; listId: string }>) => api.setAllowlist(lists),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.taskLists });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.taskAllowlist });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+    },
+  });
+}
+
+export function useSetHouseholdList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ provider, listId }: { provider: string; listId: string }) => api.setHouseholdList(provider, listId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.taskLists });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.taskAllowlist });
     },
   });
 }

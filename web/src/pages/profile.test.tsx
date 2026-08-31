@@ -8,6 +8,11 @@ vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/components/profile/provider-card', () => ({
   default: ({ provider }: { provider: { id: string } }) => <div>card:{provider.id}</div>,
 }));
+vi.mock('@/components/settings/calendar-sync-settings', () => ({
+  CalendarSyncSettings: ({ canDesignate }: { canDesignate: boolean }) => (
+    <div>calendar-sync-settings:{String(canDesignate)}</div>
+  ),
+}));
 vi.mock('@/hooks/use-household', () => ({ useWhoami: () => useWhoamiMock() }));
 
 const ordinaryMember = { data: { data: { id: 'm1', handle: 'anna', role: 'adult', displayName: 'Anna' } } };
@@ -20,6 +25,13 @@ describe('ProfilePage', () => {
   it('renders a card per registered provider for an ordinary member', () => {
     render(<ProfilePage />);
     expect(screen.getByText('card:m365')).toBeInTheDocument();
+    expect(screen.getByText('calendar-sync-settings:true')).toBeInTheDocument();
+  });
+
+  it('does not let a child designate the household calendar', () => {
+    useWhoamiMock.mockReturnValue({ data: { data: { id: 'm3', handle: 'kid', role: 'child', displayName: 'Kid' } } });
+    render(<ProfilePage />);
+    expect(screen.getByText('calendar-sync-settings:false')).toBeInTheDocument();
   });
 
   it('renders the maintenance-admin explanatory card instead of provider cards when the session is the maintenance admin', () => {

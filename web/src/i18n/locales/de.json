@@ -152,7 +152,21 @@
     "noListsFound": "Keine Listen gefunden.",
     "syncHint": "Es wird erst synchronisiert, wenn du eine Liste auswählst. Neue Aufgaben landen auf der gemeinsamen Haushaltsliste.",
     "syncedListsUpdated": "Synchronisierte Listen aktualisiert",
-    "couldNotUpdateLists": "Die Listen konnten nicht aktualisiert werden"
+    "couldNotUpdateLists": "Die Listen konnten nicht aktualisiert werden",
+    "householdListLabel": "Haushaltsliste",
+    "householdListUpdated": "Haushaltsliste aktualisiert",
+    "couldNotUpdateHouseholdList": "Die Haushaltsliste konnte nicht aktualisiert werden"
+  },
+  "calendarSync": {
+    "title": "Synchronisierte Kalender",
+    "hint": "Es wird erst synchronisiert, wenn du einen Kalender auswählst.",
+    "loadError": "Deine Kalender konnten nicht geladen werden.",
+    "noneFound": "Keine Kalender gefunden.",
+    "updated": "Synchronisierte Kalender aktualisiert",
+    "couldNotUpdate": "Die Kalender konnten nicht aktualisiert werden",
+    "householdLabel": "Haushaltskalender",
+    "householdUpdated": "Haushaltskalender aktualisiert",
+    "couldNotUpdateHousehold": "Der Haushaltskalender konnte nicht aktualisiert werden"
   },
   "login": {
     "signInToHome": "Melde dich in deinem Zuhause an",

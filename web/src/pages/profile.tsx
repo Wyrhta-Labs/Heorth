@@ -4,6 +4,7 @@ import { ShieldAlert } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import ProviderCard from '@/components/profile/provider-card';
+import { CalendarSyncSettings } from '@/components/settings/calendar-sync-settings';
 import { PROVIDERS } from '@/lib/providers';
 import { useWhoami } from '@/hooks/use-household';
 import { MAINTENANCE_ADMIN_HANDLE } from '@/lib/constants';
@@ -42,6 +43,8 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const whoamiQuery = useWhoami();
   const isMaintenanceAdmin = whoamiQuery.data?.data.handle === MAINTENANCE_ADMIN_HANDLE;
+  const role = whoamiQuery.data?.data.role;
+  const canDesignate = role === 'admin' || role === 'adult';
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -90,6 +93,7 @@ export default function ProfilePage() {
           {PROVIDERS.map((provider) => (
             <ProviderCard key={provider.id} provider={provider} />
           ))}
+          <CalendarSyncSettings canDesignate={canDesignate} />
         </div>
       )}
     </div>

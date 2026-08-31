@@ -152,7 +152,21 @@
     "noListsFound": "No lists found.",
     "syncHint": "Nothing syncs until you choose a list. New tasks you add go to the shared household list.",
     "syncedListsUpdated": "Synced lists updated",
-    "couldNotUpdateLists": "Could not update lists"
+    "couldNotUpdateLists": "Could not update lists",
+    "householdListLabel": "Household list",
+    "householdListUpdated": "Household list updated",
+    "couldNotUpdateHouseholdList": "Could not update the household list"
+  },
+  "calendarSync": {
+    "title": "Synced calendars",
+    "hint": "Nothing syncs until you choose a calendar.",
+    "loadError": "We couldn’t load your calendars.",
+    "noneFound": "No calendars found.",
+    "updated": "Synced calendars updated",
+    "couldNotUpdate": "Could not update calendars",
+    "householdLabel": "Household calendar",
+    "householdUpdated": "Household calendar updated",
+    "couldNotUpdateHousehold": "Could not update the household calendar"
   },
   "login": {
     "signInToHome": "Sign in to your home",

@@ -25,6 +25,11 @@
   export DATABASE_URL="postgres://heorth:$(grep -E '^HEORTH_DB_PASSWORD=' ../deploy/.env | cut -d= -f2- | tr -d '"'\''\r')@localhost:15432/heorth_test"
   ```
 - **Verification commands:** `npm run typecheck`, `npm test`, and — mandatory before any push — `cd web && npm run build`, which is the ONLY thing that typechecks the web.
+- **Test harness facts that are easy to get wrong** (all verified against the repo on 2026-08-31):
+  - `src/app.ts` exports **`createApp(modules)`** and `heorthErrorHandler`. There is **no `app` singleton to import.** Route suites either build `createApp([...modules])` (see `tests/calendar-routes.test.ts`) or mount one router on a bare `Hono` (see `tests/tasks-household-list-routes.test.ts`, `tests/integrations-routes.test.ts`). A bare-router app must also set `.onError(heorthErrorHandler)`, or a thrown `MaintenanceAdminError` surfaces as a 500 instead of the documented 403.
+  - `tests/integrations-routes.test.ts` has a `stubProvider()` **hardcoded to `'m365'`** and a local `integrationsApp()`. There is no `registerFakeProvider`. `tests/helpers.ts` provides `seedTestHousehold`, `authHeaders` and `registerFakeTaskProvider(id, tasks)` — nothing else.
+  - **The web has no shared render/test utility.** There is no `@/test/render`, no `renderHookWithClient`, no exported `renderWithProviders`. `web/src/hooks/use-m365.test.ts` mocks `@tanstack/react-query`'s `useQuery` and calls `renderHook` directly; `web/src/hooks/use-i18n.test.tsx:17` defines a local `renderWithProviders`. Copy one of those; do not import a helper that does not exist.
+  - **`calendarRouter` mounts at `/api/v1/events`**, not `/api/v1/calendar` (`src/modules/calendar/index.ts:8`).
 - **Commits:** one concern per commit, no AI co-author trailers, conventional-commit subjects.
 
 ---
@@ -295,7 +300,9 @@ Create `src/google/api.ts`:
 
 export const GOOGLE_OAUTH_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_OAUTH_TOKEN = 'https://oauth2.googleapis.com/token';
-export const GOOGLE_USERINFO = 'https://www.googleapis.com/oauth2/v3/userinfo';
+// The canonical OIDC UserInfo endpoint. (`www.googleapis.com/oauth2/v3/userinfo`
+// still answers, but this is the one Google's OIDC discovery document names.)
+export const GOOGLE_USERINFO = 'https://openidconnect.googleapis.com/v1/userinfo';
 export const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 export const GOOGLE_TASKS_BASE = 'https://tasks.googleapis.com/tasks/v1';
 
@@ -622,9 +629,10 @@ export function createFakeGoogle(): FakeGoogle {
     return c.json({ error: 'unsupported_grant_type' }, 400);
   });
 
-  // Userinfo — the account label.
-  state.app.get('/oauth2/v3/userinfo', (c) => {
-    state.calls.push({ method: 'GET', path: '/oauth2/v3/userinfo' });
+  // Userinfo — the account label. Routed by pathname, so this matches the
+  // canonical https://openidconnect.googleapis.com/v1/userinfo.
+  state.app.get('/v1/userinfo', (c) => {
+    state.calls.push({ method: 'GET', path: '/v1/userinfo' });
     return c.json({ sub: 'google-user-id', email: state.userEmail, email_verified: true });
   });
 
@@ -650,6 +658,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { seedTestHousehold } from './helpers.js';
 import { createFakeGoogle, runtimeForFakeGoogle, type FakeGoogle } from './fake-google.js';
 import { GoogleNoRefreshTokenError, GOOGLE_SCOPES } from '../src/google/oauth.js';
+import { classify } from '../src/google/sync-runner.js';
 import type { GoogleRuntime } from '../src/google/runtime.js';
 
 let fake: FakeGoogle;
@@ -709,15 +718,21 @@ describe('GoogleOAuthClient.getAccessToken', () => {
     expect(fake.refreshCount).toBe(1);
   });
 
-  it('marks the connection needs_reauth when the refresh is rejected', async () => {
+  it('marks the connection needs_reauth AND classifies the throw the same way', async () => {
     const { adult } = await seedTestHousehold();
     await rt.store.upsertConnection({
       memberId: adult.user.id, accountLabel: 'a@gmail.test',
       refreshToken: 'stored-refresh', scopes: GOOGLE_SCOPES,
     });
     fake.failRefresh = true;
-    await expect(rt.oauth.getAccessToken(adult.user.id)).rejects.toThrow();
+
+    const e = await rt.oauth.getAccessToken(adult.user.id).catch((err: unknown) => err);
+
     expect((await rt.store.getConnection(adult.user.id))!.status).toBe('needs_reauth');
+    // Google says `400 invalid_grant` for a revoked refresh token. If that 400
+    // escapes raw, `classify` calls it `google_400` and the row's
+    // `needs_reauth` and the surfaced reason disagree.
+    expect(classify(e)).toBe('needs_reauth');
   });
 
   it('reports no_connection when the member has never connected', async () => {
@@ -766,6 +781,13 @@ export const GOOGLE_SCOPES = [
  * a hard failure at connect time, not a warning.
  */
 export class GoogleNoRefreshTokenError extends Error {
+  /**
+   * Surfaced verbatim as `?connectError=<code>` by the integrations callback,
+   * so the member is told what actually went wrong instead of getting the
+   * generic exchange failure. The spec names this exact code.
+   */
+  readonly connectErrorCode = 'GOOGLE_NO_REFRESH_TOKEN';
+
   constructor() {
     super('Google returned no refresh_token — the connection would expire within the hour');
     this.name = 'GoogleNoRefreshTokenError';
@@ -903,6 +925,14 @@ export class GoogleOAuthClient {
         memberId, (e as Error).message, needsReauth ? 'needs_reauth' : 'error',
       );
       this.cache.delete(memberId);
+      // RE-THROW AS needs_reauth, do not rethrow the raw 400. Google answers a
+      // revoked/expired refresh token with `400 invalid_grant`, and `classify`
+      // would map a bare 400 to `google_400` — so the write-back path would
+      // report a generic upstream error while the CONNECTION row says
+      // needs_reauth. The two must agree, or the UI shows no reconnect prompt.
+      if (needsReauth) {
+        throw new GoogleApiError('Google refresh token was rejected', 401, 'needs_reauth');
+      }
       throw e;
     }
 
@@ -1074,6 +1104,19 @@ describe('calendar allowlist store', () => {
     expect(left).toEqual([]);
   });
 
+  it('clears a de-selected feed\'s sync state, so no frozen row lingers in /status', async () => {
+    const { adult } = await seedTestHousehold();
+    await setCalendarAllowlist(adult.user.id, 'google', [{ id: 'cal-sport', name: 'Sport' }]);
+    const feedKey = `google:calendar:member:${adult.user.id}:cal-sport`;
+    await db.insert(integrationSyncState).values({ feedKey, syncToken: 'tok', lastSuccessAt: new Date() });
+
+    await setCalendarAllowlist(adult.user.id, 'google', []);
+
+    const left = await db.select().from(integrationSyncState)
+      .where(eq(integrationSyncState.feedKey, feedKey));
+    expect(left).toEqual([]);
+  });
+
   it('resolves a feed by its key without parsing it', async () => {
     const { adult } = await seedTestHousehold();
     await setCalendarAllowlist(adult.user.id, 'google', [{ id: 'cal:with:colons', name: 'Odd' }]);
@@ -1242,9 +1285,14 @@ export async function setCalendarAllowlist(
 
     for (const row of existing) {
       if (!keepIds.has(row.calendarId)) {
+        const feedKey = feedKeys.calendarList(provider, memberId, row.calendarId);
         await tx.delete(calendarAllowlist).where(eq(calendarAllowlist.id, row.id));
-        await tx.delete(calendarMirrorEvents)
-          .where(eq(calendarMirrorEvents.feedKey, feedKeys.calendarList(provider, memberId, row.calendarId)));
+        await tx.delete(calendarMirrorEvents).where(eq(calendarMirrorEvents.feedKey, feedKey));
+        // Its sync state goes too. Nothing enumerates a de-selected feed any
+        // more, so a surviving row would sit in `/integrations/status`'s
+        // `feeds[]` forever, frozen at its last success and eventually
+        // rendering as a permanently stale badge on the wall.
+        await tx.delete(integrationSyncState).where(eq(integrationSyncState.feedKey, feedKey));
       }
     }
 
@@ -1358,15 +1406,18 @@ git commit -m "feat(calendar): add the per-member calendar allowlist and househo
 ### Task 6: Calendar discovery service and routes
 
 **Files:**
-- Modify: `src/modules/calendar/providers/types.ts`, `src/m365/calendar-provider.ts`, `src/modules/calendar/service.ts`, `src/modules/calendar/routes.ts`, `src/modules/calendar/validators.ts`
+- Create: `src/modules/calendar/allowlist-routes.ts`
+- Modify: `src/modules/calendar/providers/types.ts`, `src/m365/calendar-provider.ts`, `src/modules/calendar/service.ts`, `src/modules/calendar/index.ts`, `src/modules/calendar/validators.ts`
 - Test: `tests/calendar-allowlist-routes.test.ts`
+
+> **The calendar router does NOT mount at `/api/v1/calendar`.** `src/modules/calendar/index.ts:8` mounts `calendarRouter` at **`/api/v1/events`**. Adding these routes to that router would put them at `/api/v1/events/calendars`. The spec's paths (`/api/v1/calendar/*`) are the right ones, so this task adds a SECOND router mounted at `/api/v1/calendar` instead — which also removes the `/:id` collision hazard entirely, since the new router has no `/:id` route.
 
 **Interfaces:**
 - Consumes: the store from Task 5; `listProviders` (`src/integrations/registry.js`); `assertNotMaintenanceAdmin` (`src/household/maintenance-admin.js`).
 - Produces:
   - Contract addition: `interface AvailableCalendar { id: string; name: string }` and `CalendarProvider.listAvailableCalendars(memberId: string): Promise<AvailableCalendar[]>`.
   - Service: `interface AvailableCalendarView { provider: string; id: string; name: string; enabled: boolean; isHousehold: boolean }`, `class UnknownCalendarError extends Error`, `listAvailableCalendars(memberId)`, `setCalendarAllowlistFor(memberId, entries: Array<{ provider: string; calendarId: string }>)`, `designateHouseholdCalendar(memberId, provider, calendarId)`, `getHouseholdCalendarView()`.
-  - Routes: `GET /api/v1/calendar/calendars`, `PUT /api/v1/calendar/allowlist`, `PUT /api/v1/calendar/household-calendar`.
+  - `calendarAllowlistRouter` (new, in `allowlist-routes.ts`), mounted at `/api/v1/calendar`: `GET /calendars`, `PUT /allowlist`, `PUT /household-calendar`.
 
 - [ ] **Step 1: Extend the provider contract**
 
@@ -1408,12 +1459,14 @@ In `src/m365/calendar-provider.ts`, add to `GraphCalendarProvider` right after `
 
 - [ ] **Step 2: Write the failing test**
 
-Create `tests/calendar-allowlist-routes.test.ts`. Copy the app import and request style verbatim from `tests/integrations-routes.test.ts` — use whatever that suite imports, not a guess:
+Create `tests/calendar-allowlist-routes.test.ts`. Note the app construction: **`src/app.ts` exports `createApp(modules)`, NOT an `app` singleton** — this is the pattern `tests/calendar-routes.test.ts` uses.
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { seedTestHousehold, authHeaders } from './helpers.js';
-import { app } from '../src/app.js';
+import { createApp } from '../src/app.js';
+import { householdModule } from '../src/household/index.js';
+import { calendarModule } from '../src/modules/calendar/index.js';
 import { clearProviders, registerProvider } from '../src/integrations/registry.js';
 import { IntegrationStore } from '../src/integrations/store.js';
 import type { AvailableCalendar, CalendarProvider } from '../src/modules/calendar/providers/types.js';
@@ -1437,6 +1490,8 @@ function registerFakeCalendarProvider(id: string, calendar: CalendarProvider): v
     runCalendarSync: async () => [], runTaskSync: async () => [],
   });
 }
+
+const app = createApp([householdModule, calendarModule]);
 
 beforeEach(() => { clearProviders(); });
 afterEach(() => { clearProviders(); });
@@ -1663,17 +1718,30 @@ export async function getHouseholdCalendarView(): Promise<CalendarAllowlistFeed 
 }
 ```
 
-- [ ] **Step 6: Add the routes**
+- [ ] **Step 6: Add the routes in a SECOND router**
 
-In `src/modules/calendar/routes.ts`, insert these BEFORE `calendarRouter.get('/:id', …)` and import the two new validators:
+Create `src/modules/calendar/allowlist-routes.ts`:
 
 ```ts
+import { Hono } from 'hono';
+import { ok, err } from '@wyrhta/core/http';
+import { requireAuth } from '../../wiring.js';
+import * as service from './service.js';
+import { setCalendarAllowlistSchema, setHouseholdCalendarSchema } from './validators.js';
+
 /**
  * Calendar discovery + allowlist, the sibling of `/api/v1/tasks/lists` and
- * `/api/v1/tasks/allowlist`. Registered above `/:id` deliberately: Hono matches
- * in registration order, so `/calendars` would otherwise be read as an event id.
+ * `/api/v1/tasks/allowlist`.
+ *
+ * A SEPARATE router from `calendarRouter`, because that one is mounted at
+ * `/api/v1/events` (see `index.ts`) — putting these on it would produce
+ * `/api/v1/events/calendars`. Being separate also means there is no `/:id`
+ * route here for `/calendars` to be swallowed by.
  */
-calendarRouter.get('/calendars', async (c) => {
+export const calendarAllowlistRouter = new Hono();
+calendarAllowlistRouter.use('*', requireAuth);
+
+calendarAllowlistRouter.get('/calendars', async (c) => {
   try {
     return ok(c, await service.listAvailableCalendars(c.get('auth').userId));
   } catch (e) {
@@ -1682,7 +1750,7 @@ calendarRouter.get('/calendars', async (c) => {
   }
 });
 
-calendarRouter.put('/allowlist', async (c) => {
+calendarAllowlistRouter.put('/allowlist', async (c) => {
   const body = setCalendarAllowlistSchema.safeParse(await c.req.json());
   if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
   try {
@@ -1694,7 +1762,7 @@ calendarRouter.put('/allowlist', async (c) => {
 });
 
 /** Designate the shared family calendar (admin or adult — a household-wide setting). */
-calendarRouter.put('/household-calendar', async (c) => {
+calendarAllowlistRouter.put('/household-calendar', async (c) => {
   const auth = c.get('auth');
   if (auth.role !== 'admin' && auth.role !== 'adult') {
     return err(c, 'FORBIDDEN', 'Only an adult can set the household calendar', 403);
@@ -1709,6 +1777,17 @@ calendarRouter.put('/household-calendar', async (c) => {
     throw e;
   }
 });
+```
+
+Then mount it in `src/modules/calendar/index.ts` alongside the existing router:
+
+```ts
+  register(app: Hono): void {
+    app.route('/api/v1/events', calendarRouter);
+    // Discovery/allowlist lives under its own path: `/api/v1/events/calendars`
+    // would be a nonsense URL for "which calendars do I sync".
+    app.route('/api/v1/calendar', calendarAllowlistRouter);
+  },
 ```
 
 - [ ] **Step 7: Run the tests**
@@ -2165,7 +2244,13 @@ export class GoogleCalendarProvider implements CalendarProvider {
     const base = `${GOOGLE_CALENDAR_BASE}/calendars/${encodeURIComponent(feed.calendarId)}/events`;
 
     const fullResync = !syncToken || forceFullResync;
-    let url = fullResync ? `${base}?${this.windowParams()}` : `${base}?${this.incrementalParams(syncToken!)}`;
+    // Computed ONCE, outside the paging loop. Google requires every follow-up
+    // page to repeat the first request's query and add only `pageToken`; a
+    // `windowParams()` recomputed per page would shift timeMin/timeMax by the
+    // elapsed time and can invalidate the paging chain and the returned
+    // nextSyncToken.
+    const query = fullResync ? this.windowParams() : this.incrementalParams(syncToken!);
+    let url = `${base}?${query}`;
 
     const upserts: MirroredEvent[] = [];
     const deletions: string[] = [];
@@ -2196,9 +2281,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
       }
 
       if (res.nextPageToken) {
-        url = fullResync
-          ? `${base}?${this.windowParams()}&pageToken=${encodeURIComponent(res.nextPageToken)}`
-          : `${base}?${this.incrementalParams(syncToken!)}&pageToken=${encodeURIComponent(res.nextPageToken)}`;
+        url = `${base}?${query}&pageToken=${encodeURIComponent(res.nextPageToken)}`;
         continue;
       }
       nextToken = res.nextSyncToken ?? null;
@@ -2542,9 +2625,10 @@ And the handlers, before `return state;`:
     }
 
     const all = state.tasks.get(listId) ?? [];
-    // Honour the flags the way Google does — a provider that forgets
-    // showCompleted/showHidden must SEE completed tasks vanish.
-    const showCompleted = c.req.query('showCompleted') === 'true';
+    // Honour the flags the way Google does, INCLUDING the defaults
+    // (`showCompleted` defaults to true, `showHidden` to false) — a provider
+    // that forgets showHidden must SEE completed tasks vanish.
+    const showCompleted = (c.req.query('showCompleted') ?? 'true') === 'true';
     const showHidden = c.req.query('showHidden') === 'true';
     const visible = all.filter((t) => {
       if (t.status === 'completed' && !showCompleted) return false;
@@ -2659,8 +2743,9 @@ describe('GoogleTaskProvider.pullChanges', () => {
       listId: 'list-1', listName: 'Haushalt', memberId,
     }]);
     const call = fake.calls.find((c) => c.path.endsWith('/tasks'))!;
-    // Google hides completed tasks by default: without BOTH flags a completion
-    // would look like a deletion to the reconciler.
+    // `showCompleted` defaults to true, but a completed task is also hidden,
+    // and hidden items need `showHidden=true` — without BOTH, a completion
+    // reads as a deletion to the reconciler.
     expect(call.query).toContain('showCompleted=true');
     expect(call.query).toContain('showHidden=true');
   });
@@ -2861,8 +2946,10 @@ export class GoogleTaskProvider implements TaskProvider {
     const token = await this.rt.oauth.getAccessToken(feed.memberId);
 
     const upserts: MirroredTask[] = [];
-    // BOTH flags are required: Google omits completed tasks by default and
-    // marks them hidden, so without them a completion reads as a deletion.
+    // BOTH flags are required. `showCompleted` defaults to true, but a
+    // completed task is also marked HIDDEN, and hidden items are omitted unless
+    // `showHidden=true` — so without both, a completion reads to the reconciler
+    // as a deletion and the task vanishes from the mirror.
     const base = `${GOOGLE_TASKS_BASE}/lists/${encodeURIComponent(feed.listId)}/tasks`
       + `?showCompleted=true&showHidden=true&maxResults=${PAGE_SIZE}`;
     let url = base;
@@ -3121,7 +3208,7 @@ git commit -m "feat(google): add the Google task sync runner"
 
 **Files:**
 - Create: `src/google/index.ts`
-- Modify: `src/modules/index.ts`
+- Modify: `src/modules/index.ts`, `src/integrations/routes.ts:139-146` (let a provider name its own connect error)
 - Test: `tests/google-routes.test.ts`
 
 **Interfaces:**
@@ -3134,8 +3221,10 @@ Create `tests/google-routes.test.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { Hono } from 'hono';
 import { seedTestHousehold, authHeaders } from './helpers.js';
-import { app } from '../src/app.js';
+import { heorthErrorHandler } from '../src/app.js';
+import { integrationsRouter } from '../src/integrations/routes.js';
 import { clearProviders, listProviders, registerProvider } from '../src/integrations/registry.js';
 import { IntegrationStore } from '../src/integrations/store.js';
 import { createFakeGoogle, runtimeForFakeGoogle, type FakeGoogle } from './fake-google.js';
@@ -3172,6 +3261,19 @@ function registerGoogleWithFake(runtime: GoogleRuntime): void {
   });
 }
 
+/**
+ * A bare app with just the integrations router — copied verbatim from
+ * `tests/integrations-routes.test.ts`, including the explicit error handler
+ * (this app is NOT built via `createApp`, so without it a thrown
+ * MaintenanceAdminError would surface as an unhandled 500).
+ */
+function app() {
+  const a = new Hono();
+  a.route('/api/v1/integrations', integrationsRouter);
+  a.onError(heorthErrorHandler);
+  return a;
+}
+
 beforeEach(() => {
   clearProviders();
   fake = createFakeGoogle();
@@ -3182,7 +3284,7 @@ afterEach(() => { clearProviders(); });
 describe('the google module', () => {
   it('registers no provider when the GOOGLE_* group is absent', async () => {
     const { googleModule } = await import('../src/google/index.js');
-    googleModule.register(app);
+    googleModule.register(new Hono());
     expect(listProviders()).toEqual([]);
   });
 });
@@ -3190,14 +3292,14 @@ describe('the google module', () => {
 describe('/api/v1/integrations/google', () => {
   it('404s the connect route when Google is not registered', async () => {
     const { adult } = await seedTestHousehold();
-    const res = await app.request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
+    const res = await app().request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
     expect(res.status).toBe(404);
   });
 
   it('returns a consent URL carrying offline access when registered', async () => {
     const { adult } = await seedTestHousehold();
     registerGoogleWithFake(rt);
-    const res = await app.request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
+    const res = await app().request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
     expect(res.status).toBe(200);
     const { data } = await res.json() as { data: { url: string } };
     const url = new URL(data.url);
@@ -3210,33 +3312,35 @@ describe('/api/v1/integrations/google', () => {
     registerGoogleWithFake(rt);
     fake.userEmail = 'anna@gmail.test';
 
-    const urlRes = await app.request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
+    const urlRes = await app().request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
     const state = new URL((await urlRes.json() as { data: { url: string } }).data.url).searchParams.get('state')!;
 
-    const cb = await app.request(`/api/v1/integrations/google/callback?code=abc&state=${encodeURIComponent(state)}`);
+    const cb = await app().request(`/api/v1/integrations/google/callback?code=abc&state=${encodeURIComponent(state)}`);
     expect(cb.status).toBe(302);
     expect(cb.headers.get('location')).toBe('/profile?connected=google');
     expect((await rt.store.getConnection(adult.user.id))!.accountLabel).toBe('anna@gmail.test');
   });
 
-  it('refuses to store a connection when Google issued no refresh token', async () => {
+  it('reports GOOGLE_NO_REFRESH_TOKEN specifically, not a generic failure', async () => {
     const { adult } = await seedTestHousehold();
     registerGoogleWithFake(rt);
     fake.omitRefreshToken = true;
 
-    const urlRes = await app.request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
+    const urlRes = await app().request('/api/v1/integrations/google/connect-url', { headers: authHeaders(adult.jwt) });
     const state = new URL((await urlRes.json() as { data: { url: string } }).data.url).searchParams.get('state')!;
 
-    const cb = await app.request(`/api/v1/integrations/google/callback?code=abc&state=${encodeURIComponent(state)}`);
+    const cb = await app().request(`/api/v1/integrations/google/callback?code=abc&state=${encodeURIComponent(state)}`);
     expect(cb.status).toBe(302);
-    expect(cb.headers.get('location')).toBe('/profile?connectError=GOOGLE_EXCHANGE_FAILED');
+    // The spec names this code. A generic GOOGLE_EXCHANGE_FAILED here would
+    // send the member round the consent loop again with no idea why.
+    expect(cb.headers.get('location')).toBe('/profile?connectError=GOOGLE_NO_REFRESH_TOKEN');
     expect(await rt.store.getConnection(adult.user.id)).toBeNull();
   });
 
   it('lists google among the providers on /status', async () => {
     const { adult } = await seedTestHousehold();
     registerGoogleWithFake(rt);
-    const res = await app.request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const res = await app().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as { data: { providers: string[] } };
     expect(data.providers).toContain('google');
   });
@@ -3307,7 +3411,36 @@ export { GoogleApiError } from './api.js';
 export { GOOGLE_SCOPES, GoogleNoRefreshTokenError } from './oauth.js';
 ```
 
-- [ ] **Step 4: Add it to `ALL_MODULES`**
+- [ ] **Step 4: Let a provider name its own connect error**
+
+The callback in `src/integrations/routes.ts:139-146` swallows every exchange
+failure into `<PROVIDER>_EXCHANGE_FAILED`, deliberately — upstream detail may
+reference tokens. A provider that has a SAFE, specific code to report needs a
+way through. Give it the narrowest one: an opt-in string property.
+
+In `src/integrations/routes.ts`, replace the callback's catch:
+
+```ts
+  try {
+    const { accountLabel, refreshToken, scopes } = await provider.completeConnect(code);
+    await provider.store.upsertConnection({ memberId, accountLabel, refreshToken, scopes });
+  } catch (e) {
+    // Upstream identity failures are NOT surfaced (they may reference tokens).
+    // The one exception is an error that names its own safe code — currently
+    // only GOOGLE_NO_REFRESH_TOKEN, where the generic message would send the
+    // member round the consent loop again with no idea what to change.
+    const named = (e as { connectErrorCode?: unknown }).connectErrorCode;
+    const code = typeof named === 'string' && /^[A-Z0-9_]{1,64}$/.test(named)
+      ? named
+      : `${id.toUpperCase()}_EXCHANGE_FAILED`;
+    return c.redirect(`/profile?connectError=${code}`, 302);
+  }
+```
+
+The regex is not decoration: the value lands in a redirect URL, so it is
+constrained to a safe alphabet rather than trusted.
+
+- [ ] **Step 5: Add it to `ALL_MODULES`**
 
 In `src/modules/index.ts`, import `googleModule` and place it immediately after `m365Module` — BEFORE `integrationsModule`, whose comment already states why provider modules must come first:
 
@@ -3321,15 +3454,15 @@ In `src/modules/index.ts`, import `googleModule` and place it immediately after 
   integrationsModule,
 ```
 
-- [ ] **Step 5: Run the tests**
+- [ ] **Step 6: Run the tests**
 
 Run: `npx vitest run tests/google-routes.test.ts tests/integrations-routes.test.ts tests/module-convention.test.ts && npm run typecheck`
 Expected: PASS, typecheck clean. `module-convention.test.ts` is what catches a module that does not follow the registration convention.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/google/index.ts src/modules/index.ts tests/google-routes.test.ts
+git add src/google/index.ts src/modules/index.ts src/integrations/routes.ts tests/google-routes.test.ts
 git commit -m "feat(google): register Google as a second integration provider"
 ```
 
@@ -3357,8 +3490,9 @@ Create `tests/tasks-allowlist-provider.test.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { Hono } from 'hono';
 import { seedTestHousehold, authHeaders, registerFakeTaskProvider } from './helpers.js';
-import { app } from '../src/app.js';
+import { tasksRouter } from '../src/modules/tasks/routes.js';
 import { clearProviders } from '../src/integrations/registry.js';
 import { TaskProviderError } from '../src/modules/tasks/providers/types.js';
 import type { AvailableList, TaskProvider } from '../src/modules/tasks/providers/types.js';
@@ -3376,6 +3510,13 @@ function fakeTaskProvider(id: string, lists: AvailableList[], failWith?: string)
   };
 }
 
+/** A bare app with just the tasks router — as `tests/tasks-household-list-routes.test.ts` does. */
+function app() {
+  const a = new Hono();
+  a.route('/api/v1/tasks', tasksRouter);
+  return a;
+}
+
 beforeEach(() => { clearProviders(); });
 afterEach(() => { clearProviders(); });
 
@@ -3385,13 +3526,13 @@ describe('PUT /api/v1/tasks/allowlist', () => {
     registerFakeTaskProvider('m365', fakeTaskProvider('m365', [{ id: 'outlook-1', name: 'Outlook' }]));
     registerFakeTaskProvider('google', fakeTaskProvider('google', [{ id: 'g-1', name: 'Haushalt' }]));
 
-    const put = await app.request('/api/v1/tasks/allowlist', {
+    const put = await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ lists: [{ provider: 'google', listId: 'g-1' }] }),
     });
     expect(put.status).toBe(200);
 
-    const res = await app.request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
+    const res = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as { data: Array<{ provider: string; listId: string }> };
     expect(data).toEqual([expect.objectContaining({ provider: 'google', listId: 'g-1' })]);
   });
@@ -3401,7 +3542,7 @@ describe('PUT /api/v1/tasks/allowlist', () => {
     registerFakeTaskProvider('m365', fakeTaskProvider('m365', [{ id: 'outlook-1', name: 'Outlook' }]));
     registerFakeTaskProvider('google', fakeTaskProvider('google', [{ id: 'g-1', name: 'Haushalt' }]));
 
-    await app.request('/api/v1/tasks/allowlist', {
+    await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ lists: [
         { provider: 'm365', listId: 'outlook-1' },
@@ -3409,7 +3550,7 @@ describe('PUT /api/v1/tasks/allowlist', () => {
       ] }),
     });
 
-    const res = await app.request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
+    const res = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as { data: Array<{ provider: string }> };
     expect(data.map((r) => r.provider).sort()).toEqual(['google', 'm365']);
   });
@@ -3418,7 +3559,7 @@ describe('PUT /api/v1/tasks/allowlist', () => {
     const { adult } = await seedTestHousehold();
     registerFakeTaskProvider('m365', fakeTaskProvider('m365', [{ id: 'outlook-1', name: 'Outlook' }]));
     registerFakeTaskProvider('google', fakeTaskProvider('google', [{ id: 'g-1', name: 'Haushalt' }]));
-    await app.request('/api/v1/tasks/allowlist', {
+    await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ lists: [
         { provider: 'm365', listId: 'outlook-1' },
@@ -3426,12 +3567,12 @@ describe('PUT /api/v1/tasks/allowlist', () => {
       ] }),
     });
 
-    await app.request('/api/v1/tasks/allowlist', {
+    await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ lists: [{ provider: 'm365', listId: 'outlook-1' }] }),
     });
 
-    const res = await app.request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
+    const res = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as { data: Array<{ provider: string }> };
     expect(data.map((r) => r.provider)).toEqual(['m365']);
   });
@@ -3439,7 +3580,7 @@ describe('PUT /api/v1/tasks/allowlist', () => {
   it('leaves an unreachable provider\'s rows untouched instead of wiping them', async () => {
     const { adult } = await seedTestHousehold();
     registerFakeTaskProvider('google', fakeTaskProvider('google', [{ id: 'g-1', name: 'Haushalt' }]));
-    await app.request('/api/v1/tasks/allowlist', {
+    await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ lists: [{ provider: 'google', listId: 'g-1' }] }),
     });
@@ -3449,12 +3590,12 @@ describe('PUT /api/v1/tasks/allowlist', () => {
     clearProviders();
     registerFakeTaskProvider('google', fakeTaskProvider('google', [], 'no_connection'));
     registerFakeTaskProvider('m365', fakeTaskProvider('m365', [{ id: 'outlook-1', name: 'Outlook' }]));
-    await app.request('/api/v1/tasks/allowlist', {
+    await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ lists: [{ provider: 'm365', listId: 'outlook-1' }] }),
     });
 
-    const res = await app.request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
+    const res = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as { data: Array<{ provider: string }> };
     expect(data.map((r) => r.provider).sort()).toEqual(['google', 'm365']);
   });
@@ -3462,7 +3603,7 @@ describe('PUT /api/v1/tasks/allowlist', () => {
   it('rejects a list the member cannot access', async () => {
     const { adult } = await seedTestHousehold();
     registerFakeTaskProvider('google', fakeTaskProvider('google', [{ id: 'g-1', name: 'Haushalt' }]));
-    const res = await app.request('/api/v1/tasks/allowlist', {
+    const res = await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ lists: [{ provider: 'google', listId: 'not-mine' }] }),
     });
@@ -3472,14 +3613,14 @@ describe('PUT /api/v1/tasks/allowlist', () => {
 
   it('rejects a body still using the old listIds shape', async () => {
     const { adult } = await seedTestHousehold();
-    const res = await app.request('/api/v1/tasks/allowlist', {
+    const res = await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ listIds: ['g-1'] }),
     });
     // `lists` defaults to [] and `listIds` is stripped, so this is a no-op 200
     // rather than a silent m365 write — assert whichever the schema produces,
     // but it must NOT persist anything.
-    const check = await app.request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
+    const check = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     expect((await check.json() as { data: unknown[] }).data).toEqual([]);
     expect([200, 400]).toContain(res.status);
   });
@@ -3643,11 +3784,21 @@ it('clears the admin\'s stale feed state for EVERY registered provider', async (
     await db.insert(integrationSyncState).values({ feedKey, lastSuccessAt: new Date() });
   }
 
+  // A household-designated feed mirrors with memberId = null — the case a
+  // member-keyed delete cannot see.
+  await setHouseholdCalendar(adminId, 'google', 'cal-a');
+  await db.insert(calendarMirrorEvents).values({
+    source: 'google', feedKey: `google:calendar:member:${adminId}:cal-a`,
+    externalId: 'ev-shared', memberId: null, title: 'Müllabfuhr',
+    startAt: new Date('2026-09-01T06:00:00Z'), endAt: new Date('2026-09-01T06:30:00Z'),
+  });
+
   await repairMaintenanceAdmin();                     // existing helper in this suite
 
   const left = await db.select().from(integrationSyncState);
   expect(left).toEqual([]);
   expect(await db.select().from(calendarAllowlist)).toEqual([]);
+  expect(await db.select().from(calendarMirrorEvents)).toEqual([]);
 });
 ```
 
@@ -3696,6 +3847,30 @@ and add the calendar-allowlist delete beside the existing `todo_list_allowlist` 
   counts['calendar_allowlist'] = calAllowlist.count;
 ```
 
+The existing `calendar_mirror_events` delete just below it matches on `memberId`
+— and that is NOT sufficient any more. A feed designated `is_household` mirrors
+its events with **`memberId = null`** (that is what makes them render as
+shared), so the admin's own household-calendar rows survive a delete keyed on
+their id. Delete by feed key as well, reusing the keys already built above:
+
+```ts
+  const mirrorByMember = await tx.delete(calendarMirrorEvents)
+    .where(eq(calendarMirrorEvents.memberId, adminId));
+  // A household-designated feed writes memberId = null, so the member-keyed
+  // delete above cannot see those rows. They belong to the admin's feed all
+  // the same, and a mirror row whose feed is gone can never be cleaned up
+  // later — nothing enumerates it.
+  const mirrorByFeed = staleFeedKeys.length > 0
+    ? await tx.delete(calendarMirrorEvents)
+        .where(inArray(calendarMirrorEvents.feedKey, staleFeedKeys))
+    : { count: 0 };
+  counts['calendar_mirror_events'] = mirrorByMember.count + mirrorByFeed.count;
+```
+
+Replace the existing single `calendar_mirror_events` delete with this pair; it
+must run BEFORE the allowlist rows are deleted, for the same reason the feed
+keys are built first.
+
 Add the two imports (`listProviders` from `../integrations/registry.js`, `calendarAllowlist` from `../modules/calendar/allowlist-schema.js`).
 
 Note the connection delete at `maintenance-admin.ts:153` is provider-UNscoped, deleting by `memberId` alone, and that is CORRECT — stripping the admin's data should remove every connection they hold. Do not add a provider filter there.
@@ -3741,17 +3916,29 @@ git commit -m "fix(household): clear admin feed state for every provider, not ju
 
 Append to `tests/integrations-routes.test.ts`:
 
+The suite's existing `stubProvider()` is hardcoded to `'m365'` and its app is the local `integrationsApp()` — there is no `registerFakeProvider` and no `app` singleton. Parameterise the stub first:
+
+```ts
+/**
+ * Parameterised sibling of this suite's `stubProvider()`, which hardcodes
+ * 'm365'. A second provider is the whole point of these cases.
+ */
+function registerStubProvider(id: string) {
+  registerProvider({ ...stubProvider(), id, store: new IntegrationStore(id) });
+}
+```
+
 ```ts
 describe('GET /api/v1/integrations/status with two providers', () => {
   it('tags the acting member\'s own connections with their provider', async () => {
     const { adult } = await seedTestHousehold();
-    registerFakeProvider('m365');   // this suite's existing helper
-    registerFakeProvider('google');
+    registerStubProvider('m365');
+    registerStubProvider('google');
     await new IntegrationStore('google').upsertConnection({
       memberId: adult.user.id, accountLabel: 'anna@gmail.test', refreshToken: 'r', scopes: '',
     });
 
-    const res = await app.request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as {
       data: { myConnections: Array<{ provider: string; accountLabel: string }> };
     };
@@ -3762,18 +3949,18 @@ describe('GET /api/v1/integrations/status with two providers', () => {
 
   it('reports no household calendar when none is designated', async () => {
     const { adult } = await seedTestHousehold();
-    const res = await app.request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as { data: { householdCalendar: unknown } };
     expect(data.householdCalendar).toBeNull();
   });
 
   it('reports the designated household calendar as disconnected when its member has no connection', async () => {
     const { adult } = await seedTestHousehold();
-    registerFakeProvider('google');
+    registerStubProvider('google');
     await setCalendarAllowlist(adult.user.id, 'google', [{ id: 'cal-a', name: 'Familie' }]);
     await setHouseholdCalendar(adult.user.id, 'google', 'cal-a');
 
-    const res = await app.request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as {
       data: { householdCalendar: { calendarName: string; connectionOk: boolean } };
     };
@@ -3782,22 +3969,22 @@ describe('GET /api/v1/integrations/status with two providers', () => {
 
   it('reports it as connected once that member connects', async () => {
     const { adult } = await seedTestHousehold();
-    registerFakeProvider('google');
+    registerStubProvider('google');
     await new IntegrationStore('google').upsertConnection({
       memberId: adult.user.id, accountLabel: 'anna@gmail.test', refreshToken: 'r', scopes: '',
     });
     await setCalendarAllowlist(adult.user.id, 'google', [{ id: 'cal-a', name: 'Familie' }]);
     await setHouseholdCalendar(adult.user.id, 'google', 'cal-a');
 
-    const res = await app.request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(adult.jwt) });
     const { data } = await res.json() as { data: { householdCalendar: { connectionOk: boolean } } };
     expect(data.householdCalendar.connectionOk).toBe(true);
   });
 
   it('still scopes the household-wide connections list to admin and adult', async () => {
     const { child } = await seedTestHousehold();
-    registerFakeProvider('google');
-    const res = await app.request('/api/v1/integrations/status', { headers: authHeaders(child.jwt) });
+    registerStubProvider('google');
+    const res = await integrationsApp().request('/api/v1/integrations/status', { headers: authHeaders(child.jwt) });
     const { data } = await res.json() as { data: { connections?: unknown; myConnections: unknown[] } };
     expect(data.connections).toBeUndefined();
     expect(data.myConnections).toEqual([]);
@@ -3893,7 +4080,8 @@ git commit -m "feat(integrations): tag connections by provider and report househ
 **Files:**
 - Create: `web/src/api/google.ts`, `web/src/hooks/use-google.ts`
 - Modify: `web/src/api/m365.ts`, `web/src/hooks/use-m365.ts`, `web/src/lib/providers.ts`, `web/src/lib/constants.ts` (query keys), `web/src/i18n/locales/en.json`, `web/src/i18n/locales/de.json`
-- Test: `web/src/lib/providers.test.ts`, `web/src/hooks/use-m365.test.ts` (update), `web/src/hooks/use-google.test.ts`
+- Modify (the OTHER callers — these are every remaining consumer, do not discover them one build error at a time): `web/src/components/household/connections-panel.tsx` (uses `useM365Status` + `triggerM365Sync`, and renders `connections`), `web/src/pages/hearth.tsx:81` (uses `useM365FeedStatus`)
+- Test: `web/src/lib/providers.test.ts`, `web/src/hooks/use-m365.test.ts` (update — it asserts on the OLD `connection` field), `web/src/hooks/use-google.test.ts`, `web/src/components/household/connections-panel.test.tsx`, `web/src/pages/hearth.test.tsx`, `web/src/pages/hearth.de.test.tsx`
 
 **Interfaces:**
 - Consumes: the `/status` shape from Task 14.
@@ -3938,52 +4126,63 @@ describe('PROVIDERS registry', () => {
 });
 ```
 
-Create `web/src/hooks/use-google.test.ts`, modelled on the existing `use-m365.test.ts` (copy its query-client wrapper and mocking style verbatim):
+Create `web/src/hooks/use-google.test.ts`. There is **no shared web test-render
+utility in this repo** — `use-m365.test.ts` mocks `useQuery` itself and uses
+`renderHook` straight from Testing Library. Copy that, verbatim in shape:
 
 ```ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook } from '@testing-library/react';
 
+const useQueryMock = vi.fn();
 vi.mock('@/api/m365', () => ({ getIntegrationsStatus: vi.fn() }));
+vi.mock('@tanstack/react-query', () => ({ useQuery: () => useQueryMock() }));
 
-import { getIntegrationsStatus } from '@/api/m365';
-import { renderHookWithClient } from '@/test/render';  // whatever use-m365.test.ts uses
-import { useProviderStatus } from './use-m365';
+const { useProviderStatus } = await import('./use-m365');
 
-const mockStatus = (data: unknown) =>
-  (getIntegrationsStatus as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ data });
+const status = (data: Record<string, unknown>) => ({
+  data: { data: { myConnections: [], feeds: [], householdListDesignated: false, householdCalendar: null, ...data } },
+  error: null,
+  isLoading: false,
+});
 
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe('useProviderStatus', () => {
-  it('reports unavailable when the provider is not registered', async () => {
-    mockStatus({ myConnections: [], feeds: [], providers: ['m365'], householdListDesignated: false, householdCalendar: null });
-    const { result } = renderHookWithClient(() => useProviderStatus('google'));
-    await vi.waitFor(() => expect(result.current.isLoading).toBe(false));
+  it('reports unavailable when the provider is not registered', () => {
+    useQueryMock.mockReturnValue(status({ providers: ['m365'] }));
+    const { result } = renderHook(() => useProviderStatus('google'));
     expect(result.current.state).toBe('unavailable');
   });
 
-  it('reports disconnected when registered but the member has no connection', async () => {
-    mockStatus({ myConnections: [], feeds: [], providers: ['google'], householdListDesignated: false, householdCalendar: null });
-    const { result } = renderHookWithClient(() => useProviderStatus('google'));
-    await vi.waitFor(() => expect(result.current.isLoading).toBe(false));
+  it('reports disconnected when registered but the member has no connection', () => {
+    useQueryMock.mockReturnValue(status({ providers: ['google'] }));
+    const { result } = renderHook(() => useProviderStatus('google'));
     expect(result.current.state).toBe('disconnected');
   });
 
-  it('picks the connection belonging to ITS OWN provider, not the first one', async () => {
-    mockStatus({
+  it('picks the connection belonging to ITS OWN provider, not the first one', () => {
+    useQueryMock.mockReturnValue(status({
+      providers: ['m365', 'google'],
       myConnections: [
         { provider: 'm365', memberId: 'm', accountLabel: 'anna@contoso.test', status: 'active', lastRefreshSuccessAt: null, lastRefreshError: null },
         { provider: 'google', memberId: 'm', accountLabel: 'anna@gmail.test', status: 'needs_reauth', lastRefreshSuccessAt: null, lastRefreshError: 'expired' },
       ],
-      feeds: [], providers: ['m365', 'google'], householdListDesignated: false, householdCalendar: null,
-    });
-    const { result } = renderHookWithClient(() => useProviderStatus('google'));
-    await vi.waitFor(() => expect(result.current.isLoading).toBe(false));
+    }));
+
+    const { result } = renderHook(() => useProviderStatus('google'));
+
+    // The old implementation read `data.connection` — "the first non-null
+    // across providers" — which would return the M365 row here.
     expect(result.current.connection!.accountLabel).toBe('anna@gmail.test');
     expect(result.current.state).toBe('needs_reauth');
   });
 });
 ```
+
+`web/src/hooks/use-m365.test.ts` asserts on the removed `connection` field in
+three cases; update its fixtures to `myConnections` in the same commit — a
+fixture change, not an assertion change.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -4138,10 +4337,16 @@ In `web/src/lib/providers.ts`, add the entry (and rewrite the M365 entry's `useS
 
 ```ts
 import { CalendarDays, Cloud, type LucideIcon } from 'lucide-react';
+// The M365 entry now uses the shared helpers too — the old
+// `getM365ConnectUrl` / `disconnectM365` / `useM365ProviderStatus` names are
+// gone, so these imports replace the file's current ones outright.
+import { getConnectUrl, disconnectProvider } from '@/api/m365';
+import { useProviderStatus } from '@/hooks/use-m365';
 import { getGoogleConnectUrl, disconnectGoogle } from '@/api/google';
 import { useGoogleProviderStatus } from '@/hooks/use-google';
 
-// … existing types unchanged …
+// … existing types unchanged; the two `…Unwrapped` / `…Wrapped` module-level
+// helpers this file currently defines for M365 are deleted with them …
 
 export const PROVIDERS: ConnectionProvider[] = [
   {
@@ -4193,12 +4398,31 @@ and to `de.json`:
 
 `catalog-parity.test.ts` fails if the two catalogues diverge — run it.
 
-- [ ] **Step 8: Run the tests and the web build**
+- [ ] **Step 8: Repoint the two remaining consumers**
+
+`web/src/components/household/connections-panel.tsx` — `useM365Status()` →
+`useIntegrationsStatus()`, `triggerM365Sync()` → `triggerIntegrationsSync()`.
+Its table renders the household-wide `connections` array, which now carries a
+`provider` field on every row: add a provider column (or badge), because with
+two providers a bare list of account labels no longer says which service a dead
+connection belongs to. Its i18n title `settings.connectionsPanel.title` reads
+"Microsoft 365 connections" — make it provider-neutral in both catalogues.
+
+`web/src/pages/hearth.tsx:81` — `useM365FeedStatus()` →
+`useIntegrationsFeedStatus()`. No behaviour change: it reads `feeds` only, which
+is unchanged, and `ownerOfFeed()` / `isFamilyEvent()` in `web/src/lib/hearth.ts`
+already match any provider segment (`^[^:]+:calendar:…`), so Google feed keys
+parse correctly with no edit. Verified — do not "fix" those regexes.
+
+Update `connections-panel.test.tsx`, `hearth.test.tsx` and `hearth.de.test.tsx`
+fixtures to the new status shape.
+
+- [ ] **Step 9: Run the tests and the web build**
 
 Run: `cd web && npx vitest run && npm run build`
-Expected: PASS and a clean build. Every `getM365Status` / `useM365ProviderStatus` / `triggerM365Sync` caller must be repointed — the build is what enumerates them.
+Expected: PASS and a clean build. The build is what proves every caller was repointed.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add web/src
@@ -4225,7 +4449,9 @@ git commit -m "feat(web): select connection status per provider and add the Goog
 
 - [ ] **Step 1: Write the failing test**
 
-Create `web/src/components/settings/calendar-sync-settings.test.tsx` (copy the render/mocking harness from an existing page test such as `src/pages/profile.test.tsx`):
+Create `web/src/components/settings/calendar-sync-settings.test.tsx`. There is
+no shared render utility — define the wrapper locally, as
+`web/src/hooks/use-i18n.test.tsx:17` does:
 
 ```tsx
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -4238,9 +4464,17 @@ vi.mock('@/api/calendar-allowlist', () => ({
   setHouseholdCalendar: vi.fn(),
 }));
 
+import { render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { listCalendars, setCalendarAllowlist, setHouseholdCalendar } from '@/api/calendar-allowlist';
-import { renderWithProviders } from '@/test/render';
 import { CalendarSyncSettings } from './calendar-sync-settings';
+
+/** Local wrapper — the repo has no shared one. Retry off so a rejected query
+ *  fails the test immediately instead of hanging on backoff. */
+function renderWithProviders(ui: React.ReactNode) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 const mocked = (fn: unknown) => fn as unknown as ReturnType<typeof vi.fn>;
 
@@ -4411,7 +4645,12 @@ Mount it in `web/src/pages/profile.tsx` beneath the `PROVIDERS.map(...)` block, 
 
 - [ ] **Step 6: Make the To Do picker provider-aware**
 
-In `web/src/pages/tasks.tsx`'s `ListSettings`: group `lists` by `provider`, submit `{ provider, listId }` pairs, and add the household-list radio (adult/admin only) beside each enabled list, wired to `useSetHouseholdList()`. The radio's checked state comes from the allowlist query's `isHousehold`.
+In `web/src/pages/tasks.tsx`'s `ListSettings`: group `lists` by `provider`, submit `{ provider, listId }` pairs, and add the household-list radio beside each enabled list, wired to `useSetHouseholdList()`. The radio's checked state comes from the allowlist query's `isHousehold`.
+
+The acting member's role comes from `useWhoami()` (`@/hooks/use-household`) — the
+same hook `web/src/pages/profile.tsx:33` uses; show the radio only for
+`admin`/`adult`. The server enforces this regardless (`403 FORBIDDEN`), so the
+check is about not offering a control that cannot work.
 
 The household-list designation route shipped in Phase 1 with NO user interface, so an upgraded deployment currently has no way to designate one — which silently disables Weorc's projection. This radio is what closes that, and it is why the picker work is not optional.
 
@@ -4488,8 +4727,35 @@ These are outside the repository and cannot be done from a task:
 4. **After deploying:** an adult must designate the household task list and the household calendar in the settings UI. Neither is backfilled, and until the task list is designated Weorc's projection stays disabled.
 5. **Meta repo:** ADR 0001 predicted a second provider but did not decide its shape. A short ADR recording provider-scoped connections, the snapshot/reconcile pull mode and designation-by-flag belongs in `~/projects/Wyrhta/docs/decisions/` — a separate commit in the meta repo, not here.
 
+## Review round 1 — Codex, 2026-08-31
+
+Reviewed read-only against the repo and Google's current API docs; verdict NEEDS
+REWORK, all findings verified by the controller before being applied. Everything
+below is already fixed in this document; it is recorded so a later reader knows
+these were considered rather than missed.
+
+| Severity | Finding | Fix |
+|---|---|---|
+| CRITICAL | Tests imported a non-existent `app` singleton from `src/app.ts` (Tasks 6, 11, 12, 14) | Each suite now uses the construction its real siblings use; the facts are in Global Constraints |
+| CRITICAL | Task 14 called a non-existent `registerFakeProvider`; the real suite has an m365-hardcoded `stubProvider()` | Task 14 now defines a parameterised `registerStubProvider(id)` and requests through `integrationsApp()` |
+| CRITICAL | Web tests imported a non-existent `@/test/render` harness | Both web suites now define the wrapper locally, per `use-i18n.test.tsx` |
+| CRITICAL *(found by the controller while verifying, not by Codex)* | The new `/api/v1/calendar/*` routes were to be added to `calendarRouter`, which mounts at **`/api/v1/events`** — they would have landed at `/api/v1/events/calendars` | Task 6 now adds a second router, `calendarAllowlistRouter`, mounted at `/api/v1/calendar`; this also removes the `/:id` collision hazard |
+| IMPORTANT | A rejected Google refresh token throws a raw `400 invalid_grant`, which `classify` maps to `google_400` while the connection row says `needs_reauth` | `getAccessToken` now rethrows as `GoogleApiError(…, 'needs_reauth')`; the Task 4 test asserts `classify(e) === 'needs_reauth'` |
+| IMPORTANT | `windowParams()` was recomputed per page, shifting `timeMin`/`timeMax` mid-pagination | Computed once before the loop; follow-up pages append only `pageToken` |
+| IMPORTANT | The spec's `GOOGLE_NO_REFRESH_TOKEN` was silently downgraded to the generic `GOOGLE_EXCHANGE_FAILED` | Task 11 adds an opt-in `connectErrorCode` on the error, validated against `^[A-Z0-9_]{1,64}$` before it enters the redirect URL |
+| IMPORTANT | Maintenance-admin repair deletes calendar mirror rows by `memberId`, but a household-designated feed writes `memberId = null`, so those rows survived | Task 13 also deletes by the affected feed keys, with a test covering the null-attributed row |
+| IMPORTANT | De-selecting a calendar left its `integration_sync_state` row behind, frozen in `/status`'s `feeds[]` | Task 5 deletes it in the same transaction, with a test |
+| IMPORTANT | Task 15's file list omitted `connections-panel.tsx` and `hearth.tsx` (plus three test files) | All are now listed explicitly, with what changes in each |
+| IMPORTANT | The `PROVIDERS` snippet used helpers it did not import | Import block corrected; the deleted M365 wrappers are called out |
+| MINOR | "Google hides completed tasks by default" — `showCompleted` actually defaults to true; the trap is `showHidden` | Wording corrected in the provider, the test and the fake (whose defaults now match the API) |
+| MINOR | Non-canonical UserInfo endpoint | Switched to `https://openidconnect.googleapis.com/v1/userinfo` |
+| MINOR | Task 16 did not say where the acting member's role comes from | `useWhoami()` from `@/hooks/use-household`, as `profile.tsx:33` does |
+
+Codex verified as CORRECT: the provider-registry containment (no MCP surface, Google URLs confined to `src/google/`), the Task 1 env-group pattern, both schema barrels in Task 5, the Task 12 and Task 13 coverage of the two Phase-1 findings, and the core Google API model — `syncToken` without `timeMin`/`timeMax`, `410` → full resync, `showDeleted=true`, all-day `end.date` exclusive, Tasks paging, and date-only `due`.
+
 ## Self-review notes
 
 - **Spec coverage.** Every Phase-2 section maps to a task: config → 1; hazards (transport, classification, refresh token) → 2–4; `calendar_allowlist` and discovery → 5–6; `GoogleCalendarProvider` → 7–8; `GoogleTaskProvider` → 9–10; registration → 11; the two Phase-1 findings embedded in the spec → 12 (allowlist API) and 13 (maintenance-admin landmine); the status surface for a stopped family feed → 14; web → 15–16; docs → 17.
 - **Deliberately out of scope.** Making the M365 providers resolve feeds from their allowlist rows instead of parsing feed keys (a behaviour change inside another provider, worth its own change); CalDAV or any third provider; calendar write-back for either provider.
+- **Verified against the repo, not assumed** (2026-08-31): every quoted export, signature and line number in this plan; the four test-harness facts in Global Constraints; and that `ownerOfFeed()` / `isFamilyEvent()` in `web/src/lib/hearth.ts` already match any provider segment, so Google feed keys need no web parsing change.
 - **Ordering that matters.** Task 14 breaks the web build on purpose and Task 15 repairs it — do not reorder them. Task 12 changes a request shape the web sends, so Task 16 must follow it. Task 11 must land after 7–10 or the module cannot construct its providers.

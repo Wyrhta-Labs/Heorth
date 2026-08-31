@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { users } from '@wyrhta/core/identity';
 import { db } from '../src/db/index.js';
@@ -6,14 +6,35 @@ import { repairMaintenanceAdmin } from '../src/household/maintenance-admin.js';
 import { events, eventAttendees } from '../src/modules/calendar/schema.js';
 import { recipes, mealPlanEntries } from '../src/modules/meals/schema.js';
 import { todoListAllowlist } from '../src/modules/tasks/schema.js';
+import { setAllowlist } from '../src/modules/tasks/store.js';
+import { calendarAllowlist } from '../src/modules/calendar/allowlist-schema.js';
+import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
+import { setCalendarAllowlist, setHouseholdCalendar } from '../src/modules/calendar/allowlist-store.js';
 import { integrationSyncState } from '../src/integrations/schema.js';
 import { feedKeys } from '../src/integrations/feed-keys.js';
+import { clearProviders } from '../src/integrations/registry.js';
+import type { TaskProvider } from '../src/modules/tasks/providers/types.js';
 import { identity, householdCore } from '../src/wiring.js';
-import { seedTestHousehold } from './helpers.js';
+import { seedTestHousehold, registerFakeTaskProvider } from './helpers.js';
 
 const CREDS = { adminEmail: 'admin@test.local', adminPassword: 'test-admin-password' };
 
+/** Inert task provider — only its presence in the registry matters here. */
+function stubTaskProvider(): TaskProvider {
+  return {
+    source: 'stub',
+    listAvailableLists: async () => [],
+    pullChanges: async () => ({ upserts: [], deletions: [], nextToken: null, fullResync: true }),
+    setCompleted: async () => {},
+    createTask: async () => { throw new Error('not used'); },
+  };
+}
+
 describe('repairMaintenanceAdmin', () => {
+  afterEach(() => {
+    clearProviders();
+  });
+
   it('seeds the admin when absent', async () => {
     await householdCore.seedHousehold({ name: 'Test Household' });
     const { adminId } = await repairMaintenanceAdmin(CREDS);
@@ -109,6 +130,10 @@ describe('repairMaintenanceAdmin', () => {
 
   it('cleans up m365_sync_state rows for the admin-owned feeds (calendar + allowlisted To Do lists)', async () => {
     const { admin } = await seedTestHousehold();
+    // The default-calendar feed key is now built from the REGISTERED provider
+    // list (Task 13), not hardcoded — so m365 must be registered for this
+    // scenario to model "the admin had connected M365 in the past".
+    registerFakeTaskProvider('m365', stubTaskProvider());
 
     // Simulate the admin having connected M365 in the past: an allowlisted list
     // and sync state for both its calendar feed and its To Do feed, PLUS a
@@ -167,5 +192,44 @@ describe('repairMaintenanceAdmin', () => {
     expect(rec!.createdBy).toBe(adminId); // left alone; repaired on a later boot
     // Deletions that don't need a heir (unlike created_by repointing) still happen.
     expect(await db.select().from(eventAttendees)).toHaveLength(0);
+  });
+
+  it('clears the admin\'s stale feed state for EVERY registered provider', async () => {
+    // `CREDS` and `repairMaintenanceAdmin` are this suite's existing top-level
+    // constants/imports; seedTestHousehold's `admin` IS the maintenance admin.
+    const { admin } = await seedTestHousehold();
+    const adminId = admin.user.id;
+    registerFakeTaskProvider('m365', stubTaskProvider());
+    registerFakeTaskProvider('google', stubTaskProvider());
+
+    await setAllowlist(adminId, 'm365', [{ id: 'outlook-1', name: 'Outlook' }]);
+    await setAllowlist(adminId, 'google', [{ id: 'g-1', name: 'Haushalt' }]);
+    await setCalendarAllowlist(adminId, 'google', [{ id: 'cal-a', name: 'Anna' }]);
+
+    for (const feedKey of [
+      `m365:calendar:member:${adminId}`,
+      `m365:todo:member:${adminId}:outlook-1`,
+      `google:calendar:member:${adminId}`,
+      `google:todo:member:${adminId}:g-1`,
+      `google:calendar:member:${adminId}:cal-a`,
+    ]) {
+      await db.insert(integrationSyncState).values({ feedKey, lastSuccessAt: new Date() });
+    }
+
+    // A household-designated feed mirrors with memberId = null — the case a
+    // member-keyed delete cannot see.
+    await setHouseholdCalendar(adminId, 'google', 'cal-a');
+    await db.insert(calendarMirrorEvents).values({
+      source: 'google', feedKey: `google:calendar:member:${adminId}:cal-a`,
+      externalId: 'ev-shared', memberId: null, title: 'Müllabfuhr',
+      startAt: new Date('2026-09-01T06:00:00Z'), endAt: new Date('2026-09-01T06:30:00Z'),
+    });
+
+    await repairMaintenanceAdmin(CREDS);
+
+    const left = await db.select().from(integrationSyncState);
+    expect(left).toEqual([]);
+    expect(await db.select().from(calendarAllowlist)).toEqual([]);
+    expect(await db.select().from(calendarMirrorEvents)).toEqual([]);
   });
 });

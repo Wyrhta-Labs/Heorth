@@ -8,7 +8,9 @@ import { recipes, mealPlanEntries } from '../modules/meals/schema.js';
 import { libraryConnections } from '../modules/library/schema.js';
 import { integrationConnections, integrationSyncState } from '../integrations/schema.js';
 import { feedKeys } from '../integrations/feed-keys.js';
+import { listProviders } from '../integrations/registry.js';
 import { taskMirror, todoListAllowlist } from '../modules/tasks/schema.js';
+import { calendarAllowlist } from '../modules/calendar/allowlist-schema.js';
 
 /** The transaction handle `db.transaction()` hands its callback. */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -150,27 +152,37 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
 
   const attendees = await tx.delete(eventAttendees).where(eq(eventAttendees.memberId, adminId));
   counts['event_attendees'] = attendees.count;
-  const m365 = await tx.delete(integrationConnections).where(eq(integrationConnections.memberId, adminId));
-  counts['integration_connections'] = m365.count;
+  // Deliberately provider-UNscoped: stripping the admin's owned data means
+  // removing every connection they hold, whatever the provider — not just
+  // whichever one this delete happens to name. Do not add a provider filter
+  // here; the gap this task fixes is the sync-state cleanup below being
+  // over-scoped to m365, not this one being under-scoped.
+  const connections = await tx.delete(integrationConnections).where(eq(integrationConnections.memberId, adminId));
+  counts['integration_connections'] = connections.count;
   const library = await tx.delete(libraryConnections).where(eq(libraryConnections.memberId, adminId));
   counts['library_connections'] = library.count;
 
   // `integration_sync_state` is keyed by a generic `feedKey` string, not
-  // `memberId`, so it cannot be targeted with a plain `where(eq(memberId,
-  // adminId))` delete — the feed keys must be rebuilt via `feedKeys` (never
-  // hand-formatted, per its own contract) BEFORE the allowlist rows they are
-  // derived from are deleted. Without this, a feed the admin had connected
-  // leaves a permanently frozen row in `/integrations/status`'s `feeds[]`
-  // forever.
-  const adminAllowlistRows = await tx.select().from(todoListAllowlist)
+  // `memberId`, so it cannot be targeted with a plain where(eq(memberId, …))
+  // delete — the keys must be rebuilt via `feedKeys` (never hand-formatted, per
+  // its own contract) BEFORE the allowlist rows they derive from are deleted.
+  // Without this, a feed the admin had connected leaves a permanently frozen
+  // row in `/integrations/status`'s `feeds[]` forever.
+  //
+  // Built for EVERY REGISTERED PROVIDER, not just m365: the single-provider
+  // version of this left exactly that frozen row behind for the second one.
+  const adminTodoRows = await tx.select().from(todoListAllowlist)
     .where(eq(todoListAllowlist.memberId, adminId));
+  const adminCalendarRows = await tx.select().from(calendarAllowlist)
+    .where(eq(calendarAllowlist.memberId, adminId));
+  const providerIds = listProviders().map((p) => p.id);
   const staleFeedKeys = [
-    feedKeys.calendarMember('m365', adminId),
-    ...adminAllowlistRows.map((row) => feedKeys.todoMember('m365', adminId, row.listId)),
+    // A provider's default-calendar feed exists whether or not it is allowlisted
+    // (M365 mints one per connection), so it is included unconditionally.
+    ...providerIds.map((provider) => feedKeys.calendarMember(provider, adminId)),
+    ...adminTodoRows.map((row) => feedKeys.todoMember(row.provider, adminId, row.listId)),
+    ...adminCalendarRows.map((row) => feedKeys.calendarList(row.provider, adminId, row.calendarId)),
   ];
-  // `inArray` with an empty list is a footgun in some drizzle versions; the
-  // list is never empty here (calendarMember(adminId) is always included), but
-  // guard anyway so this stays correct if that invariant ever changes.
   if (staleFeedKeys.length > 0) {
     const syncState = await tx.delete(integrationSyncState)
       .where(inArray(integrationSyncState.feedKey, staleFeedKeys));
@@ -179,10 +191,21 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
 
   const allowlist = await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.memberId, adminId));
   counts['todo_list_allowlist'] = allowlist.count;
+  const calAllowlist = await tx.delete(calendarAllowlist).where(eq(calendarAllowlist.memberId, adminId));
+  counts['calendar_allowlist'] = calAllowlist.count;
   const tasks = await tx.delete(taskMirror).where(eq(taskMirror.memberId, adminId));
   counts['task_mirror'] = tasks.count;
-  const mirrorEvents = await tx.delete(calendarMirrorEvents).where(eq(calendarMirrorEvents.memberId, adminId));
-  counts['calendar_mirror_events'] = mirrorEvents.count;
+  const mirrorByMember = await tx.delete(calendarMirrorEvents)
+    .where(eq(calendarMirrorEvents.memberId, adminId));
+  // A household-designated feed writes memberId = null, so the member-keyed
+  // delete above cannot see those rows. They belong to the admin's feed all
+  // the same, and a mirror row whose feed is gone can never be cleaned up
+  // later — nothing enumerates it.
+  const mirrorByFeed = staleFeedKeys.length > 0
+    ? await tx.delete(calendarMirrorEvents)
+        .where(inArray(calendarMirrorEvents.feedKey, staleFeedKeys))
+    : { count: 0 };
+  counts['calendar_mirror_events'] = mirrorByMember.count + mirrorByFeed.count;
 
   // `cook`/`helper` are nullable with ON DELETE set null — clearing is the
   // schema's own notion of "unassigned", so no repointing is needed.

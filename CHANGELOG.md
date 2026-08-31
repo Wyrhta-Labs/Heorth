@@ -20,11 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`M365_SHARED_TODO_LIST` is gone.** The household task list — where
   household-created tasks land and what Weorc projects into — is now
   designated in the database (`todo_list_allowlist.is_household`) via
-  `PUT /api/v1/tasks/household-list`, not by matching a list's name. The
-  migration backfills the flag from the old env value by matching it against
-  every connected member's allowlisted lists; **if nothing matches, no list
-  ends up designated**, and household task creation and Weorc's projection
-  pass both stop until an adult picks one. A boot-time warning and
+  `PUT /api/v1/tasks/household-list`, not by matching a list's name. **No list
+  is designated automatically** — every way of inferring one from the old env
+  value was unsafe — so household task creation and Weorc's projection pass
+  both stay paused until an adult designates a list once after upgrading. A
+  boot-time warning and
   `GET /api/v1/integrations/status`'s new `householdListDesignated` field make
   that state visible instead of a silent stop.
 - **`M365_SYNC_INTERVAL_SECONDS` is renamed to

@@ -315,8 +315,9 @@ still pointed at the old `/api/v1/m365/callback` fails consent with
   `POST /api/v1/tasks/:id/complete` writes completion back (optimistic local
   update, sync reconciles) and `POST /api/v1/tasks` creates a task into the
   **designated household list** — see "Designating the household task list"
-  below — resolved through a connected member who has allowlisted it,
-  preferring the acting member, else any member that has it. `GET /api/v1/tasks`
+  below — resolved through whichever connected member's allowlist carries the
+  `is_household` flag. There is one designated list household-wide, so the
+  acting member is irrelevant to which list is used. `GET /api/v1/tasks`
   lists the mirror with filters (status / member / list / due range). All
   members may read; any authenticated member (children included) may
   complete/create; a write against a dead/absent connection returns a
@@ -350,11 +351,12 @@ PUT /api/v1/tasks/household-list     (admin or adult)
   { "provider": "m365", "listId": "<a list id from GET /api/v1/tasks/lists>" }
 ```
 
-A migration backfills this from a pre-existing `M365_SHARED_TODO_LIST` value by
-matching the old value's list name across every connected member's
-allowlisted lists. **If nothing matches, no list is designated** — household
-task creation and Weorc's projection pass both stop until an adult picks one.
-Heorth surfaces this rather than failing silently: a boot-time console warning
+**No list is designated automatically** — every way of inferring one from the
+old `M365_SHARED_TODO_LIST` value was unsafe, so `0026` deliberately
+designates nothing on upgrade. An adult must designate one once via the
+endpoint above; until they do, household task creation and Weorc's projected
+chores are both paused. Heorth surfaces this rather than failing silently: a
+boot-time console warning
 fires whenever a provider is registered but no list is designated, and
 `GET /api/v1/integrations/status`'s `householdListDesignated` boolean makes the
 same state visible to the web/wall at any time, not just at boot.

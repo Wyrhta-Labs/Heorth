@@ -1590,7 +1590,7 @@ describe('PUT /api/v1/calendar/household-calendar', () => {
 - [ ] **Step 3: Run test to verify it fails**
 
 Run: `npx vitest run tests/calendar-allowlist-routes.test.ts`
-Expected: FAIL — `/api/v1/calendar/calendars` resolves against `/:id` and 404s.
+Expected: FAIL — nothing is mounted at `/api/v1/calendar` yet, so every request 404s.
 
 - [ ] **Step 4: Add the validators**
 
@@ -1893,7 +1893,13 @@ And the handlers, before `return state;`:
 
     const batches = state.events.get(calendarId) ?? [];
     // Token encodes "<batchIndex>.<pageIndex>", the same trick fake-graph uses.
-    const token = c.req.query('syncToken') ?? c.req.query('pageToken');
+    //
+    // pageToken WINS over syncToken. On an incremental pull Google's follow-up
+    // pages repeat the original query — syncToken included — and add pageToken,
+    // so a fake that preferred syncToken would serve page 0 over and over until
+    // the provider's MAX_PAGES guard tripped, and the paging test would pass
+    // against a broken provider.
+    const token = c.req.query('pageToken') ?? c.req.query('syncToken');
     let bi = 0;
     let pi = 0;
     if (token) { const [b, p] = token.split('.'); bi = Number(b); pi = Number(p); }
@@ -1907,7 +1913,13 @@ And the handlers, before `return state;`:
     }
 
     const page = batch.pages[pi] ?? {};
-    const items = (page.events ?? []).map((e) => ({
+    // Honour showDeleted the way Google does (it defaults to FALSE): a
+    // cancelled event is only delivered when it is asked for. A fake that
+    // always returned them would let a provider that forgot the flag pass the
+    // deletion test while silently never seeing a deletion in production.
+    const showDeleted = c.req.query('showDeleted') === 'true';
+    const visible = (page.events ?? []).filter((e) => showDeleted || e.status !== 'cancelled');
+    const items = visible.map((e) => ({
       id: e.id,
       status: e.status ?? 'confirmed',
       summary: e.summary,
@@ -2007,6 +2019,9 @@ describe('GoogleCalendarProvider.pullChanges', () => {
     const call = fake.calls.find((c) => c.path.includes('/events'))!;
     expect(call.query).toContain('singleEvents=true');
     expect(call.query).toContain('timeMin=');
+    // Without this Google never delivers a cancelled event, so a deletion at
+    // the source would never reach the mirror.
+    expect(call.query).toContain('showDeleted=true');
   });
 
   it('replays the sync token WITHOUT a window on an incremental pull', async () => {
@@ -2020,6 +2035,7 @@ describe('GoogleCalendarProvider.pullChanges', () => {
     const call = fake.calls.filter((c) => c.path.includes('/events')).at(-1)!;
     // Google rejects timeMin/timeMax alongside a syncToken with a 400.
     expect(call.query).toContain('syncToken=1.0');
+    expect(call.query).toContain('showDeleted=true');
     expect(call.query).not.toContain('timeMin=');
   });
 
@@ -2101,6 +2117,27 @@ describe('GoogleCalendarProvider.pullChanges', () => {
     const out = await provider().pullChanges(`google:calendar:member:${memberId}:cal-a`, null);
     expect(out.upserts.map((e) => e.externalId)).toEqual(['ev-1', 'ev-2']);
     expect(out.nextToken).toBe('1.0');
+  });
+
+  it('pages an INCREMENTAL pull too, repeating the query and adding pageToken', async () => {
+    const memberId = await connectedMember();
+    await setCalendarAllowlist(memberId, 'google', [{ id: 'cal-a', name: 'Anna' }]);
+    fake.setEvents('cal-a', [
+      { pages: [{ events: [] }] },
+      { pages: [
+        { events: [{ id: 'ev-3', summary: 'Three', startUtc: '2026-09-03T09:00:00Z', endUtc: '2026-09-03T10:00:00Z' }] },
+        { events: [{ id: 'ev-4', summary: 'Four', startUtc: '2026-09-04T09:00:00Z', endUtc: '2026-09-04T10:00:00Z' }] },
+      ] },
+    ]);
+
+    const out = await provider().pullChanges(`google:calendar:member:${memberId}:cal-a`, '1.0');
+
+    // The second page must carry BOTH the original syncToken and the pageToken.
+    // Sending pageToken alone, or re-deriving the query, breaks the chain.
+    expect(out.upserts.map((e) => e.externalId)).toEqual(['ev-3', 'ev-4']);
+    const second = fake.calls.filter((c) => c.path.includes('/events')).at(-1)!;
+    expect(second.query).toContain('pageToken=');
+    expect(second.query).toContain('syncToken=1.0');
   });
 
   it('refuses a feed key with no allowlist row', async () => {
@@ -2572,7 +2609,11 @@ export interface FakeGoogleTask {
   status?: 'needsAction' | 'completed';
   /** RFC3339 instant — Google Tasks records a real completion timestamp. */
   completed?: string;
-  /** Present only in a showDeleted response; the provider must ignore these. */
+  /**
+   * A tombstone. Delivered ONLY when the request passes `showDeleted=true`
+   * (Google's default is false) — the provider never asks, so its `t.deleted`
+   * skip is belt-and-braces for a list that carries one anyway.
+   */
   deleted?: boolean;
   hidden?: boolean;
 }
@@ -2625,12 +2666,18 @@ And the handlers, before `return state;`:
     }
 
     const all = state.tasks.get(listId) ?? [];
+    // `showDeleted` defaults to FALSE at Google, so a tombstoned task is not
+    // even delivered unless asked for. The provider deliberately does not ask —
+    // it detects deletions structurally by absence — so this filter is what
+    // keeps the fake honest about that.
+    const showDeleted = c.req.query('showDeleted') === 'true';
     // Honour the flags the way Google does, INCLUDING the defaults
     // (`showCompleted` defaults to true, `showHidden` to false) — a provider
     // that forgets showHidden must SEE completed tasks vanish.
     const showCompleted = (c.req.query('showCompleted') ?? 'true') === 'true';
     const showHidden = c.req.query('showHidden') === 'true';
     const visible = all.filter((t) => {
+      if (t.deleted && !showDeleted) return false;
       if (t.status === 'completed' && !showCompleted) return false;
       if (t.hidden && !showHidden) return false;
       return true;
@@ -2776,14 +2823,20 @@ describe('GoogleTaskProvider.pullChanges', () => {
     expect(task!.dueAt).toBe('2026-09-04T22:00:00.000Z');
   });
 
-  it('ignores a tombstoned task rather than mirroring it', async () => {
+  it('never asks for tombstones, and ignores one if it arrives anyway', async () => {
     const { feedKey } = await connectedMemberWithList();
     fake.setTasks('list-1', [
       { id: 't-live', title: 'Lebt' },
       { id: 't-dead', title: 'Weg', deleted: true },
     ]);
+
     const out = await provider().pullChanges(feedKey, null);
+
+    // The fake honours Google's showDeleted=false default, so the tombstone is
+    // not delivered at all — deletion is detected by ABSENCE from the snapshot,
+    // which is the whole point of the design.
     expect(out.upserts.map((t) => t.externalId)).toEqual(['t-live']);
+    expect(fake.calls.find((c) => c.path.endsWith('/tasks'))!.query).not.toContain('showDeleted');
   });
 
   it('pages to exhaustion', async () => {
@@ -3385,9 +3438,10 @@ export const googleModule: HeorthModule = {
       fullResyncIntervalMs: googleFullResyncIntervalMs(),
       authorizeUrl: (state) => rt.oauth.authorizeUrl(state),
       completeConnect: async (code) => {
-        // Throws GoogleNoRefreshTokenError when Google issued none — the
-        // callback turns that into GOOGLE_EXCHANGE_FAILED and stores nothing,
-        // rather than persisting a connection that dies within the hour.
+        // Throws GoogleNoRefreshTokenError when Google issued none. That error
+        // carries `connectErrorCode`, so the callback redirects with
+        // GOOGLE_NO_REFRESH_TOKEN specifically and stores nothing, rather than
+        // persisting a connection that dies within the hour.
         const { refreshToken, accessToken, scopes } = await rt.oauth.exchangeCode(code);
         const accountLabel = await rt.oauth.getUserEmail(accessToken);
         return { accountLabel, refreshToken, scopes };
@@ -3473,7 +3527,7 @@ git commit -m "feat(google): register Google as a second integration provider"
 Phase 1 left this half-migrated, deliberately and unreachably: `service.listAvailableLists` iterates every provider and tags each entry, but `getAllowlist` / `setAllowlist` hardcode `DEFAULT_PROVIDER = 'm365'`. With Google registered, **its lists appear in the picker but can never be enabled** — `setAllowlist` would persist them under `provider = 'm365'`, or reject them. The store layer is already correct; the gap is the service and the route above it.
 
 **Files:**
-- Modify: `src/modules/tasks/service.ts:25` (drop `DEFAULT_PROVIDER`), `:74-96` (both functions), `src/modules/tasks/validators.ts:22-24`, `src/modules/tasks/routes.ts:62-75`, `src/modules/tasks/store.ts:190-194` (`provider` optional)
+- Modify: `src/modules/tasks/service.ts:25` (drop `DEFAULT_PROVIDER`), `:74-96` (both functions), `src/modules/tasks/validators.ts:22-24`, `src/modules/tasks/routes.ts:39` (`writeError`) and `:62-75` (the PUT), `src/modules/tasks/store.ts:190-194` (`provider` optional)
 - Test: `tests/tasks-allowlist-provider.test.ts`
 
 **Interfaces:**
@@ -3734,12 +3788,33 @@ tasksRouter.put('/allowlist', async (c) => {
 });
 ```
 
-- [ ] **Step 6: Run the tests**
+- [ ] **Step 6: Teach `writeError` about Google's 5xx**
+
+`src/modules/tasks/routes.ts:39` maps only `/^graph_5\d\d$/` to a 502. Task 3
+adds `google_<status>`, so an upstream Google 5xx on a write-back would return
+500 while the identical Microsoft failure returns 502 — the same failure class
+reported two different ways, and the 500 reads as "Heorth is broken".
+
+```ts
+    // Upstream said 5xx. Both providers' tokens are matched: `graph_503` and
+    // `google_503` are the same failure class and must not be reported
+    // differently just because of which service was unreachable.
+    if (/^(graph|google)_5\d\d$/.test(e.reason)) {
+      return c.json({ error: { code: e.reason.toUpperCase(), message: e.message } }, 502);
+    }
+```
+
+Update the docblock above `writeError` in the same edit — it currently says
+"upstream Graph said 5xx, `graph_5xx`". Add a case to
+`tests/tasks-allowlist-provider.test.ts` (or the routing suite) asserting a
+`google_503` write-back surfaces as 502, mirroring the existing Graph case.
+
+- [ ] **Step 7: Run the tests**
 
 Run: `npx vitest run tests/tasks-allowlist-provider.test.ts tests/tasks-provider-routing.test.ts tests/tasks-household-list.test.ts tests/tasks-household-list-routes.test.ts tests/m365-tasks-sync.test.ts && npm run typecheck`
 Expected: PASS, typecheck clean. Existing suites that submit the old body shape must be updated to `{ lists: [...] }` — that is a fixture change, not an assertion change.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/modules/tasks tests/tasks-allowlist-provider.test.ts
@@ -3762,11 +3837,25 @@ git commit -m "feat(tasks): make the list allowlist API provider-aware"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/maintenance-admin-repair.test.ts` (reuse whatever this suite already imports for seeding the maintenance admin and running the repair; register a fake provider with `registerFakeTaskProvider('google', …)` from `./helpers.js`):
+Append to `tests/maintenance-admin-repair.test.ts`. The suite has **no `seedMaintenanceAdmin` helper and `repairMaintenanceAdmin` is NOT zero-arg** — it imports the real function and passes credentials (`tests/maintenance-admin-repair.test.ts:5,14`), and seeds via `seedTestHousehold()`, whose `admin` already carries the maintenance-admin handle. Add to this suite's imports: `registerFakeTaskProvider` from `./helpers.js`, `calendarAllowlist` from `../src/modules/calendar/allowlist-schema.js`, `calendarMirrorEvents` from `../src/modules/calendar/mirror-schema.js`, `setCalendarAllowlist` / `setHouseholdCalendar` from `../src/modules/calendar/allowlist-store.js`, `setAllowlist` from `../src/modules/tasks/store.js`, and `clearProviders` from `../src/integrations/registry.js` (call it in an `afterEach`, or the registrations leak into the suite's other cases).
 
 ```ts
+/** Inert task provider — only its presence in the registry matters here. */
+function stubTaskProvider(): TaskProvider {
+  return {
+    source: 'stub',
+    listAvailableLists: async () => [],
+    pullChanges: async () => ({ upserts: [], deletions: [], nextToken: null, fullResync: true }),
+    setCompleted: async () => {},
+    createTask: async () => { throw new Error('not used'); },
+  };
+}
+
 it('clears the admin\'s stale feed state for EVERY registered provider', async () => {
-  const adminId = await seedMaintenanceAdmin();       // existing helper in this suite
+  // `CREDS` and `repairMaintenanceAdmin` are this suite's existing top-level
+  // constants/imports; seedTestHousehold's `admin` IS the maintenance admin.
+  const { admin } = await seedTestHousehold();
+  const adminId = admin.user.id;
   registerFakeTaskProvider('m365', stubTaskProvider());
   registerFakeTaskProvider('google', stubTaskProvider());
 
@@ -3793,7 +3882,7 @@ it('clears the admin\'s stale feed state for EVERY registered provider', async (
     startAt: new Date('2026-09-01T06:00:00Z'), endAt: new Date('2026-09-01T06:30:00Z'),
   });
 
-  await repairMaintenanceAdmin();                     // existing helper in this suite
+  await repairMaintenanceAdmin(CREDS);
 
   const left = await db.select().from(integrationSyncState);
   expect(left).toEqual([]);
@@ -3867,9 +3956,11 @@ their id. Delete by feed key as well, reusing the keys already built above:
   counts['calendar_mirror_events'] = mirrorByMember.count + mirrorByFeed.count;
 ```
 
-Replace the existing single `calendar_mirror_events` delete with this pair; it
-must run BEFORE the allowlist rows are deleted, for the same reason the feed
-keys are built first.
+Replace the existing single `calendar_mirror_events` delete with this pair.
+What must happen before the allowlist deletes is the KEY-BUILDING query above —
+the feed keys are derived from those rows. The mirror deletes themselves may run
+wherever the existing one does, since by then they only use the precomputed
+`staleFeedKeys`.
 
 Add the two imports (`listProviders` from `../integrations/registry.js`, `calendarAllowlist` from `../modules/calendar/allowlist-schema.js`).
 
@@ -4250,7 +4341,14 @@ export function disconnectProvider(provider: string): Promise<SingleResponse<{ d
 
 - [ ] **Step 4: Parameterise the derived hook**
 
-In `web/src/hooks/use-m365.ts`, keep `useM365FeedStatus` (rename to `useIntegrationsFeedStatus`, updating its callers) and `useM365Status` (rename `useIntegrationsStatus`), and replace `useM365ProviderStatus` with:
+In `web/src/hooks/use-m365.ts`, keep `useM365FeedStatus` (rename to `useIntegrationsFeedStatus`, updating its callers) and `useM365Status` (rename `useIntegrationsStatus`), and replace `useM365ProviderStatus` with the parameterised version below.
+
+Rename the CACHE KEYS with them, or the file ends up with provider-neutral hooks
+backed by M365-named keys: `M365_FEED_STATUS_KEY = ['m365', 'feedStatus']`
+(`use-m365.ts:12`) becomes `['integrations', 'feedStatus']`, and
+`QUERY_KEYS.m365Status = ['m365', 'status']` (`web/src/lib/constants.ts:40`)
+becomes `QUERY_KEYS.integrationsStatus = ['integrations', 'status']`. Both are
+process-local cache keys with no persistence, so renaming them is free.
 
 ```ts
 /**
@@ -4398,7 +4496,23 @@ and to `de.json`:
 
 `catalog-parity.test.ts` fails if the two catalogues diverge — run it.
 
-- [ ] **Step 8: Repoint the two remaining consumers**
+- [ ] **Step 8: Teach the profile page Google's connect errors**
+
+`web/src/pages/profile.tsx:11-24` carries a `KnownErrorCode` union and a
+`KNOWN_ERROR_CODES` array listing only the four `M365_*` codes plus
+`ADMIN_NOT_A_MEMBER`; anything else falls back to
+`connections.error.unknown`. The callback now emits `GOOGLE_CONSENT_DENIED`,
+`GOOGLE_CALLBACK_INVALID`, `GOOGLE_STATE_INVALID`, `GOOGLE_EXCHANGE_FAILED` and
+`GOOGLE_NO_REFRESH_TOKEN` — so without this the specific error Task 11 went to
+the trouble of preserving renders as "something went wrong".
+
+Add all five to the union and the array, and add their messages to `en.json` and
+`de.json` under `connections.error.*`. `GOOGLE_NO_REFRESH_TOKEN` is the one that
+needs a real sentence rather than a restatement: the member must retry the
+connect and grant offline access — repeating it usually succeeds, because the
+authorize URL always forces re-consent. Cover it in `profile.test.tsx`.
+
+- [ ] **Step 9: Repoint the two remaining consumers**
 
 `web/src/components/household/connections-panel.tsx` — `useM365Status()` →
 `useIntegrationsStatus()`, `triggerM365Sync()` → `triggerIntegrationsSync()`.
@@ -4417,12 +4531,12 @@ parse correctly with no edit. Verified — do not "fix" those regexes.
 Update `connections-panel.test.tsx`, `hearth.test.tsx` and `hearth.de.test.tsx`
 fixtures to the new status shape.
 
-- [ ] **Step 9: Run the tests and the web build**
+- [ ] **Step 10: Run the tests and the web build**
 
 Run: `cd web && npx vitest run && npm run build`
 Expected: PASS and a clean build. The build is what proves every caller was repointed.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add web/src
@@ -4469,11 +4583,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { listCalendars, setCalendarAllowlist, setHouseholdCalendar } from '@/api/calendar-allowlist';
 import { CalendarSyncSettings } from './calendar-sync-settings';
 
-/** Local wrapper — the repo has no shared one. Retry off so a rejected query
- *  fails the test immediately instead of hanging on backoff. */
+/**
+ * Local wrapper — the repo has no shared one. Retry off so a rejected query
+ * fails the test immediately instead of hanging on backoff.
+ *
+ * Uses RTL's `wrapper` option rather than wrapping the element inline: the
+ * `rerender` RTL returns re-renders the ELEMENT it is given, so an inline
+ * wrapper is dropped on rerender and every React Query hook underneath throws
+ * "No QueryClient set". The `wrapper` option survives rerenders.
+ */
 function renderWithProviders(ui: React.ReactNode) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return render(ui, {
+    wrapper: ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 const mocked = (fn: unknown) => fn as unknown as ReturnType<typeof vi.fn>;
@@ -4752,6 +4877,38 @@ these were considered rather than missed.
 | MINOR | Task 16 did not say where the acting member's role comes from | `useWhoami()` from `@/hooks/use-household`, as `profile.tsx:33` does |
 
 Codex verified as CORRECT: the provider-registry containment (no MCP surface, Google URLs confined to `src/google/`), the Task 1 env-group pattern, both schema barrels in Task 5, the Task 12 and Task 13 coverage of the two Phase-1 findings, and the core Google API model — `syncToken` without `timeMin`/`timeMax`, `410` → full resync, `showDeleted=true`, all-day `end.date` exclusive, Tasks paging, and date-only `due`.
+
+## Review round 2 — Codex, 2026-08-31
+
+Same session resumed, so it re-checked its own round-1 findings against the
+applied diff. Eleven of thirteen LANDED, one PARTIAL, one NOT LANDED; it then
+found eight further defects, six of them introduced or exposed by the round-1
+fixes themselves. All verified by the controller and fixed here.
+
+| Severity | Finding | Fix |
+|---|---|---|
+| CRITICAL | Round-1 finding NOT LANDED: Task 13's snippet still called a `seedMaintenanceAdmin()` that does not exist and a zero-arg `repairMaintenanceAdmin()`. The real suite passes `CREDS` and seeds via `seedTestHousehold()`, whose `admin` IS the maintenance admin | Snippet rewritten against the real API, with the full import list and a `clearProviders()` warning |
+| IMPORTANT | `writeError` (`src/modules/tasks/routes.ts:39`) matches only `/^graph_5\d\d$/`, so a Google upstream 5xx on write-back returns 500 where the identical Microsoft failure returns 502 | Task 12 gains a step widening it to `/^(graph\|google)_5\d\d$/`, with a test |
+| IMPORTANT | `web/src/pages/profile.tsx:11-24` whitelists only the four `M365_*` connect errors, so all five `GOOGLE_*` codes — including the `GOOGLE_NO_REFRESH_TOKEN` round 1 fought to preserve — would render as "unknown" | Task 15 gains a step extending the union, the array and both catalogues |
+| IMPORTANT | The calendar fake preferred `syncToken` over `pageToken`. Google's follow-up pages repeat the whole query AND add `pageToken`, so the fake would serve page 0 until `MAX_PAGES` — and a broken provider would still pass | `pageToken` now wins, plus a new incremental-paging test asserting the second call carries both |
+| IMPORTANT | Neither fake enforced `showDeleted` (Google defaults it to **false**), so a provider that forgot the flag would pass while never seeing a deletion in production | Both fakes honour it; the calendar tests now assert `showDeleted=true` on full and incremental pulls, and the tasks test asserts the provider does NOT send it |
+| IMPORTANT | Task 16's `renderWithProviders` wrapped the element inline, so RTL's `rerender` — which the role test uses — drops the `QueryClientProvider` and every React Query hook throws | Rewritten to use RTL's `wrapper` option, which survives rerenders |
+| MINOR | Stale prose: Task 6's expected failure still described the `/:id` collision the router split removed; Task 11's comment still said `GOOGLE_EXCHANGE_FAILED`; Task 13's ordering note overstated what must precede the allowlist deletes | All three corrected |
+| MINOR | Provider-neutral hooks left backed by M365-named cache keys (`QUERY_KEYS.m365Status`, `M365_FEED_STATUS_KEY`) | Task 15 renames both |
+
+Codex re-verified as LANDED: all four test-app constructions, the parameterised
+`registerStubProvider`, both web harness imports, the `needs_reauth` rethrow
+(Tasks 4 and 9 now agree), the once-computed calendar `query` (in scope on the
+410 recursion path too), the `connectErrorCode` mechanism reaching the redirect,
+Task 5's sync-state delete (`inArray` already imported, `staleFeedKeys` in
+scope), Task 15's call-site list, the `PROVIDERS` imports, `useWhoami`, and the
+UserInfo endpoint. It also confirmed the new `/api/v1/calendar` router is the
+right shape and that Task 6's tests exercise the right paths.
+
+Its one PARTIAL — Task 14 not naming the exact pre-existing `connection`-shape
+assertions to update — is left as written: Task 14's step already says the shape
+change breaks the web build by design and Task 15 repairs it, and
+`use-m365.test.ts`'s three fixtures are now named explicitly in Task 15.
 
 ## Self-review notes
 

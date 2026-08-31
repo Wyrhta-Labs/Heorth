@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { googleFetch, GoogleApiError, GOOGLE_CALENDAR_BASE } from '../src/google/api.js';
+import { classify, googleFullResyncIntervalMs } from '../src/google/sync-runner.js';
+import { DEFAULT_FULL_RESYNC_INTERVAL_MS } from '../src/integrations/sync-runner.js';
 
 function fetchFor(app: Hono): typeof fetch {
   return ((input: RequestInfo | URL, init?: RequestInit) =>
@@ -55,5 +57,43 @@ describe('googleFetch', () => {
       { fetch: fetchFor(app) }, 'a', 'https://tasks.googleapis.com/tasks/v1/thing', { method: 'PATCH' },
     );
     expect(out).toBeUndefined();
+  });
+});
+
+describe('google classify', () => {
+  it('reports a missing connection before anything else (it also carries 401)', () => {
+    expect(classify(new GoogleApiError('none', 401, 'no_connection'))).toBe('no_connection');
+  });
+
+  it('maps a 401 to needs_reauth', () => {
+    expect(classify(new GoogleApiError('bad token', 401))).toBe('needs_reauth');
+  });
+
+  it('maps any other status to google_<status>, never graph_<n>', () => {
+    expect(classify(new GoogleApiError('gone', 410, 'fullSyncRequired'))).toBe('google_410');
+    expect(classify(new GoogleApiError('boom', 500))).toBe('google_500');
+  });
+
+  it('maps a transport failure to network_error and anything else to error', () => {
+    expect(classify(new TypeError('fetch failed'))).toBe('network_error');
+    expect(classify(new Error('???'))).toBe('error');
+  });
+});
+
+describe('googleFullResyncIntervalMs', () => {
+  afterEach(() => {
+    delete process.env['GOOGLE_FULL_RESYNC_INTERVAL_SECONDS'];
+  });
+
+  it('defaults to the shared interval', () => {
+    delete process.env['GOOGLE_FULL_RESYNC_INTERVAL_SECONDS'];
+    expect(googleFullResyncIntervalMs()).toBe(DEFAULT_FULL_RESYNC_INTERVAL_MS);
+  });
+
+  it('honours an override and ignores a nonsense value', () => {
+    process.env['GOOGLE_FULL_RESYNC_INTERVAL_SECONDS'] = '120';
+    expect(googleFullResyncIntervalMs()).toBe(120_000);
+    process.env['GOOGLE_FULL_RESYNC_INTERVAL_SECONDS'] = 'soon';
+    expect(googleFullResyncIntervalMs()).toBe(DEFAULT_FULL_RESYNC_INTERVAL_MS);
   });
 });

@@ -100,6 +100,7 @@ export class GoogleTaskProvider implements TaskProvider {
     const base = `${GOOGLE_TASKS_BASE}/lists/${encodeURIComponent(feed.listId)}/tasks`
       + `?showCompleted=true&showHidden=true&maxResults=${PAGE_SIZE}`;
     let url = base;
+    let exhausted = true;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       const res = await this.rt.googleFetch<TasksListResponse>(token, url);
@@ -109,8 +110,19 @@ export class GoogleTaskProvider implements TaskProvider {
         if (t.deleted) continue;
         upserts.push(this.toMirrored(t, feed.memberId, feed.listId, feed.listName, zone));
       }
-      if (!res.nextPageToken) break;
+      if (!res.nextPageToken) { exhausted = false; break; }
       url = `${base}&pageToken=${encodeURIComponent(res.nextPageToken)}`;
+    }
+
+    // Falling out of the loop with the page cap exhausted means this snapshot
+    // is PARTIAL, but `fullResync: true` tells the store the snapshot IS the
+    // whole feed, so it deletes every mirrored task not present — an exhausted
+    // cap would then delete everything past it rather than merely re-syncing
+    // later. A partial snapshot with fullResync: true is indistinguishable
+    // from a genuine emptying, so throw instead: the sync runner classifies
+    // the error and records it against the feed without touching the mirror.
+    if (exhausted) {
+      throw new Error(`Google Tasks pull for ${feedKey} exceeded ${MAX_PAGES} pages without completing`);
     }
 
     // `deletions` stays empty and `fullResync` is always true: the snapshot IS

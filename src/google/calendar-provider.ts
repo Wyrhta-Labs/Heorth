@@ -131,6 +131,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
     const upserts: MirroredEvent[] = [];
     const deletions: string[] = [];
     let nextToken: string | null = null;
+    let exhausted = true;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       let res: EventsListResponse;
@@ -161,7 +162,20 @@ export class GoogleCalendarProvider implements CalendarProvider {
         continue;
       }
       nextToken = res.nextSyncToken ?? null;
+      exhausted = false;
       break;
+    }
+
+    // Falling out of the loop with the page cap exhausted means this snapshot
+    // is PARTIAL, but a full pull (`fullResync: true`) tells the store the
+    // opposite — that upserts IS the whole feed, so it deletes everything not
+    // present. A partial snapshot with fullResync: true is indistinguishable
+    // from a genuine emptying, and the store would wipe every mirror row past
+    // the cap. Unreachable at household scale, but the fail-safe must fail
+    // safe: throw so the runner records the error against the feed without
+    // touching the mirror, instead of returning a payload that looks complete.
+    if (exhausted) {
+      throw new Error(`Google Calendar pull for ${feedKey} exceeded ${MAX_PAGES} pages without completing`);
     }
 
     return { upserts, deletions, masterPurges: [], nextToken, fullResync };

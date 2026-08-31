@@ -83,7 +83,10 @@ export async function getAllowlist(memberId: string): Promise<TodoListAllowlistR
  * Replacement is scoped to the providers whose discovery SUCCEEDED: a provider
  * that is unreachable right now could not have shown its lists in the picker,
  * so an absent entry for it means "not offered", not "de-selected". Wiping it
- * would silently stop syncing lists the member never touched.
+ * would silently stop syncing lists the member never touched. For a REACHABLE
+ * provider, by contrast, having no entries in the submission IS a deliberate
+ * full de-selection — the picker could show its lists, so their absence means
+ * the member unchecked all of them, and this clears that provider's rows.
  */
 export async function setAllowlist(
   memberId: string, entries: Array<{ provider: string; listId: string }>,

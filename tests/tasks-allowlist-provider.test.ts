@@ -120,18 +120,44 @@ describe('PUT /api/v1/tasks/allowlist', () => {
     expect((await res.json() as { error: { code: string } }).error.code).toBe('UNKNOWN_LIST');
   });
 
-  it('rejects a body still using the old listIds shape', async () => {
+  it('rejects a body still using the old listIds shape, and the existing allowlist survives', async () => {
     const { adult } = await seedTestHousehold();
+    registerFakeTaskProvider('google', fakeTaskProvider('google', [{ id: 'g-1', name: 'Haushalt' }]));
+    await app().request('/api/v1/tasks/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ lists: [{ provider: 'google', listId: 'g-1' }] }),
+    });
+
+    // `lists` is required (not defaulted) precisely so this old-shape body,
+    // which carries no `lists` at all, is rejected loudly instead of being
+    // silently read as an empty selection that would wipe the row above.
     const res = await app().request('/api/v1/tasks/allowlist', {
       method: 'PUT', headers: authHeaders(adult.jwt),
       body: JSON.stringify({ listIds: ['g-1'] }),
     });
-    // `lists` defaults to [] and `listIds` is stripped, so this is a no-op 200
-    // rather than a silent m365 write — assert whichever the schema produces,
-    // but it must NOT persist anything.
+    expect(res.status).toBe(400);
+
+    const check = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
+    const { data } = await check.json() as { data: Array<{ provider: string; listId: string }> };
+    expect(data).toEqual([expect.objectContaining({ provider: 'google', listId: 'g-1' })]);
+  });
+
+  it('an explicit empty lists submission still de-selects everything for a reachable provider', async () => {
+    const { adult } = await seedTestHousehold();
+    registerFakeTaskProvider('google', fakeTaskProvider('google', [{ id: 'g-1', name: 'Haushalt' }]));
+    await app().request('/api/v1/tasks/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ lists: [{ provider: 'google', listId: 'g-1' }] }),
+    });
+
+    const res = await app().request('/api/v1/tasks/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ lists: [] }),
+    });
+    expect(res.status).toBe(200);
+
     const check = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     expect((await check.json() as { data: unknown[] }).data).toEqual([]);
-    expect([200, 400]).toContain(res.status);
   });
 
   it('surfaces an upstream Google 5xx on a write-back as 502, mirroring the Graph case', async () => {

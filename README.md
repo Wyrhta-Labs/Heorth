@@ -70,11 +70,12 @@ lists `ALL_MODULES`):
 | `/api/v1/events` | `src/modules/calendar/` | Calendar with server-side recurrence expansion |
 | `/api/v1/recipes`, `/api/v1/meals` | `src/modules/meals/` | Recipes, weekly meal plan, shopping list |
 | `/api/v1/library` | `src/modules/library/` | Book/media library; Trakt + LibraryThing connectors |
-| `/api/v1/tasks` | `src/modules/tasks/` | Household tasks backed by Microsoft To Do — list/complete/create + per-member list allowlist (writes need M365 enabled) |
+| `/api/v1/tasks` | `src/modules/tasks/` | Household tasks backed by Microsoft To Do and/or Google Tasks — list/complete/create + per-member, per-provider list allowlist (writes need at least one provider enabled) |
+| `/api/v1/calendar/calendars`, `/api/v1/calendar/allowlist`, `/api/v1/calendar/household-calendar` | `src/modules/calendar/` | Calendar discovery + allowlist — a SEPARATE router from `/api/v1/events` (see [Google](#google-optional-integration) below) |
 | `/api/v1/ethel/assets`, `/api/v1/ethel/places` | `src/modules/ethel/` | The property register: assets with lifecycle fields (purchase, warranty, decommission/reactivation), search/filter/paginate, plus a `places` tree and per-asset vehicle/facility detail — a standalone, always-on `HeorthModule` (ADR 0013); no dependency on feoh (see [Ethel](#ethel) below) |
-| `/api/v1/weorc/*` | `src/modules/weorc/` | Household routines and due work: recurring chores anchored to assets/places, occurrence history, and projection into Tasks when a provider exists — always on and not gated by M365 (see [Weorc](#weorc) below) |
+| `/api/v1/weorc/*` | `src/modules/weorc/` | Household routines and due work: recurring chores anchored to assets/places, occurrence history, and projection into Tasks when a provider exists — always on and not gated by M365/Google (see [Weorc](#weorc) below) |
 | `/api/v1/feoh/*` | `src/modules/feoh/` | Finance: envelopes, accounts, double-entry transactions, recurring bills + occurrences, item costs/TCO, account ledger + reconciliation (ADR 0007) — a `HeorthModule`, always on (see [Finance](#finance) below) |
-| `/api/v1/integrations/*` | `src/integrations/`, `src/m365/` | Provider-scoped connection flow (e.g. `/api/v1/integrations/m365/callback`) — **only a provider's routes mount when it's configured** (see below); absent otherwise |
+| `/api/v1/integrations/*` | `src/integrations/`, `src/m365/`, `src/google/` | Provider-scoped connection flow (e.g. `/api/v1/integrations/m365/callback`, `/api/v1/integrations/google/callback`) — **only a provider's routes mount when it's configured** (see below); absent otherwise |
 
 **Heorth serves REST only.** The MCP surface moved out of this service into
 its own container, `Wyrhta-Labs/heorth-mcp` (ADR 0008) — a pure REST client
@@ -234,12 +235,13 @@ read routines and occurrences.
 
 ## Microsoft 365 (optional integration)
 
-Heorth can mirror the household's M365 calendars and sync Microsoft To Do
-(Phase 2). The Graph-specific foundation lives in `src/m365/` — the **only**
-place Graph types and URLs appear — on top of the provider-neutral
+Heorth can mirror the household's M365 calendars and sync Microsoft To Do. The
+Graph-specific foundation lives in `src/m365/` — the **only** place Graph
+types and URLs appear — on top of the provider-neutral
 connection/sync-state/registry machinery in `src/integrations/` (shared with
-the Google provider planned for Phase 2). It is **optional as a group**: set
-all five `M365_*` variables to enable it, or none to leave it fully disabled.
+the [Google provider](#google-optional-integration) below). It is **optional
+as a group**: set all five `M365_*` variables to enable it, or none to leave it
+fully disabled.
 
 ```
 # Microsoft 365 — all five or none (partial config is a startup error)
@@ -264,16 +266,23 @@ still pointed at the old `/api/v1/m365/callback` fails consent with
   as a no-op — no provider mounts, so `/api/v1/integrations/m365/*` returns the
   app's catch-all `404`. Zero impact on boot, existing routes, or tests.
 - **Enabled:** the connection routes mount at `/api/v1/integrations`, with a
-  provider segment (`m365`, and `google` in Phase 2) on the per-provider ones:
+  provider segment (`m365`, `google`) on the per-provider ones:
   - `GET /:provider/connect` (auth) → 302 to the provider's consent screen; the
     `state` is a signed token binding the flow to the acting member.
   - `GET /:provider/callback` → exchanges the code, resolves the account, and
     stores the **encrypted** refresh token (one row per member per provider).
-  - `GET /status` (auth) → the acting member's connections + last errors,
+  - `GET /status` (auth) → **`{ myConnections, connections?, feeds,
+    householdListDesignated, householdCalendar, providers }`**. `myConnections`
+    is the acting member's own connections, one per provider they have linked
+    (**replaces the old singular `connection` field — BREAKING**); `connections`
+    (admin/adult only) is every member's connections household-wide; `feeds` is
     **per-feed sync state** across every registered provider (feed key, last
     success, last error, consecutive failures — the sync token is never
-    exposed), and `householdListDesignated`; admin/adult sees all connections
-    and all feeds. This is the data the Hearth View staleness badges read.
+    exposed); `providers` lists the registered provider ids; `householdCalendar`
+    (new) is `{ provider, memberId, calendarName, connectionOk }` for the
+    designated family calendar, or `null` if none is designated —
+    `connectionOk` is `false` once the designating member's connection dies or
+    is removed. This is the data the Hearth View staleness badges read.
   - `POST /sync` (admin) → runs every registered provider's calendar feeds then
     its To Do feeds once and returns the combined per-feed result summary;
     used by dev/tests to drive sync without the scheduler.
@@ -302,17 +311,25 @@ still pointed at the old `/api/v1/m365/callback` fails consent with
   timezone is kept as display metadata only (`source_time_zone`) — Heorth does
   not re-localize on write. The scheduler starts at boot only when enabled and
   never runs under tests.
-- **Household tasks + To Do sync:** the Tasks surface (`/api/v1/tasks`) is
-  backed by Microsoft To Do as the system of record. Sync is
-  **delegated-only** and **allowlist-gated per member** — nothing syncs until a
-  member chooses lists (`GET /api/v1/tasks/lists` discovery,
-  `GET/PUT /api/v1/tasks/allowlist`); each allowlisted list becomes a feed
-  `m365:todo:member:<id>:<listId>` pulled via
-  `/me/todo/lists/{listId}/tasks/delta` into a sibling `task_mirror` table (a
-  `410`/periodic full re-sync reconciles the feed's rows in place — it no
-  longer deletes and re-inserts them, so `task_mirror.id` stays stable across a
-  resync). Unlike the calendar, tasks are **interactive**:
-  `POST /api/v1/tasks/:id/complete` writes completion back (optimistic local
+- **Household tasks + To Do / Google Tasks sync:** the Tasks surface
+  (`/api/v1/tasks`) mirrors from whichever provider(s) are enabled — Microsoft
+  To Do and/or Google Tasks, both as systems of record for the lists a member
+  allowlists on them. Sync is **delegated-only** and **allowlist-gated per
+  member, per provider** — nothing syncs until a member chooses lists
+  (`GET /api/v1/tasks/lists` discovery across every registered provider,
+  `GET/PUT /api/v1/tasks/allowlist`). **`PUT /api/v1/tasks/allowlist` takes
+  `{ "lists": [{ "provider": "m365" | "google", "listId": "<id>" }] }` — `lists`
+  is REQUIRED (its absence is a 400 `VALIDATION_ERROR`), and there is no
+  `listIds` alias (BREAKING vs. the earlier M365-only shape).** An explicit
+  `[]` de-selects every list across every reachable provider. Each allowlisted
+  list becomes a feed — `m365:todo:member:<id>:<listId>` pulled via
+  `/me/todo/lists/{listId}/tasks/delta`, `google:todo:member:<id>:<listId>`
+  pulled as a full snapshot (see [Google](#google-optional-integration) below)
+  — into a sibling `task_mirror` table (a `410`/periodic full re-sync
+  reconciles the feed's rows in place — it no longer deletes and re-inserts
+  them, so `task_mirror.id` stays stable across a resync). Unlike the calendar,
+  tasks are **interactive**: `POST /api/v1/tasks/:id/complete` writes
+  completion back to whichever provider mirrored the task (optimistic local
   update, sync reconciles) and `POST /api/v1/tasks` creates a task into the
   **designated household list** — see "Designating the household task list"
   below — resolved through whichever connected member's allowlist carries the
@@ -321,13 +338,16 @@ still pointed at the old `/api/v1/m365/callback` fails consent with
   lists the mirror with filters (status / member / list / due range). All
   members may read; any authenticated member (children included) may
   complete/create; a write against a dead/absent connection returns a
-  **classified** error (409 conflict, or 500 when the integration is off / an
-  upstream failure), never a crash and never a silent drop. Task feeds join the
-  same scheduler tick and `POST /api/v1/integrations/sync` (sequential after
-  calendar, same per-feed isolation) and appear in
-  `GET /api/v1/integrations/status`. Reads work even when the integration is
-  disabled (the mirror is simply empty); only the write/discovery paths need
-  it enabled.
+  **classified** error: 409 conflict for a member-actionable state
+  (`needs_reauth`, `no_connection`, `shared_list_unavailable`,
+  `unknown_list`), 502 for an upstream 5xx (`graph_5xx` **or** `google_5xx` —
+  the two are treated identically), 503 for `network_error`, and 500 for
+  everything else (including the integration being off). Never a crash and
+  never a silent drop. Task feeds join the same scheduler tick and
+  `POST /api/v1/integrations/sync` (sequential per provider, same per-feed
+  isolation) and appear in `GET /api/v1/integrations/status`. Reads work even
+  when no provider is enabled (the mirror is simply empty); only the
+  write/discovery paths need a provider enabled.
 - **Auth modes:** per-member **delegated** (auth-code, refresh tokens encrypted
   at rest, access tokens cached in memory, rotated refresh tokens re-stored) for
   calendars + To Do; **app-only** (client-credentials, `.default`) for the
@@ -365,6 +385,121 @@ Real-tenant behaviour is out of CI scope. A human can smoke-test app-only
 access against the real `.env` with `npx tsx scripts/m365-smoke.ts` (acquires
 an app-only token and probes `GET /users/{M365_FAMILY_MAILBOX}`; prints no
 secrets).
+
+## Google (optional integration)
+
+Heorth can mirror a member's Google Calendar(s) and sync Google Tasks,
+alongside — not instead of — Microsoft 365. The Google-specific foundation
+lives in `src/google/` — the **only** place Google types and URLs appear
+(confined to `src/google/api.ts`) — on top of the same provider-neutral
+`src/integrations/` machinery M365 uses. It is **optional as a group**: set
+all three `GOOGLE_*` variables to enable it, or none to leave it fully
+disabled; M365 and Google can be enabled independently or together.
+
+```
+# Google — all three or none (partial config is a startup error)
+GOOGLE_CLIENT_ID=<oauth client id>.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=<oauth client secret>
+GOOGLE_REDIRECT_URI=http://localhost:14000/api/v1/integrations/google/callback
+
+# Optional, INDEPENDENT of the group above (a tuning knob, not a credential) —
+# the calendar mirror's re-window cadence, the sibling of
+# M365_FULL_RESYNC_INTERVAL_SECONDS. Has no effect on Tasks, which always pulls
+# a full snapshot (see below).
+GOOGLE_FULL_RESYNC_INTERVAL_SECONDS=604800
+```
+
+### Google Cloud console setup
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create an
+   OAuth client of type **"Web application"** and configure the OAuth consent
+   screen (internal or external, per your Google Workspace/account setup).
+2. Add the authorized redirect URI:
+   `<base>/api/v1/integrations/google/callback` (matching `GOOGLE_REDIRECT_URI`
+   above).
+3. **Enable BOTH the Google Calendar API and the Google Tasks API** on the
+   project (APIs & Services → Library). This is easy to miss because the
+   symptom is confusing: a missing API surfaces as a **403 `accessNotConfigured`**
+   at request time, not as a scope error at consent time — if calendar or task
+   sync fails with that reason, check the enabled-APIs list before anything
+   else.
+
+### Scopes and offline consent
+
+Heorth requests `https://www.googleapis.com/auth/calendar.readonly` (the
+mirror is read-only, matching M365), `https://www.googleapis.com/auth/tasks`
+(read/write — completion writes back and Heorth creates tasks outward), plus
+`openid` and `email` to resolve the connected account's label.
+
+**The authorize URL always carries `access_type=offline` and `prompt=consent`,
+and both are mandatory.** Google issues a refresh token only on a user's
+*first* consent for a given client, unless the request also forces
+`prompt=consent` — without both flags, a reconnect can come back with no
+refresh token at all, and the connection then works for about an hour and dies
+silently. Heorth treats a missing refresh token as a hard connect-time failure
+(`GOOGLE_NO_REFRESH_TOKEN`) rather than storing a connection that is already
+doomed.
+
+### Calendar discovery and allowlist
+
+Mirroring is **delegated-only** and **allowlist-gated per member**, the same
+shape as M365 To Do:
+
+- `GET /api/v1/calendar/calendars` (auth) — discover the acting member's
+  Google calendars (each flagged allowlisted or not). Mounted on a
+  **separate** router at `/api/v1/calendar`, distinct from the event CRUD
+  router at `/api/v1/events` — putting calendar discovery on the latter would
+  have collided with its `/:id` route.
+- `PUT /api/v1/calendar/allowlist` (auth) —
+  `{ "calendars": [{ "provider": "google", "calendarId": "<id>" }] }`;
+  `calendars` defaults to `[]` when omitted (unlike the Tasks allowlist below,
+  omitting it here does not de-select anything — pass `[]` explicitly to
+  clear).
+- `PUT /api/v1/calendar/household-calendar` (admin or adult) —
+  `{ "provider": "google", "calendarId": "<id>" }`. Designates the shared
+  family calendar: see "The Google family calendar" below.
+
+Each allowlisted calendar becomes a feed `google:calendar:member:<id>:<calId>`,
+polled the same way as M365's calendar mirror (delta-style paging with a
+deterministic full re-window every `GOOGLE_FULL_RESYNC_INTERVAL_SECONDS`) into
+the same `calendar_mirror_events` sibling table — **read-only everywhere**,
+same as M365 mirrored events.
+
+### The Google family calendar
+
+There is **no app-only Google client and no `GOOGLE_FAMILY_*` env** — Google
+Workspace domain-wide delegation is out of scope for a consumer/family setup.
+Instead, the family calendar is a **designated allowlist row**,
+`calendar_allowlist.is_household`, set on ONE member's own delegated
+connection via `PUT /api/v1/calendar/household-calendar` above. It rides on
+that member's OAuth grant, which means it **stops mirroring the moment that
+member disconnects** — `GET /api/v1/integrations/status`'s
+`householdCalendar.connectionOk` reports exactly that, so a stopped family
+feed is visible rather than silently stale.
+
+### Google Tasks: snapshot, not delta
+
+Unlike Google Calendar (and unlike M365 To Do), **Google Tasks sync is a full
+snapshot on every pull, never a delta.** `GoogleTaskProvider.pullChanges`
+ignores the sync token and always reports `fullResync: true`; the store
+reconciles the mirror against the snapshot (upsert-present, delete-absent)
+rather than applying incremental changes. The request always sends
+`showCompleted=true&showHidden=true` — both are required, because a completed
+Google task is *hidden*, and without `showHidden` a completion would read to
+the reconciler as a deletion. Each allowlisted Google Tasks list becomes a
+feed `google:todo:member:<id>:<listId>`.
+
+### Upgrade notes
+
+**Nothing syncs from Google until a member picks calendars and/or task
+lists** via the allowlist endpoints above — enabling `GOOGLE_*` alone mirrors
+nothing. **No family calendar exists until an adult designates one** via `PUT
+/api/v1/calendar/household-calendar`; neither is backfilled on enabling the
+integration. The same is true of the household **task** list: until an adult
+designates one (`PUT /api/v1/tasks/household-list`, provider `google` or
+`m365`), `POST /api/v1/tasks` (household task creation) fails and Weorc's
+task projection stays disabled — exactly the M365-only behaviour described
+above, just now reachable with either provider designated.
 
 ## KithLedger reminders (optional integration)
 

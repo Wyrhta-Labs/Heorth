@@ -129,15 +129,16 @@ both files are wrong — fix them.
   encrypted at rest (`src/integrations/crypto.ts`, AES-256-GCM keyed off
   `JWT_SECRET`) and rotated on refresh.
 
-## Integration provider rules (`src/integrations/`, `src/m365/`)
+## Integration provider rules (`src/integrations/`, `src/m365/`, `src/google/`)
 
 - **Containment.** `src/m365/` is the only place Microsoft Graph types and URLs
-  may appear; `src/google/` (phase 2) will be the only place Google API types
-  and URLs may appear. The generic, provider-agnostic machinery — the registry,
-  the connection/sync-state store, feed keys, crypto, routes — lives in
-  `src/integrations/` and knows about neither provider. Consumers use the typed
-  surface exported from `src/m365/index.ts`; they must not import Graph URLs or
-  reach the network directly.
+  may appear; `src/google/` is live and is the only place Google API types and
+  URLs may appear — confined to `src/google/api.ts`. The generic,
+  provider-agnostic machinery — the registry, the connection/sync-state store,
+  feed keys, crypto, routes — lives in `src/integrations/` and knows about
+  neither provider. Consumers use the typed surface exported from
+  `src/m365/index.ts` / `src/google/index.ts`; they must not import Graph or
+  Google URLs or reach the network directly.
 - **Provider contracts point inward.** The provider-agnostic contract
   (`CalendarProvider`/`MirroredEvent`, `TaskProvider`/`MirroredTask`) lives with
   its module (`src/modules/calendar/providers/`, `src/modules/tasks/providers/`)
@@ -156,7 +157,12 @@ both files are wrong — fix them.
   `hearth.ts`'s `ownerOfFeed()` and `isFamilyEvent()` parse them to attribute
   events/tasks to a member or the family feed for the Hearth View. Changing the
   feed-key format means changing all of those call sites, not just
-  `feed-keys.ts`.
+  `feed-keys.ts`. **The Google providers deliberately do NOT parse feed keys.**
+  `src/google/calendar-provider.ts` and `src/google/task-provider.ts` resolve a
+  feed by looking up its `calendar_allowlist` / `todo_list_allowlist` row
+  (`getCalendarFeedByKey`, `getTaskFeedByKey`) instead, because a Google
+  calendar id is email-shaped and would split if parsed the M365 way. Making
+  the M365 providers resolve the same way is still a worthwhile follow-up.
 - **Never change the HKDF salt or info strings in `src/integrations/crypto.ts`.**
   They are inputs to the key derived from `JWT_SECRET`; changing either makes
   every stored refresh token undecryptable. They still say `m365` for exactly
@@ -174,11 +180,14 @@ both files are wrong — fix them.
   (`todo_list_allowlist`) — **nothing syncs by default.**
 - **Optional-as-a-group credentials.** `M365_*` is now **five** variables
   (`M365_TENANT_ID`, `M365_CLIENT_ID`, `M365_CLIENT_SECRET`,
-  `M365_REDIRECT_URI`, `M365_FAMILY_MAILBOX`); `GOOGLE_*` will be a sibling
-  group (phase 2), each gated the same all-or-nothing way as any other optional
-  integration (see the architecture rule above). `INTEGRATIONS_SYNC_INTERVAL_SECONDS`
-  (renamed from `M365_SYNC_INTERVAL_SECONDS`) is a tuning knob **outside both
-  credential groups**, not a credential.
+  `M365_REDIRECT_URI`, `M365_FAMILY_MAILBOX`); `GOOGLE_*` is a sibling
+  **three**-variable group (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+  `GOOGLE_REDIRECT_URI`), each gated the same all-or-nothing way as any other
+  optional integration (see the architecture rule above).
+  `INTEGRATIONS_SYNC_INTERVAL_SECONDS` (renamed from `M365_SYNC_INTERVAL_SECONDS`)
+  is a tuning knob **outside both credential groups**, not a credential — and so
+  is `GOOGLE_FULL_RESYNC_INTERVAL_SECONDS`, read straight from `process.env`
+  beside `M365_FULL_RESYNC_INTERVAL_SECONDS`.
 - **The scheduler and sync runners never run under tests.** They start from
   `main()` in `src/index.ts`, guarded on `VITEST`; tests drive sync explicitly
   via `runCalendarSync` / `runTaskSync` or `POST /api/v1/integrations/sync`.
@@ -188,7 +197,24 @@ both files are wrong — fix them.
 - **`src/m365/sync-runner.ts` runs nothing** despite the name — it holds the
   Graph error classifier (`classify`) and the M365 full-resync interval
   helper, both consumed by `src/integrations/sync-runner.ts`'s generic runner.
-  The name is stale but out of scope to rename here.
+  The name is stale but out of scope to rename here. `src/google/sync-runner.ts`
+  is its sibling: same shape (`classify`, `googleFullResyncIntervalMs`), same
+  underlying `src/integrations/sync-runner.ts` runner, and equally runs
+  nothing.
+- **Google Tasks pulls a SNAPSHOT, never a delta.**
+  `GoogleTaskProvider.pullChanges` ignores the sync token and reports
+  `fullResync: true` on every pull; `applyTaskPull` reconciles. Do not
+  "optimise" this into an `updatedMin` delta — deletions would then depend on
+  Google's tombstone retention and a task deleted on a phone would stay
+  mirrored forever. `showCompleted=true&showHidden=true` are both mandatory:
+  without them a completion reads as a deletion (a completed task is hidden by
+  default).
+- **The Google family calendar is a designated allowlist row**,
+  `calendar_allowlist.is_household`, on ONE member's delegated connection —
+  there is no app-only Google client and no `GOOGLE_FAMILY_*` env. It stops
+  syncing the moment that member disconnects;
+  `/api/v1/integrations/status`'s `householdCalendar.connectionOk` is where
+  that shows.
 
 ## Common commands
 

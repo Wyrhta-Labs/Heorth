@@ -272,4 +272,31 @@ describe('runGoogleCalendarSync', () => {
     expect(after.map((r) => r.externalId)).toEqual(['ev-1']);
     expect(after[0]!.id).toBe(before[0]!.id);
   });
+
+  it('re-attributes a feed\'s mirrored rows when it is designated the household calendar', async () => {
+    const memberId = await connectedMember();
+    await setCalendarAllowlist(memberId, 'google', [{ id: 'cal-a', name: 'Anna' }]);
+    fake.setEvents('cal-a', [{ pages: [{ events: [
+      { id: 'ev-1', summary: 'Dentist', startUtc: '2026-09-01T09:00:00Z', endUtc: '2026-09-01T10:00:00Z' },
+    ] }] }]);
+    await runGoogleCalendarSync(rt, provider());
+
+    const before = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.externalId, 'ev-1'));
+    expect(before[0]!.memberId).toBe(memberId);
+
+    // Designating the calendar as the household calendar clears its sync
+    // token, forcing the next sync to be a fresh full pull.
+    await setHouseholdCalendar(memberId, 'google', 'cal-a');
+    fake.setEvents('cal-a', [{ pages: [{ events: [
+      { id: 'ev-1', summary: 'Dentist', startUtc: '2026-09-01T09:00:00Z', endUtc: '2026-09-01T10:00:00Z' },
+    ] }] }]);
+    await runGoogleCalendarSync(rt, provider());
+
+    const after = await db.select().from(calendarMirrorEvents)
+      .where(eq(calendarMirrorEvents.externalId, 'ev-1'));
+    expect(after).toHaveLength(1);
+    expect(after[0]!.id).toBe(before[0]!.id);
+    expect(after[0]!.memberId).toBeNull();
+  });
 });

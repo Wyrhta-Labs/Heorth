@@ -33,6 +33,44 @@ export interface FakeGoogle {
   failRefresh: boolean;
   /** Email returned by the userinfo endpoint. */
   userEmail: string;
+  // --- calendar ---
+  /** Calendars returned by GET /calendar/v3/users/me/calendarList. */
+  calendars: FakeGoogleCalendar[];
+  /** Scripted events.list batches, keyed by calendarId. */
+  events: Map<string, FakeGoogleEventBatch[]>;
+  /** calendarIds whose next events.list returns a 500. */
+  failEvents: Set<string>;
+  setCalendars(list: FakeGoogleCalendar[]): void;
+  setEvents(calendarId: string, batches: FakeGoogleEventBatch[]): void;
+}
+
+/** A scripted calendar from `calendarList`. */
+export interface FakeGoogleCalendar {
+  id: string;
+  summary: string;
+}
+
+/** A scripted event as `events.list` returns it (singleEvents=true). */
+export interface FakeGoogleEvent {
+  id: string;
+  summary?: string;
+  /** RFC3339 instant; omit together with `endUtc` for an all-day event. */
+  startUtc?: string;
+  endUtc?: string;
+  /** All-day: inclusive start date and Google's EXCLUSIVE end date. */
+  startDate?: string;
+  endDate?: string;
+  timeZone?: string;
+  location?: string;
+  organizer?: string;
+  recurringEventId?: string;
+  status?: 'confirmed' | 'cancelled';
+}
+
+/** One events.list "batch" = what one syncToken returns. `gone` → 410. */
+export interface FakeGoogleEventBatch {
+  pages: Array<{ events?: FakeGoogleEvent[] }>;
+  gone?: boolean;
 }
 
 const TEST_CONFIG: GoogleConfig = {
@@ -49,6 +87,11 @@ export function createFakeGoogle(): FakeGoogle {
     omitRefreshToken: false,
     failRefresh: false,
     userEmail: 'member@gmail.test',
+    calendars: [],
+    events: new Map(),
+    failEvents: new Set(),
+    setCalendars(list) { state.calendars = list; },
+    setEvents(calendarId, batches) { state.events.set(calendarId, batches); },
   };
 
   // Token endpoint (authorization_code / refresh_token).
@@ -88,6 +131,67 @@ export function createFakeGoogle(): FakeGoogle {
   state.app.get('/v1/userinfo', (c) => {
     state.calls.push({ method: 'GET', path: '/v1/userinfo' });
     return c.json({ sub: 'google-user-id', email: state.userEmail, email_verified: true });
+  });
+
+  // --- calendar ---
+
+  // GET /calendar/v3/users/me/calendarList — discovery.
+  state.app.get('/calendar/v3/users/me/calendarList', (c) => {
+    state.calls.push({ method: 'GET', path: '/calendar/v3/users/me/calendarList' });
+    return c.json({ items: state.calendars.map((cal) => ({ id: cal.id, summary: cal.summary })) });
+  });
+
+  // GET /calendar/v3/calendars/:calendarId/events — full or incremental pull.
+  state.app.get('/calendar/v3/calendars/:calendarId/events', (c) => {
+    const calendarId = decodeURIComponent(c.req.param('calendarId'));
+    const url = new URL(c.req.url);
+    state.calls.push({ method: 'GET', path: url.pathname, query: url.search.replace(/^\?/, '') });
+
+    if (state.failEvents.has(calendarId)) {
+      return c.json({ error: { code: 500, message: 'backendError' } }, 500);
+    }
+
+    const batches = state.events.get(calendarId) ?? [];
+    // Token encodes "<batchIndex>.<pageIndex>", the same trick fake-graph uses.
+    //
+    // pageToken WINS over syncToken. On an incremental pull Google's follow-up
+    // pages repeat the original query — syncToken included — and add pageToken,
+    // so a fake that preferred syncToken would serve page 0 over and over until
+    // the provider's MAX_PAGES guard tripped, and the paging test would pass
+    // against a broken provider.
+    const token = c.req.query('pageToken') ?? c.req.query('syncToken');
+    let bi = 0;
+    let pi = 0;
+    if (token) { const [b, p] = token.split('.'); bi = Number(b); pi = Number(p); }
+
+    const batch = batches[bi];
+    if (batch?.gone) {
+      return c.json({ error: { code: 410, message: 'Sync token is no longer valid', errors: [{ reason: 'fullSyncRequired' }] } }, 410);
+    }
+    if (!batch) {
+      return c.json({ items: [], nextSyncToken: `${bi}.0` });
+    }
+
+    const page = batch.pages[pi] ?? {};
+    // Honour showDeleted the way Google does (it defaults to FALSE): a
+    // cancelled event is only delivered when it is asked for. A fake that
+    // always returned them would let a provider that forgot the flag pass the
+    // deletion test while silently never seeing a deletion in production.
+    const showDeleted = c.req.query('showDeleted') === 'true';
+    const visible = (page.events ?? []).filter((e) => showDeleted || e.status !== 'cancelled');
+    const items = visible.map((e) => ({
+      id: e.id,
+      status: e.status ?? 'confirmed',
+      summary: e.summary,
+      start: e.startDate ? { date: e.startDate } : { dateTime: e.startUtc, timeZone: e.timeZone ?? 'UTC' },
+      end: e.endDate ? { date: e.endDate } : { dateTime: e.endUtc, timeZone: e.timeZone ?? 'UTC' },
+      ...(e.location ? { location: e.location } : {}),
+      ...(e.organizer ? { organizer: { displayName: e.organizer } } : {}),
+      ...(e.recurringEventId ? { recurringEventId: e.recurringEventId } : {}),
+    }));
+    const hasMorePages = pi + 1 < batch.pages.length;
+    if (hasMorePages) return c.json({ items, nextPageToken: `${bi}.${pi + 1}` });
+    return c.json({ items, nextSyncToken: `${bi + 1}.0` });
   });
 
   return state;

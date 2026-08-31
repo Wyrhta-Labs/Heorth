@@ -10,7 +10,7 @@ import { setAllowlist } from '../src/modules/tasks/store.js';
 import { calendarAllowlist } from '../src/modules/calendar/allowlist-schema.js';
 import { calendarMirrorEvents } from '../src/modules/calendar/mirror-schema.js';
 import { setCalendarAllowlist, setHouseholdCalendar } from '../src/modules/calendar/allowlist-store.js';
-import { integrationSyncState } from '../src/integrations/schema.js';
+import { integrationConnections, integrationSyncState } from '../src/integrations/schema.js';
 import { feedKeys } from '../src/integrations/feed-keys.js';
 import { clearProviders } from '../src/integrations/registry.js';
 import type { TaskProvider } from '../src/modules/tasks/providers/types.js';
@@ -130,14 +130,16 @@ describe('repairMaintenanceAdmin', () => {
 
   it('cleans up m365_sync_state rows for the admin-owned feeds (calendar + allowlisted To Do lists)', async () => {
     const { admin } = await seedTestHousehold();
-    // The default-calendar feed key is now built from the REGISTERED provider
-    // list (Task 13), not hardcoded — so m365 must be registered for this
-    // scenario to model "the admin had connected M365 in the past".
-    registerFakeTaskProvider('m365', stubTaskProvider());
-
     // Simulate the admin having connected M365 in the past: an allowlisted list
     // and sync state for both its calendar feed and its To Do feed, PLUS a
-    // feed belonging to someone else that must survive untouched.
+    // feed belonging to someone else that must survive untouched. Deliberately
+    // NO provider is registered here — the provider is discoverable from the
+    // `integration_connections` row alone, which is what a disabled-at-boot
+    // provider still leaves behind.
+    await db.insert(integrationConnections).values({
+      memberId: admin.user.id, provider: 'm365',
+      accountLabel: 'admin@m365.test', refreshTokenEncrypted: 'iv:tag:ct',
+    });
     await db.insert(todoListAllowlist).values({
       memberId: admin.user.id, listId: 'list-1', listName: 'Admin List',
     });
@@ -231,5 +233,29 @@ describe('repairMaintenanceAdmin', () => {
     expect(left).toEqual([]);
     expect(await db.select().from(calendarAllowlist)).toEqual([]);
     expect(await db.select().from(calendarMirrorEvents)).toEqual([]);
+  });
+
+  it('clears the default-calendar feed for a provider the admin connected but that is NOT currently registered', async () => {
+    // Registration is gated on that provider's own env at boot, but this repair
+    // runs at boot unconditionally. A provider the admin once connected and that
+    // was later disabled (a documented supported no-op state) must still have
+    // its default-calendar feed cleaned up — otherwise it freezes forever in
+    // `/integrations/status`'s `feeds[]`, discoverable only via the surviving
+    // `integration_connections` row, never via `listProviders()`.
+    const { admin } = await seedTestHousehold();
+    const adminId = admin.user.id;
+    // Deliberately: no registerFakeTaskProvider call at all.
+
+    await db.insert(integrationConnections).values({
+      memberId: adminId, provider: 'm365',
+      accountLabel: 'admin@m365.test', refreshTokenEncrypted: 'iv:tag:ct',
+    });
+    const adminCalendarKey = feedKeys.calendarMember('m365', adminId);
+    await db.insert(integrationSyncState).values({ feedKey: adminCalendarKey, lastSuccessAt: new Date() });
+
+    await repairMaintenanceAdmin(CREDS);
+
+    const remaining = await db.select().from(integrationSyncState);
+    expect(remaining.map((r) => r.feedKey)).not.toContain(adminCalendarKey);
   });
 });

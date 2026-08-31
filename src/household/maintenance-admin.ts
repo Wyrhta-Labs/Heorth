@@ -152,6 +152,13 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
 
   const attendees = await tx.delete(eventAttendees).where(eq(eventAttendees.memberId, adminId));
   counts['event_attendees'] = attendees.count;
+
+  // Read the admin's connections' PROVIDERS before deleting the rows below —
+  // this is what lets the default-calendar feed key (built further down) survive
+  // a provider being disconnected/disabled at boot (see the comment there).
+  const adminConnectionRows = await tx.select().from(integrationConnections)
+    .where(eq(integrationConnections.memberId, adminId));
+
   // Deliberately provider-UNscoped: stripping the admin's owned data means
   // removing every connection they hold, whatever the provider — not just
   // whichever one this delete happens to name. Do not add a provider filter
@@ -165,9 +172,9 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
   // `integration_sync_state` is keyed by a generic `feedKey` string, not
   // `memberId`, so it cannot be targeted with a plain where(eq(memberId, …))
   // delete — the keys must be rebuilt via `feedKeys` (never hand-formatted, per
-  // its own contract) BEFORE the allowlist rows they derive from are deleted.
-  // Without this, a feed the admin had connected leaves a permanently frozen
-  // row in `/integrations/status`'s `feeds[]` forever.
+  // its own contract) BEFORE the allowlist/connection rows they derive from
+  // are deleted. Without this, a feed the admin had connected leaves a
+  // permanently frozen row in `/integrations/status`'s `feeds[]` forever.
   //
   // Built for EVERY REGISTERED PROVIDER, not just m365: the single-provider
   // version of this left exactly that frozen row behind for the second one.
@@ -175,11 +182,21 @@ async function stripAdminOwnedData(tx: Tx, adminId: string): Promise<void> {
     .where(eq(todoListAllowlist.memberId, adminId));
   const adminCalendarRows = await tx.select().from(calendarAllowlist)
     .where(eq(calendarAllowlist.memberId, adminId));
-  const providerIds = listProviders().map((p) => p.id);
+  // The default-calendar feed key CANNOT be derived from `listProviders()`
+  // alone: registration is gated on that provider's env at boot, but this
+  // repair runs at boot unconditionally. A provider the admin connected and
+  // that was later disabled (a documented supported no-op state) would drop
+  // out of `listProviders()` while its frozen sync-state row survives forever
+  // — the exact bug this block exists to close, reached through disablement
+  // instead of through a second provider. So the provider set for this key is
+  // REGISTERED providers UNION providers the admin has ever connected
+  // (read from `integration_connections` above, before its rows were deleted).
+  const providerIds = new Set([
+    ...listProviders().map((p) => p.id),
+    ...adminConnectionRows.map((row) => row.provider),
+  ]);
   const staleFeedKeys = [
-    // A provider's default-calendar feed exists whether or not it is allowlisted
-    // (M365 mints one per connection), so it is included unconditionally.
-    ...providerIds.map((provider) => feedKeys.calendarMember(provider, adminId)),
+    ...[...providerIds].map((provider) => feedKeys.calendarMember(provider, adminId)),
     ...adminTodoRows.map((row) => feedKeys.todoMember(row.provider, adminId, row.listId)),
     ...adminCalendarRows.map((row) => feedKeys.calendarList(row.provider, adminId, row.calendarId)),
   ];

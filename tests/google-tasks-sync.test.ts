@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { db } from '../src/db/index.js';
+import { taskMirror } from '../src/modules/tasks/schema.js';
 import { seedTestHousehold } from './helpers.js';
 import { createFakeGoogle, runtimeForFakeGoogle, type FakeGoogle } from './fake-google.js';
 import { GoogleTaskProvider } from '../src/google/task-provider.js';
 import { setAllowlist } from '../src/modules/tasks/store.js';
+import { runGoogleTaskSync } from '../src/google/task-sync.js';
 import { TaskProviderError } from '../src/modules/tasks/providers/types.js';
 import type { GoogleRuntime } from '../src/google/runtime.js';
 
@@ -160,5 +164,54 @@ describe('GoogleTaskProvider write-back', () => {
     const e = await provider().setCompleted(feedKey, 't-1', true).catch((err: unknown) => err);
     expect(e).toBeInstanceOf(TaskProviderError);
     expect((e as TaskProviderError).reason).toBe('needs_reauth');
+  });
+});
+
+describe('runGoogleTaskSync', () => {
+  it('mirrors the snapshot and records per-feed success', async () => {
+    const { feedKey } = await connectedMemberWithList();
+    fake.setTasks('list-1', [{ id: 't-1', title: 'Müll rausbringen' }]);
+
+    const results = await runGoogleTaskSync(rt, provider());
+    expect(results).toEqual([{ feedKey, status: 'ok', upserted: 1, deleted: 0 }]);
+
+    const rows = await db.select().from(taskMirror).where(eq(taskMirror.source, 'google'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.listName).toBe('Haushalt');
+  });
+
+  it('DELETES a task that vanished at the source, with no tombstone', async () => {
+    await connectedMemberWithList();
+    fake.setTasks('list-1', [{ id: 't-1', title: 'Bleibt' }, { id: 't-2', title: 'Verschwindet' }]);
+    await runGoogleTaskSync(rt, provider());
+    const before = await db.select().from(taskMirror).where(eq(taskMirror.externalId, 't-1'));
+
+    // The next snapshot simply does not contain t-2 — no tombstone anywhere.
+    fake.setTasks('list-1', [{ id: 't-1', title: 'Bleibt' }]);
+    const [result] = await runGoogleTaskSync(rt, provider());
+
+    expect(result).toMatchObject({ status: 'ok', upserted: 1, deleted: 1 });
+    const after = await db.select().from(taskMirror).where(eq(taskMirror.source, 'google'));
+    expect(after.map((r) => r.externalId)).toEqual(['t-1']);
+    // The surviving row keeps its uuid: GET /api/v1/tasks hands these ids to the
+    // web, and churning them every tick would make /:id/complete flakily 404.
+    expect(after[0]!.id).toBe(before[0]!.id);
+  });
+
+  it('does not touch an M365 feed', async () => {
+    const { adult } = await seedTestHousehold();
+    await rt.store.upsertConnection({
+      memberId: adult.user.id, accountLabel: 'a@gmail.test', refreshToken: 'r', scopes: '',
+    });
+    await setAllowlist(adult.user.id, 'm365', [{ id: 'm365-list', name: 'Outlook' }]);
+    const results = await runGoogleTaskSync(rt, provider());
+    expect(results).toEqual([]);
+  });
+
+  it('classifies an upstream failure as google_<status>', async () => {
+    const { feedKey } = await connectedMemberWithList();
+    fake.failTasks.add('list-1');
+    const [result] = await runGoogleTaskSync(rt, provider());
+    expect(result).toMatchObject({ feedKey, status: 'error', reason: 'google_500' });
   });
 });

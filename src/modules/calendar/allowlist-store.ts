@@ -5,6 +5,19 @@ import { integrationSyncState } from '../../integrations/schema.js';
 import { calendarMirrorEvents } from './mirror-schema.js';
 import { calendarAllowlist, type CalendarAllowlistRow } from './allowlist-schema.js';
 
+/**
+ * Thrown when a de-selection would drop the calendar currently designated as
+ * the household calendar. Designating the household calendar requires
+ * admin/adult; without this guard, un-designating it would not — any member
+ * could silently clear it by omitting it from their own selection.
+ */
+export class HouseholdCalendarInUseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HouseholdCalendarInUseError';
+  }
+}
+
 /** A feed = one allowlisted calendar of one member, at one provider. */
 export interface CalendarAllowlistFeed {
   provider: string;
@@ -52,6 +65,15 @@ export async function setCalendarAllowlist(
 
     for (const row of existing) {
       if (!keepIds.has(row.calendarId)) {
+        // Un-designating the household calendar this way is silent and needs
+        // only calendar ownership, not admin/adult — refuse it the same way
+        // `setHouseholdCalendar` refuses to leave the household undesignated.
+        if (row.isHousehold) {
+          throw new HouseholdCalendarInUseError(
+            `Cannot de-select ${provider}:${row.calendarId}: it is the designated household calendar. `
+            + 'Designate a different household calendar first.',
+          );
+        }
         const feedKey = feedKeys.calendarList(provider, memberId, row.calendarId);
         await tx.delete(calendarAllowlist).where(eq(calendarAllowlist.id, row.id));
         await tx.delete(calendarMirrorEvents).where(eq(calendarMirrorEvents.feedKey, feedKey));

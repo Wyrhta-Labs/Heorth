@@ -162,4 +162,37 @@ describe('PUT /api/v1/calendar/household-calendar', () => {
     expect(res.status).toBe(409);
     expect((await res.json() as { error: { code: string } }).error.code).toBe('UNKNOWN_CALENDAR');
   });
+
+  it('refuses to de-select the household calendar via the allowlist route, and it survives', async () => {
+    const { adult } = await seedTestHousehold();
+    registerFakeCalendarProvider('google', fakeCalendarProvider('google', [
+      { id: 'cal-a', name: 'Anna' }, { id: 'cal-b', name: 'Sport' },
+    ]));
+    await app.request('/api/v1/calendar/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ calendars: [
+        { provider: 'google', calendarId: 'cal-a' }, { provider: 'google', calendarId: 'cal-b' },
+      ] }),
+    });
+    await app.request('/api/v1/calendar/household-calendar', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ provider: 'google', calendarId: 'cal-a' }),
+    });
+
+    // Submitting a selection that omits cal-a (the household calendar) must be
+    // refused, not silently honored — designating it needs admin/adult, so
+    // un-designating it must too.
+    const res = await app.request('/api/v1/calendar/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ calendars: [{ provider: 'google', calendarId: 'cal-b' }] }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe('HOUSEHOLD_CALENDAR_IN_USE');
+
+    const check = await app.request('/api/v1/calendar/calendars', { headers: authHeaders(adult.jwt) });
+    const { data } = await check.json() as { data: Array<{ id: string; enabled: boolean; isHousehold: boolean }> };
+    const calA = data.find((c) => c.id === 'cal-a');
+    expect(calA?.enabled).toBe(true);
+    expect(calA?.isHousehold).toBe(true);
+  });
 });

@@ -4,6 +4,7 @@ import { seedTestHousehold, authHeaders, registerFakeTaskProvider } from './help
 import { tasksRouter } from '../src/modules/tasks/routes.js';
 import { clearProviders } from '../src/integrations/registry.js';
 import { TaskProviderError } from '../src/modules/tasks/providers/types.js';
+import { setHouseholdList } from '../src/modules/tasks/store.js';
 import type { AvailableList, TaskProvider } from '../src/modules/tasks/providers/types.js';
 
 function fakeTaskProvider(id: string, lists: AvailableList[], failWith?: string): TaskProvider {
@@ -158,6 +159,36 @@ describe('PUT /api/v1/tasks/allowlist', () => {
 
     const check = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
     expect((await check.json() as { data: unknown[] }).data).toEqual([]);
+  });
+
+  it('refuses to de-select the household list, and it survives', async () => {
+    const { adult } = await seedTestHousehold();
+    registerFakeTaskProvider('google', fakeTaskProvider('google', [
+      { id: 'g-1', name: 'Haushalt' }, { id: 'g-2', name: 'Sonstiges' },
+    ]));
+    await app().request('/api/v1/tasks/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ lists: [
+        { provider: 'google', listId: 'g-1' }, { provider: 'google', listId: 'g-2' },
+      ] }),
+    });
+    await setHouseholdList(adult.user.id, 'google', 'g-1');
+
+    // Submitting a selection that omits g-1 (the household list) must be
+    // refused, not silently honored — losing it breaks `createHouseholdTask`
+    // and Weorc's projected maintenance tasks.
+    const res = await app().request('/api/v1/tasks/allowlist', {
+      method: 'PUT', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ lists: [{ provider: 'google', listId: 'g-2' }] }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe('HOUSEHOLD_LIST_IN_USE');
+
+    const check = await app().request('/api/v1/tasks/allowlist', { headers: authHeaders(adult.jwt) });
+    const { data } = await check.json() as { data: Array<{ listId: string; isHousehold: boolean }> };
+    const g1 = data.find((r) => r.listId === 'g-1');
+    expect(g1).toBeDefined();
+    expect(g1?.isHousehold).toBe(true);
   });
 
   it('surfaces an upstream Google 5xx on a write-back as 502, mirroring the Graph case', async () => {

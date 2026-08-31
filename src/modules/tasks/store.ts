@@ -2,7 +2,7 @@ import { and, eq, gte, lte, inArray, notInArray, asc, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { feedKeys } from '../../integrations/feed-keys.js';
 import { taskMirror, todoListAllowlist, type TaskMirrorRow, type TodoListAllowlistRow } from './schema.js';
-import type { MirroredTask, TaskPullResult, TaskStatus } from './providers/types.js';
+import { TaskProviderError, type MirroredTask, type TaskPullResult, type TaskStatus } from './providers/types.js';
 
 /**
  * Persistence for the To Do mirror and the per-member list allowlist.
@@ -217,6 +217,18 @@ export async function setAllowlist(
     // Remove de-selected lists + their mirrored tasks.
     for (const row of existing) {
       if (!keepIds.has(row.listId)) {
+        // Un-designating the household list this way is silent and needs only
+        // list ownership, not admin/adult — refuse it. This is the same class
+        // of hole the calendar allowlist has for its household calendar; losing
+        // this row breaks `createHouseholdTask` and Weorc's projected
+        // maintenance tasks with it.
+        if (row.isHousehold) {
+          throw new TaskProviderError(
+            'household_list_in_use',
+            `Cannot de-select ${provider}:${row.listId}: it is the designated household list. `
+            + 'Designate a different household list first.',
+          );
+        }
         await tx.delete(todoListAllowlist).where(eq(todoListAllowlist.id, row.id));
         await tx.delete(taskMirror).where(eq(taskMirror.feedKey, feedKeys.todoMember(provider, memberId, row.listId)));
       }

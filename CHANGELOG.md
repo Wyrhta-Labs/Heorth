@@ -113,6 +113,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reported the same way as the identical Microsoft failure instead of falling
   through to a generic 500.
 
+- **De-selecting the designated household calendar or task list is now refused
+  instead of silently honored.** `PUT /api/v1/calendar/allowlist` and
+  `PUT /api/v1/tasks/allowlist` are open to any member for their own
+  calendars/lists, but only an admin/adult can *designate* the household one —
+  so un-designating it by simply omitting it from a de-selection used to
+  require no special role and returned 200. Both routes now reject with 409
+  (`HOUSEHOLD_CALENDAR_IN_USE` / `household_list_in_use`) when the submitted
+  selection would drop the row carrying `is_household`. The tasks half is a
+  pre-existing gap (Phase 1), not introduced by this branch — it broke
+  `createHouseholdTask` and Weorc's projected maintenance tasks.
+
 - **A full resync no longer deletes and re-inserts a feed's mirror rows.**
   `task_mirror.id` and `calendar_mirror_events.id` now stay stable across a
   `410`/periodic full resync — rows are reconciled (upserted where present,

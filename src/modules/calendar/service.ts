@@ -8,8 +8,11 @@ import { assertNotMaintenanceAdmin, assertNoneAreMaintenanceAdmin } from '../../
 import { listProviders } from '../../integrations/registry.js';
 import {
   getCalendarAllowlist, setCalendarAllowlist, getHouseholdCalendar, setHouseholdCalendar,
+  HouseholdCalendarInUseError,
   type CalendarAllowlistFeed,
 } from './allowlist-store.js';
+
+export { HouseholdCalendarInUseError };
 import type { CalendarAllowlistRow } from './allowlist-schema.js';
 import type { AvailableCalendar } from './providers/types.js';
 

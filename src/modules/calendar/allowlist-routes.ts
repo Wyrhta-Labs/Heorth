@@ -32,6 +32,9 @@ calendarAllowlistRouter.put('/allowlist', async (c) => {
     return ok(c, await service.setCalendarAllowlistFor(c.get('auth').userId, body.data.calendars));
   } catch (e) {
     if (e instanceof service.UnknownCalendarError) return err(c, 'UNKNOWN_CALENDAR', e.message, 409);
+    if (e instanceof service.HouseholdCalendarInUseError) {
+      return err(c, 'HOUSEHOLD_CALENDAR_IN_USE', e.message, 409);
+    }
     throw e;
   }
 });

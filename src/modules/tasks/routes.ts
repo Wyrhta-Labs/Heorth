@@ -34,7 +34,8 @@ function writeError(c: Context, e: unknown): Response {
   if (e instanceof TaskProviderError) {
     const conflict =
       e.reason === 'needs_reauth' || e.reason === 'no_connection'
-      || e.reason === 'shared_list_unavailable' || e.reason === 'unknown_list';
+      || e.reason === 'shared_list_unavailable' || e.reason === 'unknown_list'
+      || e.reason === 'household_list_in_use';
     if (conflict) return err(c, e.reason.toUpperCase(), e.message, 409);
     // Upstream said 5xx. Both providers' tokens are matched: `graph_503` and
     // `google_503` are the same failure class and must not be reported

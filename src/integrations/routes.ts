@@ -139,10 +139,16 @@ integrationsRouter.get('/:provider/callback', async (c) => {
   try {
     const { accountLabel, refreshToken, scopes } = await provider.completeConnect(code);
     await provider.store.upsertConnection({ memberId, accountLabel, refreshToken, scopes });
-  } catch {
-    // Upstream identity failure or unexpected error. Details are not surfaced
-    // (they may reference tokens); the member simply retries the connect.
-    return c.redirect(`/profile?connectError=${id.toUpperCase()}_EXCHANGE_FAILED`, 302);
+  } catch (e) {
+    // Upstream identity failures are NOT surfaced (they may reference tokens).
+    // The one exception is an error that names its own safe code — currently
+    // only GOOGLE_NO_REFRESH_TOKEN, where the generic message would send the
+    // member round the consent loop again with no idea what to change.
+    const named = (e as { connectErrorCode?: unknown }).connectErrorCode;
+    const code = typeof named === 'string' && /^[A-Z0-9_]{1,64}$/.test(named)
+      ? named
+      : `${id.toUpperCase()}_EXCHANGE_FAILED`;
+    return c.redirect(`/profile?connectError=${code}`, 302);
   }
   return c.redirect(`/profile?connected=${id}`, 302);
 });

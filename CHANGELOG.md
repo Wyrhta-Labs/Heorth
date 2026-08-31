@@ -39,6 +39,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, plus the non-credential
   `GOOGLE_FULL_RESYNC_INTERVAL_SECONDS` knob), in the same all-or-nothing
   shape as `M365_*`.
+- **Weorc module** (`src/modules/weorc/`, ADR 0014): household routines backed
+  by `weorc_routines` and `weorc_occurrences`, with due-work materialisation,
+  completion/skip history, an ungated background scheduler, and task projection
+  through the existing Tasks provider when one is available. The Tasks service
+  now exposes the projected-task create/complete and feed-reference lookup paths
+  Weorc needs without making M365 a requirement.
+- **Heorth can open KithLedger from its navigation.** `GET /api/v1/features`
+  now returns `kithledgerUrl` when the KithLedger integration is configured,
+  and the web shell renders it as an external `KithLedger` launcher. Deployments
+  with internal service URLs can set `KITH_PUBLIC_URL`; otherwise it falls back
+  to `KITH_BASE_URL`.
 
 ### Changed — BREAKING
 
@@ -109,20 +120,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removes an intermittent 404 where the web had a task's id in hand, a resync
   landed between the read and the write, and `POST /api/v1/tasks/:id/complete`
   hit an id that no longer existed.
-
-### Added
-
-- **Weorc module** (`src/modules/weorc/`, ADR 0014): household routines backed
-  by `weorc_routines` and `weorc_occurrences`, with due-work materialisation,
-  completion/skip history, an ungated background scheduler, and task projection
-  through the existing Tasks provider when one is available. The Tasks service
-  now exposes the projected-task create/complete and feed-reference lookup paths
-  Weorc needs without making M365 a requirement.
-- **Heorth can open KithLedger from its navigation.** `GET /api/v1/features`
-  now returns `kithledgerUrl` when the KithLedger integration is configured,
-  and the web shell renders it as an external `KithLedger` launcher. Deployments
-  with internal service URLs can set `KITH_PUBLIC_URL`; otherwise it falls back
-  to `KITH_BASE_URL`.
 
 ## [0.6.0] - 2026-08-25
 

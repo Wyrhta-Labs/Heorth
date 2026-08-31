@@ -127,13 +127,24 @@ export async function setHouseholdCalendar(
     await tx.update(calendarAllowlist)
       .set({ isHousehold: false, updatedAt: new Date() })
       .where(eq(calendarAllowlist.isHousehold, true));
-    await tx.update(calendarAllowlist)
+    const designated = await tx.update(calendarAllowlist)
       .set({ isHousehold: true, updatedAt: new Date() })
       .where(and(
         eq(calendarAllowlist.memberId, memberId),
         eq(calendarAllowlist.provider, provider),
         eq(calendarAllowlist.calendarId, calendarId),
-      ));
+      ))
+      .returning({ id: calendarAllowlist.id });
+    // The triple can fail to match a row (stale UI state, or the calendar was
+    // de-selected between page load and submit). Without this check the clear
+    // above still commits and the household is left with NO designated
+    // calendar — atomic is not the same as correct. Throwing rolls the whole
+    // transaction back, so the previous designation survives.
+    if (designated.length === 0) {
+      throw new Error(
+        `Cannot designate household calendar: ${provider}:${calendarId} is not allowlisted for member ${memberId}`,
+      );
+    }
 
     const affected = [
       ...previouslyFlagged.map((r) => feedKeys.calendarList(r.provider, r.memberId, r.calendarId)),

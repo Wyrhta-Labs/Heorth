@@ -97,4 +97,42 @@ describe('calendar allowlist store', () => {
     expect(state!.syncToken).toBeNull();
     expect(state!.lastFullSyncAt).toBeNull();
   });
+
+  it('clears sync tokens on BOTH the newly- and previously-designated feeds', async () => {
+    const { adult } = await seedTestHousehold();
+    await setCalendarAllowlist(adult.user.id, 'google', [
+      { id: 'cal-a', name: 'A' },
+      { id: 'cal-b', name: 'B' },
+    ]);
+    const feedKeyA = `google:calendar:member:${adult.user.id}:cal-a`;
+    const feedKeyB = `google:calendar:member:${adult.user.id}:cal-b`;
+    await db.insert(integrationSyncState).values([
+      { feedKey: feedKeyA, syncToken: 'tok-a', lastFullSyncAt: new Date() },
+      { feedKey: feedKeyB, syncToken: 'tok-b', lastFullSyncAt: new Date() },
+    ]);
+
+    await setHouseholdCalendar(adult.user.id, 'google', 'cal-a');
+    await setHouseholdCalendar(adult.user.id, 'google', 'cal-b');
+
+    const [stateA] = await db.select().from(integrationSyncState)
+      .where(eq(integrationSyncState.feedKey, feedKeyA));
+    const [stateB] = await db.select().from(integrationSyncState)
+      .where(eq(integrationSyncState.feedKey, feedKeyB));
+    expect(stateA!.syncToken).toBeNull();
+    expect(stateA!.lastFullSyncAt).toBeNull();
+    expect(stateB!.syncToken).toBeNull();
+    expect(stateB!.lastFullSyncAt).toBeNull();
+  });
+
+  it('rejects designating a calendar that is not allowlisted, leaving the prior designation intact', async () => {
+    const { adult } = await seedTestHousehold();
+    await setCalendarAllowlist(adult.user.id, 'google', [{ id: 'cal-a', name: 'A' }]);
+    await setHouseholdCalendar(adult.user.id, 'google', 'cal-a');
+
+    await expect(
+      setHouseholdCalendar(adult.user.id, 'google', 'cal-not-allowlisted'),
+    ).rejects.toThrow();
+
+    expect(await getHouseholdCalendar()).toMatchObject({ memberId: adult.user.id, calendarId: 'cal-a' });
+  });
 });

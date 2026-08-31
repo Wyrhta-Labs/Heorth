@@ -14,14 +14,14 @@ vi.mock('@/hooks/use-household', () => ({
   ] } }),
 }));
 vi.mock('@/api/m365', () => ({
-  getM365Status: vi.fn(),
-  triggerM365Sync: (...args: unknown[]) => syncNow(...args),
+  getIntegrationsStatus: vi.fn(),
+  triggerIntegrationsSync: (...args: unknown[]) => syncNow(...args),
 }));
 vi.mock('@/hooks/use-m365', () => ({
-  useM365Status: () => ({
+  useIntegrationsStatus: () => ({
     data: { data: {
       connections: [{
-        memberId: 'b', accountLabel: 'anna@example.com', status: 'active',
+        provider: 'm365', memberId: 'b', accountLabel: 'anna@example.com', status: 'active',
         lastRefreshSuccessAt: '2026-08-04T10:00:00Z', lastRefreshError: null,
       }],
       feeds: [
@@ -64,6 +64,11 @@ describe('ConnectionsPanel', () => {
     expect(screen.getByText('anna@example.com')).toBeInTheDocument();
   });
 
+  it('shows which provider a connection row belongs to', () => {
+    renderPanel();
+    expect(screen.getByText('m365')).toBeInTheDocument();
+  });
+
   it('lists every feed and flags the failing one', () => {
     renderPanel();
     expect(screen.getByText('m365:calendar:member:b')).toBeInTheDocument();
@@ -78,7 +83,7 @@ describe('ConnectionsPanel', () => {
 
     await waitFor(() => expect(syncNow).toHaveBeenCalled());
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringContaining('1'), 'success'));
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['m365', 'status'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['integrations', 'status'] });
   });
 
   it('disables the sync button while a sync is in flight', async () => {

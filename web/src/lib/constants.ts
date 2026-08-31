@@ -37,7 +37,7 @@ export const QUERY_KEYS = {
   tasks: ['tasks'] as const,
   taskLists: ['tasks', 'lists'] as const,
   taskAllowlist: ['tasks', 'allowlist'] as const,
-  m365Status: ['m365', 'status'] as const,
+  integrationsStatus: ['integrations', 'status'] as const,
   features: ['features'] as const,
   kithReminders: ['kith', 'reminders'] as const,
 } as const;

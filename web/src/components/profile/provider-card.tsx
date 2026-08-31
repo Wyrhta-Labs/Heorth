@@ -47,7 +47,7 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
   const handleDisconnect = async () => {
     try {
       await provider.api.disconnect();
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.m365Status });
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.integrationsStatus });
       toast(t('connections.disconnected'), 'success');
     } catch {
       toast(t('connections.disconnectFailed'), 'error');

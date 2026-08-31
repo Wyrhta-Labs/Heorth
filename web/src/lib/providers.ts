@@ -1,6 +1,11 @@
-import { Cloud, type LucideIcon } from 'lucide-react';
-import { getM365ConnectUrl, disconnectM365 } from '@/api/m365';
-import { useM365ProviderStatus } from '@/hooks/use-m365';
+import { CalendarDays, Cloud, type LucideIcon } from 'lucide-react';
+// The M365 entry now uses the shared helpers too — the old
+// `getM365ConnectUrl` / `disconnectM365` / `useM365ProviderStatus` names are
+// gone in favour of the provider-parameterised versions.
+import { getConnectUrl, disconnectProvider } from '@/api/m365';
+import { useProviderStatus } from '@/hooks/use-m365';
+import { getGoogleConnectUrl, disconnectGoogle } from '@/api/google';
+import { useGoogleProviderStatus } from '@/hooks/use-google';
 
 /**
  * Provider-neutral connection state. Lives HERE (not in a provider-specific
@@ -40,15 +45,6 @@ export interface ConnectionProvider {
   api: ProviderApi;
 }
 
-async function getM365ConnectUrlUnwrapped(): Promise<string> {
-  const res = await getM365ConnectUrl();
-  return res.data.url;
-}
-
-async function disconnectM365Wrapped(): Promise<void> {
-  await disconnectM365();
-}
-
 export const PROVIDERS: ConnectionProvider[] = [
   {
     id: 'm365',
@@ -57,9 +53,21 @@ export const PROVIDERS: ConnectionProvider[] = [
     capabilities: ['calendar', 'tasks'],
     icon: Cloud,
     api: {
-      useStatus: useM365ProviderStatus,
-      getConnectUrl: getM365ConnectUrlUnwrapped,
-      disconnect: disconnectM365Wrapped,
+      useStatus: () => useProviderStatus('m365'),
+      getConnectUrl: async () => (await getConnectUrl('m365')).data.url,
+      disconnect: async () => { await disconnectProvider('m365'); },
+    },
+  },
+  {
+    id: 'google',
+    nameKey: 'connections.google.name',
+    descriptionKey: 'connections.google.description',
+    capabilities: ['calendar', 'tasks'],
+    icon: CalendarDays,
+    api: {
+      useStatus: useGoogleProviderStatus,
+      getConnectUrl: async () => (await getGoogleConnectUrl()).data.url,
+      disconnect: async () => { await disconnectGoogle(); },
     },
   },
 ];

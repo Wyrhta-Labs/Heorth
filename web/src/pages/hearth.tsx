@@ -19,7 +19,7 @@ import { useEvents } from '@/hooks/use-calendar';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
 import { useWeekPlan, useRecipes, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
 import { useHouseholdMembers } from '@/hooks/use-household';
-import { useM365FeedStatus } from '@/hooks/use-m365';
+import { useIntegrationsFeedStatus } from '@/hooks/use-m365';
 import { useFeatures } from '@/hooks/use-features';
 import { useKithReminders } from '@/hooks/use-kith';
 import { useFormatters } from '@/hooks/use-formatters';
@@ -78,7 +78,7 @@ function HearthInner() {
   const planQuery = useWeekPlan(fromDay, toDay, { refetchInterval: POLL_MEALS, gcTime: GC, placeholderData: keepPreviousData });
   const recipesQuery = useRecipes();
   const membersQuery = useHouseholdMembers();
-  const statusQuery = useM365FeedStatus();
+  const statusQuery = useIntegrationsFeedStatus();
   // KithLedger reminders: only when the integration is configured server-side
   // AND the wall toggle is on — otherwise the query never fires (no 404 loop).
   const featuresQuery = useFeatures();

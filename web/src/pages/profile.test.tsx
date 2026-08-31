@@ -61,6 +61,15 @@ describe('ProfilePage', () => {
     ));
   });
 
+  it('maps GOOGLE_NO_REFRESH_TOKEN to its retry-specific message', async () => {
+    window.history.replaceState({}, '', '/profile?connectError=GOOGLE_NO_REFRESH_TOKEN');
+    render(<ProfilePage />);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(
+      expect.stringContaining('offline access'),
+      'error',
+    ));
+  });
+
   it('falls back to the generic message for an unrecognised error code', async () => {
     window.history.replaceState({}, '', '/profile?connectError=SOMETHING_UNKNOWN');
     render(<ProfilePage />);

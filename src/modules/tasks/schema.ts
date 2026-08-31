@@ -23,7 +23,7 @@ export const taskMirror = pgTable('task_mirror', {
   syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().default(sql`now()`),
   // Source discriminator (e.g. 'm365'); future providers reuse this table.
   source: text('source').notNull(),
-  // Canonical sync feed key (todo:member:<id>:<listId>).
+  // Canonical sync feed key (<provider>:todo:member:<id>:<listId>).
   feedKey: text('feed_key').notNull(),
   // Stable id within the feed (Graph todoTask id).
   externalId: text('external_id').notNull(),

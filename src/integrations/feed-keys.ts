@@ -10,8 +10,10 @@
  *  - `<provider>:calendar:family`                        — the shared household feed
  *  - `<provider>:todo:member:<memberId>:<listId>`        — one task list
  *
- * Keys are OPAQUE: build them here, compare them whole, never parse them back
- * apart. The provider segment exists for uniqueness, not for reading.
+ * Keys are meant to be built here and compared whole — but they ARE parsed
+ * back apart in a few places (both M365 providers, and two web helpers).
+ * Changing this format means finding and updating every one of those call
+ * sites, not just this file.
  */
 export const feedKeys = {
   calendarMember: (provider: string, memberId: string): string =>

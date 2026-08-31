@@ -142,8 +142,9 @@ export async function getTaskById(id: string): Promise<TaskMirrorRow | null> {
 }
 
 /**
- * One mirrored task by the stable feed reference. `task_mirror.id` is recreated
- * by full resync; `(feedKey, externalId)` is the table's unique provider key.
+ * One mirrored task by the stable feed reference. A full resync now reconciles
+ * `task_mirror` rows in place rather than recreating ids; `(feedKey,
+ * externalId)` is the table's unique provider key regardless.
  */
 export async function getTaskByFeedRef(feedKey: string, externalId: string): Promise<TaskMirrorRow | null> {
   const [row] = await db.select().from(taskMirror)

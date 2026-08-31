@@ -88,7 +88,9 @@ describe('migration 0026 ships no backfill', () => {
     // Guard against an empty (or gutted) file: it would trivially "contain no
     // UPDATE" and let the assertion below pass vacuously.
     expect(ddl).toContain('is_household');
-    expect(ddl.toUpperCase()).not.toMatch(/\bUPDATE\b/);
+    // Reject any data-mutating statement, not just UPDATE — an inferred
+    // backfill could just as easily slip in through INSERT or MERGE.
+    expect(ddl.toUpperCase()).not.toMatch(/\b(UPDATE|INSERT|DELETE|MERGE)\b/);
   });
 
   it('no list is auto-designated household, whatever the allowlist holds', async () => {

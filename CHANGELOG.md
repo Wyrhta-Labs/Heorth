@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flagged via `calendar_allowlist.is_household`. It stops mirroring when that
   member disconnects; `GET /api/v1/integrations/status`'s new
   `householdCalendar.connectionOk` reports that.
+- **`.env.example` gains the `GOOGLE_*` group** (`GOOGLE_CLIENT_ID`,
+  `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, plus the non-credential
+  `GOOGLE_FULL_RESYNC_INTERVAL_SECONDS` knob), in the same all-or-nothing
+  shape as `M365_*`.
 
 ### Changed — BREAKING
 
@@ -85,6 +89,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   connected to — registration is env-gated, but the repair runs at every
   boot, so a provider disabled after use would otherwise leave orphaned rows
   behind.
+- **`.env.example` no longer contradicts the changes recorded above it in
+  this same file.** It still had the retired `/api/v1/m365/callback` path in
+  `M365_REDIRECT_URI` (fails consent with `redirect_uri_mismatch` if copied),
+  the removed `M365_SHARED_TODO_LIST` variable (silently does nothing), and
+  the old `M365_SYNC_INTERVAL_SECONDS` name (silently ignored in favour of the
+  300s default) — three pre-existing leftovers from the `/api/v1/m365/*`
+  retirement above, not something this branch introduced, corrected in
+  passing while adding the `GOOGLE_*` group (see "Added") below it.
 - **`writeError` in the Tasks routes now maps `google_5xx` to 502, matching
   the existing `graph_5xx` handling**, so an upstream 5xx from Google is
   reported the same way as the identical Microsoft failure instead of falling

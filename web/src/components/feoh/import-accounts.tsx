@@ -3,13 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/toast';
 import { useAccounts } from '@/hooks/use-feoh';
 import { useImportAccounts, useUpsertAccountMapping, useDeleteAccountMapping } from '@/hooks/use-feoh-import';
+import { ApiError } from '@/api/client';
 
 const selectClass = 'h-9 w-full rounded-md border border-tan bg-card px-3 text-sm';
 
 export default function ImportAccounts() {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const mappings = useImportAccounts().data?.data ?? [];
   const accounts = useAccounts().data?.data ?? [];
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
@@ -21,8 +24,12 @@ export default function ImportAccounts() {
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!source.trim() || !accountId) return;
-    await upsert.mutateAsync({ sourceAccountId: source.trim(), accountId });
-    setSource('');
+    try {
+      await upsert.mutateAsync({ sourceAccountId: source.trim(), accountId });
+      setSource('');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : (err as Error).message, 'error');
+    }
   };
 
   return (

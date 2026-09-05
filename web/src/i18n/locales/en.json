@@ -327,6 +327,58 @@
       "laterTransactions": "There are newer transactions - reconcile with today's date.",
       "loadMore": "Load more",
       "envelopeRequired": "Pick an envelope to book the difference into"
+    },
+    "import": {
+      "title": "Bank import",
+      "intro": "Statement lines pulled from Firefly III (or typed in) wait here until a rule or a member books them into an envelope.",
+      "disabled": "Bank import is off for this household — lines can still be typed in and booked.",
+      "syncNow": "Pull now",
+      "syncing": "Pulling…",
+      "syncDone": "Pulled {{inserted}} new, booked {{booked}}",
+      "syncFailed": "Pull failed: {{reason}}",
+      "lastSuccess": "Last pull {{when}}",
+      "lastError": "Last error: {{reason}}",
+      "pending_one": "{{count}} line waiting",
+      "pending_other": "{{count}} lines waiting",
+      "inbox": {
+        "title": "Inbox",
+        "empty": "Nothing waiting.",
+        "book": "Book",
+        "dismiss": "Dismiss",
+        "envelope": "Envelope",
+        "account": "Account",
+        "pickEnvelope": "Pick an envelope",
+        "pickAccount": "Pick an account",
+        "unmapped": "Source account {{source}} is not mapped — pick the Feoh account",
+        "foreignCurrency": "{{currency}} — cannot be booked (household currency is {{household}})",
+        "booked": "Booked",
+        "dismissed": "Dismissed",
+        "in": "in",
+        "out": "out"
+      },
+      "rules": {
+        "title": "Rules",
+        "intro": "If the payee contains the pattern, the line is booked into the envelope. Lower priority runs first.",
+        "empty": "No rules yet.",
+        "pattern": "Payee contains",
+        "patternPlaceholder": "rewe",
+        "envelope": "Envelope",
+        "priority": "Priority",
+        "add": "Add rule",
+        "enabled": "On",
+        "disabled": "Off",
+        "remove": "Remove"
+      },
+      "accounts": {
+        "title": "Account mapping",
+        "intro": "Which Feoh account a bank account's lines belong to. Unmapped lines wait in the inbox.",
+        "empty": "No mappings yet.",
+        "source": "Source account id",
+        "sourcePlaceholder": "7",
+        "account": "Feoh account",
+        "add": "Map",
+        "remove": "Remove"
+      }
     }
   },
   "nav": {

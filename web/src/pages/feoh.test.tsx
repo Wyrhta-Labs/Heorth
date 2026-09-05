@@ -25,6 +25,20 @@ vi.mock('@/hooks/use-feoh', () => ({
   useLedger: () => okList,
   useReconcileAccount: () => mutation,
 }));
+vi.mock('@/hooks/use-feoh-import', () => ({
+  useImportStatus: () => ({ data: { data: { enabled: false, currency: 'EUR', pendingCount: 0, feed: null } }, isError: false, isLoading: false }),
+  useTriggerSync: () => mutation,
+  useImportInbox: () => okList,
+  useImportAccounts: () => okList,
+  useImportRules: () => okList,
+  useConfirmInboxRow: () => mutation,
+  useDismissInboxRow: () => mutation,
+  useCreateRule: () => mutation,
+  useUpdateRule: () => mutation,
+  useDeleteRule: () => mutation,
+  useUpsertAccountMapping: () => mutation,
+  useDeleteAccountMapping: () => mutation,
+}));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 import FeohPage from './feoh';
@@ -38,5 +52,6 @@ describe('FeohPage', () => {
     render(<FeohPage />);
     expect(screen.getByText('New transaction')).toBeInTheDocument();
     expect(screen.queryByText('Feature not enabled')).not.toBeInTheDocument();
+    expect(screen.getByText('Bank import')).toBeInTheDocument();
   });
 });

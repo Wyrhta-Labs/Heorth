@@ -12,9 +12,13 @@ import BillsList from '@/components/feoh/bills-list';
 import AccountsPanel from '@/components/feoh/accounts-panel';
 import TransactionForm from '@/components/feoh/transaction-form';
 import CsvPanel from '@/components/feoh/csv-panel';
+import ImportInbox from '@/components/feoh/import-inbox';
+import ImportRules from '@/components/feoh/import-rules';
+import ImportAccounts from '@/components/feoh/import-accounts';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useSummary, useEnvelopes, useAccounts, useBills, useRecordTransaction, useDeleteBill } from '@/hooks/use-feoh';
+import { useImportStatus, useTriggerSync } from '@/hooks/use-feoh-import';
 import { ApiError } from '@/api/client';
 
 export default function FeohPage() {
@@ -27,6 +31,17 @@ export default function FeohPage() {
   const billsQuery = useBills();
   const record = useRecordTransaction();
   const deleteBill = useDeleteBill();
+  const importStatus = useImportStatus();
+  const sync = useTriggerSync();
+  const status = importStatus.data?.data;
+  const pullNow = async () => {
+    try {
+      const r = await sync.mutateAsync();
+      toast(t('feoh.import.syncDone', { inserted: r.data.inserted, booked: r.data.booked }), 'success');
+    } catch (e) {
+      toast(t('feoh.import.syncFailed', { reason: e instanceof ApiError ? e.code : (e as Error).message }), 'error');
+    }
+  };
   const [txOpen, setTxOpen] = useState(false);
 
   const summary = summaryQuery.data?.data;
@@ -73,6 +88,30 @@ export default function FeohPage() {
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.importExport')}</CardTitle></CardHeader>
             <CardContent><CsvPanel /></CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-base">
+                {t('feoh.import.title')}
+                {status && status.pendingCount > 0 && (
+                  <span className="ml-2 text-sm font-normal text-gray-500">{t('feoh.import.pending', { count: status.pendingCount })}</span>
+                )}
+              </CardTitle>
+              {status?.enabled && (
+                <Button size="sm" variant="outline" onClick={pullNow} disabled={sync.isPending}>
+                  {sync.isPending ? t('feoh.import.syncing') : t('feoh.import.syncNow')}
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <p className="text-sm text-gray-500">{t('feoh.import.intro')}</p>
+              {status && !status.enabled && <p className="text-sm text-gray-500">{t('feoh.import.disabled')}</p>}
+              {status?.feed?.lastError && <p className="text-sm text-amber-700">{t('feoh.import.lastError', { reason: status.feed.lastError })}</p>}
+              {status && <ImportInbox householdCurrency={status.currency} />}
+              <ImportRules />
+              <ImportAccounts />
+            </CardContent>
           </Card>
         </>
       )}

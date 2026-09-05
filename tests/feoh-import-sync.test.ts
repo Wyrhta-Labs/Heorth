@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { db } from '../src/db/index.js';
 import { seedTestHousehold } from './helpers.js';
 import * as feoh from '../src/modules/feoh/service.js';
@@ -9,7 +9,10 @@ import { SourceProviderError } from '../src/modules/feoh/import/providers/types.
 import { feohImportState, feohImportedTransactions } from '../src/modules/feoh/import/schema.js';
 import { FakeSource, fakeLine } from './fake-source.js';
 
-afterEach(() => resetTransactionSourceProvider());
+afterEach(() => {
+  resetTransactionSourceProvider();
+  vi.restoreAllMocks();
+});
 
 async function state() {
   const [row] = await db.select().from(feohImportState);
@@ -105,6 +108,17 @@ describe('runImportTick', () => {
     const r2 = await runImportTick();
     expect(r2).toMatchObject({ ok: true, inserted: 50 });
     expect((await state()).cursor).toBe('0');
+  });
+
+  it('never rejects when the state read fails', async () => {
+    await seedTestHousehold();
+    const fake = new FakeSource();
+    fake.rows = [fakeLine({ sourceId: '6:1' })];
+    setTransactionSourceProvider(fake);
+    // getOrCreateState's first call is db.select(...) — make it throw so the
+    // sweep fails before it ever reaches the provider or ingest().
+    vi.spyOn(db, 'select').mockImplementationOnce(() => { throw new Error('db down'); });
+    await expect(runImportTick()).resolves.toMatchObject({ ok: false, error: 'error' });
   });
 });
 

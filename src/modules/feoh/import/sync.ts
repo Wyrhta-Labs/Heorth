@@ -35,7 +35,8 @@ async function getOrCreateState(feedKey: string): Promise<ImportState> {
     .onConflictDoNothing({ target: feohImportState.feedKey }).returning();
   if (created) return created;
   const [raced] = await db.select().from(feohImportState).where(eq(feohImportState.feedKey, feedKey)).limit(1);
-  return raced!;
+  if (!raced) throw new Error('feoh_import_state row vanished during creation');
+  return raced;
 }
 
 async function saveCursor(feedKey: string, cursor: string): Promise<void> {
@@ -78,9 +79,9 @@ export async function runImportTick(): Promise<ImportTickResult> {
 }
 
 async function runSweep(provider: TransactionSourceProvider, result: ImportTickResult): Promise<ImportTickResult> {
-  const state = await getOrCreateState(FEED_KEY);
-  let cursor = state.cursor;
   try {
+    const state = await getOrCreateState(FEED_KEY);
+    let cursor = state.cursor;
     for (;;) {
       const page = await provider.listSince(cursor, PAGE_LIMIT);
       const r = await ingest(page.items);
@@ -100,7 +101,13 @@ async function runSweep(provider: TransactionSourceProvider, result: ImportTickR
     return result;
   } catch (e) {
     const reason = classifySourceError(e);
-    await saveFailure(FEED_KEY, reason);
+    try {
+      await saveFailure(FEED_KEY, reason);
+    } catch (e2) {
+      // If the database is what failed, recording the failure must not escape
+      // either — the tick still answers with the classified reason below.
+      logError('feoh import: could not record the failure', e2);
+    }
     // A SourceProviderError message is provider-authored and body-free, but the
     // log line still carries only the token; anything else is a Heorth bug and
     // deserves its stack.

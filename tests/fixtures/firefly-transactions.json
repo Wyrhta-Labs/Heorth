@@ -1,0 +1,117 @@
+{
+  "data": [
+    {
+      "type": "transactions",
+      "id": "101",
+      "attributes": {
+        "created_at": "2026-09-02T08:00:00+02:00",
+        "group_title": null,
+        "transactions": [
+          {
+            "transaction_journal_id": "1001",
+            "type": "withdrawal",
+            "date": "2026-09-01T00:00:00+02:00",
+            "amount": "42.100000000000",
+            "currency_code": "EUR",
+            "description": "REWE SAGT DANKE 4711",
+            "source_id": "7",
+            "source_name": "Joint current account",
+            "destination_id": "31",
+            "destination_name": "REWE",
+            "external_id": "bank-ref-0001",
+            "budget_id": null,
+            "category_name": null
+          }
+        ]
+      }
+    },
+    {
+      "type": "transactions",
+      "id": "102",
+      "attributes": {
+        "created_at": "2026-09-02T08:00:01+02:00",
+        "group_title": "Amazon order 302-1",
+        "transactions": [
+          {
+            "transaction_journal_id": "1002",
+            "type": "withdrawal",
+            "date": "2026-09-01T00:00:00+02:00",
+            "amount": "19.990000000000",
+            "currency_code": "EUR",
+            "description": "Kettle descaler",
+            "source_id": "7",
+            "source_name": "Joint current account",
+            "destination_id": "40",
+            "destination_name": "Amazon",
+            "external_id": "bank-ref-0002"
+          },
+          {
+            "transaction_journal_id": "1003",
+            "type": "withdrawal",
+            "date": "2026-09-01T00:00:00+02:00",
+            "amount": "8.500000000000",
+            "currency_code": "EUR",
+            "description": "School pencils",
+            "source_id": "7",
+            "source_name": "Joint current account",
+            "destination_id": "40",
+            "destination_name": "Amazon",
+            "external_id": "bank-ref-0002"
+          },
+          {
+            "transaction_journal_id": "1004",
+            "type": "withdrawal",
+            "date": "2026-09-01T00:00:00+02:00",
+            "amount": "12.000000000000",
+            "currency_code": "USD",
+            "description": "Ebook",
+            "source_id": "7",
+            "source_name": "Joint current account",
+            "destination_id": "40",
+            "destination_name": "Amazon",
+            "external_id": "bank-ref-0002"
+          }
+        ]
+      }
+    },
+    {
+      "type": "transactions",
+      "id": "103",
+      "attributes": {
+        "created_at": "2026-09-03T08:00:00+02:00",
+        "group_title": null,
+        "transactions": [
+          {
+            "transaction_journal_id": "1005",
+            "type": "deposit",
+            "date": "2026-09-03T00:00:00+02:00",
+            "amount": "3850.000000000000",
+            "currency_code": "EUR",
+            "description": "SALARY 09/2026",
+            "source_id": "55",
+            "source_name": "ACME GmbH",
+            "destination_id": "7",
+            "destination_name": "Joint current account",
+            "external_id": "bank-ref-0003"
+          },
+          {
+            "transaction_journal_id": "1006",
+            "type": "transfer",
+            "date": "2026-09-03T00:00:00+02:00",
+            "amount": "500.000000000000",
+            "currency_code": "EUR",
+            "description": "To savings",
+            "source_id": "7",
+            "source_name": "Joint current account",
+            "destination_id": "8",
+            "destination_name": "Savings"
+          }
+        ]
+      }
+    }
+  ],
+  "meta": {
+    "pagination": { "total": 3, "count": 3, "per_page": 100, "current_page": 1, "total_pages": 1 }
+  },
+  "links": { "self": "https://firefly.invalid/api/v1/transactions?page=1", "first": "https://firefly.invalid/api/v1/transactions?page=1", "last": "https://firefly.invalid/api/v1/transactions?page=1" }
+}

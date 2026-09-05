@@ -3,6 +3,10 @@ import { accounts, envelopes, transactions, postings, expenseSplits, recurringBi
 import { eq, and, gte, lte, lt, desc, sql, isNull, inArray } from 'drizzle-orm';
 import type { CreateAccountInput, CreateEnvelopeInput, RecordTransactionInput, CreateBillInput } from './validators.js';
 import { toCsv, parseCsv, sanitizeCsvText } from './csv.js';
+import { revertBookedRows } from './import/service.js';
+
+/** The drizzle transaction handle, for callers that need several ledger steps to commit together. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export function listAccounts(): Promise<Account[]> {
   return db.select().from(accounts).orderBy(accounts.name);
@@ -68,20 +72,20 @@ export function postingsBalance(rows: Array<{ debit: number; credit: number }>):
 // backstop for a bad id; there is deliberately no pre-check here (unlike
 // Feoh's standalone `parties` boundary, which pre-checked because it had no
 // per-member auth to derive the id from).
-export async function recordTransaction(input: RecordTransactionInput, createdBy: string) {
+export async function recordTransaction(input: RecordTransactionInput, createdBy: string, tx?: Tx) {
   if (!postingsBalance(input.postings)) {
     throw new Error('UNBALANCED');
   }
   if (input.postings.some((p) => !p.accountId && !p.envelopeId)) {
     throw new Error('ORPHAN_POSTING');
   }
-  return db.transaction(async (tx) => {
-    const [txn] = await tx.insert(transactions).values({
+  const run = async (t: Tx) => {
+    const [txn] = await t.insert(transactions).values({
       date: input.date, payee: input.payee, memo: input.memo ?? null,
       amount: String(input.amount), createdBy,
     }).returning();
 
-    const postingRows = await tx.insert(postings).values(
+    const postingRows = await t.insert(postings).values(
       input.postings.map((p) => ({
         transactionId: txn!.id,
         accountId: p.accountId ?? null,
@@ -93,13 +97,15 @@ export async function recordTransaction(input: RecordTransactionInput, createdBy
 
     let splitRows: Array<typeof expenseSplits.$inferSelect> = [];
     if (input.splits && input.splits.length > 0) {
-      splitRows = await tx.insert(expenseSplits).values(
+      splitRows = await t.insert(expenseSplits).values(
         input.splits.map((s) => ({ transactionId: txn!.id, memberId: s.memberId, share: String(s.share) })),
       ).returning();
     }
 
     return { transaction: txn!, postings: postingRows, splits: splitRows };
-  });
+  };
+  // Postgres has no nested transactions: with a handle, join it; without, open one.
+  return tx ? run(tx) : db.transaction(run);
 }
 
 export async function listTransactions(q: { from?: string; to?: string; limit?: number; offset?: number }) {
@@ -124,6 +130,10 @@ export async function getTransaction(id: string) {
 
 export async function deleteTransaction(id: string): Promise<Transaction | null> {
   return db.transaction(async (tx) => {
+    // ADR 0016: a booked bank line goes back to the inbox rather than losing the
+    // record that the line existed. Must run BEFORE the delete — the FK's
+    // SET NULL would otherwise violate the booked-pair check mid-statement.
+    await revertBookedRows(tx, id);
     // Capture the occurrence rows this transaction settles BEFORE the delete
     // (the FK then nulls their transactionId) so the prune is scoped to
     // exactly these rows — never a global sweep.

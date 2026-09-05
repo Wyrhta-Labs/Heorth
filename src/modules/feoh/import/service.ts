@@ -24,6 +24,7 @@ export async function upsertAccountMapping(i: { sourceAccountId: string; account
       set: { accountId: i.accountId, updatedAt: new Date() },
     })
     .returning();
+  await reapplyRulesToPending();
   return row!;
 }
 
@@ -117,8 +118,8 @@ export async function ingest(items: ImportedTransaction[]): Promise<IngestResult
     if (!accountId) continue;
     const rule = matchRule(row.payee, rules);
     if (!rule) continue;
-    await bookRow(row, rule.envelopeId, accountId, rule.createdBy, rule.id);
-    result.booked++;
+    const booked = await bookRow(row, rule.envelopeId, accountId, rule.createdBy, rule.id);
+    if (booked.status === 'booked') result.booked++;
   }
   return result;
 }
@@ -200,8 +201,8 @@ export async function reapplyRulesToPending(): Promise<number> {
     if (!accountId) continue;
     const rule = matchRule(row.payee, rules);
     if (!rule) continue;
-    await bookRow(row, rule.envelopeId, accountId, rule.createdBy, rule.id);
-    booked++;
+    const result = await bookRow(row, rule.envelopeId, accountId, rule.createdBy, rule.id);
+    if (result.status === 'booked') booked++;
   }
   return booked;
 }
@@ -213,7 +214,7 @@ export async function reapplyRulesToPending(): Promise<number> {
  */
 export async function revertBookedRows(tx: Tx, transactionId: string): Promise<number> {
   const rows = await tx.update(feohImportedTransactions)
-    .set({ status: 'pending', transactionId: null, appliedRuleId: null, updatedAt: new Date() })
+    .set({ status: 'pending', transactionId: null, appliedRuleId: null, envelopeId: null, updatedAt: new Date() })
     .where(and(eq(feohImportedTransactions.transactionId, transactionId), eq(feohImportedTransactions.status, 'booked')))
     .returning({ id: feohImportedTransactions.id });
   return rows.length;

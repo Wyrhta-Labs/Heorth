@@ -132,6 +132,7 @@ describe('inbox lifecycle', () => {
     expect(after!.status).toBe('pending');
     expect(after!.transactionId).toBeNull();
     expect(after!.appliedRuleId).toBeNull();
+    expect(after!.envelopeId).toBeNull();
     expect(await db.select().from(transactions)).toHaveLength(0);
     // re-import of the same line is still a no-op: the register kept the row
     expect((await imp.ingest([fakeLine({ sourceId: '7:1' })])).inserted).toBe(0);
@@ -202,5 +203,17 @@ describe('rules re-evaluation', () => {
     expect(rows.find((r) => r.sourceId === '8:2')!.status).toBe('booked');
     expect(rows.find((r) => r.sourceId === '8:2')!.envelopeId).toBe(income.id);
     expect(rows.find((r) => r.sourceId === '8:1')!.envelopeId).toBe(groceries.id);
+  });
+
+  it('mapping an account books pending rows that already matched a rule', async () => {
+    const { adult, account, groceries } = await setup();
+    await imp.createRule({ pattern: 'rewe', envelopeId: groceries.id }, adult.user.id);
+    await imp.ingest([fakeLine({ sourceId: '10:1', sourceAccountId: '7', payee: 'Rewe' })]);
+    let [row] = await db.select().from(feohImportedTransactions).where(eq(feohImportedTransactions.sourceId, '10:1'));
+    expect(row!.status).toBe('pending');
+    await imp.upsertAccountMapping({ sourceAccountId: '7', accountId: account.id });
+    [row] = await db.select().from(feohImportedTransactions).where(eq(feohImportedTransactions.sourceId, '10:1'));
+    expect(row!.status).toBe('booked');
+    expect(row!.envelopeId).toBe(groceries.id);
   });
 });

@@ -373,6 +373,60 @@ export interface ReconcileResult {
   transaction: TransactionDetail | null;
 }
 
+// ---- Feoh bank import (ADR 0016) ----
+export type ImportDirection = 'in' | 'out';
+export type ImportRowStatus = 'pending' | 'booked' | 'dismissed';
+
+export interface ImportedTransaction {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  sourceId: string;
+  sourceAccountId: string;
+  date: string;             // YYYY-MM-DD
+  payee: string;
+  memo: string | null;
+  amount: string;           // numeric -> string, always positive
+  currency: string;
+  direction: ImportDirection;
+  status: ImportRowStatus;
+  envelopeId: string | null;
+  transactionId: string | null;
+  appliedRuleId: string | null;
+}
+
+export interface ImportRule {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  pattern: string;
+  envelopeId: string;
+  priority: number;
+  enabled: boolean;
+  createdBy: string;
+}
+
+export interface ImportAccountMapping {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  sourceAccountId: string;
+  accountId: string;
+}
+
+export interface ImportStatus {
+  enabled: boolean;
+  currency: string;
+  pendingCount: number;
+  feed: {
+    feedKey: string;
+    hasCursor: boolean;
+    lastSuccessAt: string | null;
+    lastError: string | null;
+    consecutiveFailures: number;
+  } | null;
+}
+
 // ---- Auth / keys ----
 export interface AuthToken { token: string; expires_in: number; }
 export interface ApiKey {

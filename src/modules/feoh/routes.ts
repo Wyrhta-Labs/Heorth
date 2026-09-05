@@ -1,12 +1,14 @@
 import { Hono, type MiddlewareHandler } from 'hono';
 import type { Context } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
+import { pgErrorCode } from '@wyrhta/core/db';
 import { requireAuth, requireRole } from '../../wiring.js';
 import { assertNoneAreMaintenanceAdmin, assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 import * as service from './service.js';
 import * as occ from './occurrences.js';
 import * as itemCosts from './item-costs.js';
 import { getAccountLedger, reconcileAccount } from './ledger.js';
+import { createIngestionRouter } from './import/routes.js';
 import { createAccountSchema, updateAccountSchema, createEnvelopeSchema, updateEnvelopeSchema, recordTransactionSchema, listTransactionsQuerySchema, monthQuerySchema, createBillSchema, updateBillSchema, occurrenceRefSchema, linkOccurrenceSchema, overrideOccurrenceSchema, listOccurrencesQuerySchema, createItemCostSchema, reconcileSchema } from './validators.js';
 
 export const feohRouter = new Hono();
@@ -20,6 +22,9 @@ const canWrite: MiddlewareHandler = async (c, next) =>
     await assertNotMaintenanceAdmin(c.get('auth').userId);
     await next();
   });
+
+// Bank ingestion (ADR 0016) — its own file, the same write gate.
+feohRouter.route('/ingestion', createIngestionRouter(canWrite));
 
 feohRouter.get('/accounts', async (c) => ok(c, await service.listAccounts()));
 feohRouter.post('/accounts', canWrite, async (c) => {
@@ -75,9 +80,15 @@ feohRouter.patch('/envelopes/:id', canWrite, async (c) => {
   return ok(c, row);
 });
 feohRouter.delete('/envelopes/:id', canWrite, async (c) => {
-  const row = await service.deleteEnvelope(c.req.param('id'));
-  if (!row) return err(c, 'NOT_FOUND', 'Envelope not found', 404);
-  return ok(c, { id: row.id });
+  try {
+    const row = await service.deleteEnvelope(c.req.param('id'));
+    if (!row) return err(c, 'NOT_FOUND', 'Envelope not found', 404);
+    return ok(c, { id: row.id });
+  } catch (e: unknown) {
+    // An import rule restricts its envelope (ADR 0016). Say so instead of a raw 500.
+    if (pgErrorCode(e) === '23001') return err(c, 'ENVELOPE_IN_USE', 'An import rule still points at this envelope — delete or re-point the rule first', 409);
+    throw e;
+  }
 });
 
 feohRouter.get('/transactions', async (c) => {

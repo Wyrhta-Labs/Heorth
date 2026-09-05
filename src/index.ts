@@ -9,6 +9,7 @@ import { listProviders } from './integrations/registry.js';
 import { getHouseholdFeed } from './modules/tasks/store.js';
 import { startIntegrationsScheduler } from './integrations/scheduler.js';
 import { startWeorcScheduler } from './modules/weorc/scheduler.js';
+import { startFeohImportScheduler } from './modules/feoh/import/scheduler.js';
 import { repairMaintenanceAdmin } from './household/maintenance-admin.js';
 
 /**
@@ -61,6 +62,9 @@ async function main() {
   // Start Weorc's native due-work tick. Deliberately not gated on M365: it
   // must keep materialising household work even with no task provider attached.
   startWeorcScheduler();
+
+  // Bank ingestion (ADR 0016): a no-op unless FEOH_IMPORT_ENABLED=true.
+  startFeohImportScheduler();
 }
 
 // Only auto-run when executed directly (not when imported by tests).

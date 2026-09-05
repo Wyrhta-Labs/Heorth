@@ -12,3 +12,4 @@ export * from '../../modules/tasks/schema';
 export * from '../../integrations/schema';
 export * from '../../modules/ethel/schema';
 export * from '../../modules/weorc/schema';
+export * from '../../modules/feoh/import/schema';

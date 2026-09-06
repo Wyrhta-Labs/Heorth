@@ -53,6 +53,14 @@ function InboxRow({ row, householdCurrency, mappedAccountId }: { row: ImportedTr
     }
   };
 
+  const dismissRow = async () => {
+    try {
+      await dismiss.mutateAsync(row.id);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : (e as Error).message, 'error');
+    }
+  };
+
   return (
     <li className="rounded-md border border-tan p-3 space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -90,7 +98,7 @@ function InboxRow({ row, householdCurrency, mappedAccountId }: { row: ImportedTr
         )}
         <div className="flex gap-2">
           <Button size="sm" onClick={book} disabled={!canBook || confirm.isPending}>{t('feoh.import.inbox.book')}</Button>
-          <Button size="sm" variant="outline" onClick={() => dismiss.mutateAsync(row.id)} disabled={dismiss.isPending}>{t('feoh.import.inbox.dismiss')}</Button>
+          <Button size="sm" variant="outline" onClick={dismissRow} disabled={dismiss.isPending}>{t('feoh.import.inbox.dismiss')}</Button>
         </div>
       </div>
     </li>

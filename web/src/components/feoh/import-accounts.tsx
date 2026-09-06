@@ -43,7 +43,13 @@ export default function ImportAccounts() {
           {mappings.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-2 py-2">
               <span className="text-sm"><span className="font-mono">{m.sourceAccountId}</span> → {accountName.get(m.accountId) ?? m.accountId}</span>
-              <Button size="sm" variant="outline" onClick={() => remove.mutate(m.id)}>{t('feoh.import.accounts.remove')}</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => remove.mutate(m.id, { onError: (e) => toast((e as Error).message, 'error') })}
+              >
+                {t('feoh.import.accounts.remove')}
+              </Button>
             </li>
           ))}
         </ul>

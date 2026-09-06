@@ -18,7 +18,8 @@ vi.mock('@/hooks/use-feoh', () => ({
   useEnvelopes: () => useEnvelopes(),
   useAccounts: () => useAccounts(),
 }));
-vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+const toast = vi.fn();
+vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast }) }));
 
 import ImportInbox from './import-inbox';
 
@@ -77,6 +78,14 @@ describe('ImportInbox', () => {
     expect(screen.getByRole('button', { name: 'Book' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     await waitFor(() => expect(dismiss).toHaveBeenCalledWith('r1'));
+  });
+
+  it('surfaces a dismiss failure as a toast', async () => {
+    arrange([row()]);
+    dismiss.mockRejectedValue(new Error('nope'));
+    render(<ImportInbox householdCurrency="EUR" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('nope', 'error'));
   });
 
   it('judges "foreign" against the household currency it is given, not EUR', () => {

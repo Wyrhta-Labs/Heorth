@@ -31,9 +31,9 @@ describe('ImportRules', () => {
     expect(screen.getByText('rewe')).toBeInTheDocument();
     expect(screen.getByText('Groceries')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'On' }));
-    expect(update).toHaveBeenCalledWith({ id: 'k1', input: { enabled: false } });
+    expect(update).toHaveBeenCalledWith({ id: 'k1', input: { enabled: false } }, expect.objectContaining({ onError: expect.any(Function) }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
-    expect(remove).toHaveBeenCalledWith('k1');
+    expect(remove).toHaveBeenCalledWith('k1', expect.objectContaining({ onError: expect.any(Function) }));
   });
 
   it('adds a rule from the form', async () => {

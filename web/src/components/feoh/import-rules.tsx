@@ -49,10 +49,20 @@ export default function ImportRules() {
                 <span className="text-xs text-gray-500">{t('feoh.import.rules.priority')} {r.priority}</span>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => update.mutate({ id: r.id, input: { enabled: !r.enabled } })}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => update.mutate({ id: r.id, input: { enabled: !r.enabled } }, { onError: (e) => toast((e as Error).message, 'error') })}
+                >
                   {r.enabled ? t('feoh.import.rules.enabled') : t('feoh.import.rules.disabled')}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => remove.mutate(r.id)}>{t('feoh.import.rules.remove')}</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => remove.mutate(r.id, { onError: (e) => toast((e as Error).message, 'error') })}
+                >
+                  {t('feoh.import.rules.remove')}
+                </Button>
               </div>
             </li>
           ))}

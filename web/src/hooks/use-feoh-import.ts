@@ -46,8 +46,11 @@ export function useDeleteRule() {
   return useMutation({ mutationFn: (id: string) => api.deleteRule(id), onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.importRules }) });
 }
 export function useUpsertAccountMapping() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: (i: api.MappingInput) => api.upsertAccountMapping(i), onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.importAccounts }) });
+  const qc = useQueryClient(); const inv = useInvalidateImport();
+  // A mapping landing lets the server re-apply rules and book pending lines,
+  // so this needs the same inbox/status/transactions/summary/ledger refresh
+  // as useCreateRule, not just the account-mappings list.
+  return useMutation({ mutationFn: (i: api.MappingInput) => api.upsertAccountMapping(i), onSuccess: () => { qc.invalidateQueries({ queryKey: QUERY_KEYS.importAccounts }); inv(); } });
 }
 export function useDeleteAccountMapping() {
   const qc = useQueryClient();

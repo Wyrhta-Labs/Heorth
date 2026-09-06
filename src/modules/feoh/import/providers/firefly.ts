@@ -1,3 +1,4 @@
+import { logError } from '@wyrhta/core/lib';
 import {
   SourceProviderError,
   type ImportedTransaction, type SourceAccount, type SourcePage, type TransactionSourceProvider,
@@ -75,21 +76,42 @@ export function parseTransactionsPage(json: unknown): { lines: FireflyLine[]; to
       if (type !== 'withdrawal' && type !== 'deposit') continue; // transfers etc. are out of scope
       const direction = type === 'withdrawal' ? 'out' : 'in';
       const journalId = str(j['transaction_journal_id']);
+      // sync.ts logs only the six SourceErrorReason tokens, never a description,
+      // name, amount or URL — so a journal-specific bad_response is otherwise
+      // untraceable. Log the (group, journal) ids (Firefly integers, not
+      // secrets) as the operator's only pointer to the offending row.
+      const poison = (reason: string) => logError('firefly journal rejected', new Error(`group ${groupId} journal ${journalId}: ${reason}`));
       // The identifiers ARE the dedup key and the sort key: a blank or
       // non-numeric one would poison both, so it is a bad response, not a row.
       if (!/^\d+$/.test(groupId) || !/^\d+$/.test(journalId)) {
+        poison('non-numeric group/journal ids');
         throw new SourceProviderError('bad_response', 'journal without numeric group/journal ids');
       }
       const sourceAccountId = str(direction === 'out' ? j['source_id'] : j['destination_id']);
-      if (!sourceAccountId) throw new SourceProviderError('bad_response', 'journal without an account id');
+      if (!sourceAccountId) {
+        poison('blank account id');
+        throw new SourceProviderError('bad_response', 'journal without an account id');
+      }
       const currency = str(j['currency_code']).trim();
-      if (!currency) throw new SourceProviderError('bad_response', 'journal without a currency');
+      if (!currency) {
+        poison('blank currency');
+        throw new SourceProviderError('bad_response', 'journal without a currency');
+      }
       const counterparty = str(direction === 'out' ? j['destination_name'] : j['source_name']).trim();
       const description = str(j['description']).trim();
       const payee = counterparty || description || 'Unknown payee';
       const amountRaw = Math.abs(Number(j['amount']));
-      if (!Number.isFinite(amountRaw) || amountRaw <= 0) throw new SourceProviderError('bad_response', 'journal without an amount');
-      const date = calendarDate(j['date']);
+      if (!Number.isFinite(amountRaw) || amountRaw <= 0) {
+        poison('bad amount');
+        throw new SourceProviderError('bad_response', 'journal without an amount');
+      }
+      let date: string;
+      try {
+        date = calendarDate(j['date']);
+      } catch (e) {
+        poison('missing date');
+        throw e;
+      }
       lines.push({
         sourceId: `${groupId}:${journalId}`,
         sourceAccountId,
@@ -122,6 +144,14 @@ export function parseAccounts(json: unknown): SourceAccount[] {
 export function minusDays(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split('-').map(Number);
   const t = new Date(Date.UTC(y!, m! - 1, d! - days));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+
+/** The UTC calendar date `days` after now — never `toISOString()` (see `minusDays`). */
+export function todayUtcPlus(days: number): string {
+  const now = new Date();
+  const t = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days));
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
 }
@@ -175,11 +205,12 @@ export function createFireflyProvider(o: FireflyOptions): TransactionSourceProvi
 
   async function fetchAllLines(since: string | null): Promise<FireflyLine[]> {
     const lines: FireflyLine[] = [];
-    const start = since ? `&start=${since}` : '';
+    // Firefly applies a date range reliably only when BOTH bounds are present.
+    const range = since ? `&start=${since}&end=${todayUtcPlus(1)}` : '';
     let page = 1;
     let totalPages = 1;
     do {
-      const json = await getJson(`/api/v1/transactions?limit=${pageSize}&page=${page}${start}`);
+      const json = await getJson(`/api/v1/transactions?limit=${pageSize}&page=${page}${range}`);
       const parsed = parseTransactionsPage(json);
       lines.push(...parsed.lines);
       totalPages = parsed.totalPages;
@@ -188,10 +219,22 @@ export function createFireflyProvider(o: FireflyOptions): TransactionSourceProvi
     return lines.sort((a, b) => compareKey(a.key, b.key));
   }
 
+  // A sweep is one call with `after === null` (the sweep's first call, whether
+  // starting fresh or resuming from a persisted checkpoint) followed by calls
+  // carrying `after`. Caching the fetched, sorted window here makes a sweep
+  // fetch it once instead of once per page. A crashed sweep resumes via the
+  // persisted `nextCursor`, which always carries `after` from BEFORE the crash
+  // — but that happens in a fresh process with no cache, so it refetches
+  // correctly; only `after === null` needs to force a refetch here.
+  let cache: { since: string | null; lines: FireflyLine[] } | null = null;
+
   return {
     async listSince(cursor, limit): Promise<SourcePage> {
       const c = parseCursor(cursor);
-      const all = await fetchAllLines(c.since);
+      if (c.after === null || cache === null || cache.since !== c.since) {
+        cache = { since: c.since, lines: await fetchAllLines(c.since) };
+      }
+      const all = cache.lines;
       const rest = c.after ? all.filter((l) => compareKey(l.key, c.after!) > 0) : all;
       const items = rest.slice(0, limit).map(({ key: _key, ...line }) => line);
       // Re-window only when rows were seen; an empty Firefly must not walk

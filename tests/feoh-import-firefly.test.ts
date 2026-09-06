@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  createFireflyProvider, parseTransactionsPage, parseAccounts, minusDays,
+  createFireflyProvider, parseTransactionsPage, parseAccounts, minusDays, todayUtcPlus,
 } from '../src/modules/feoh/import/providers/firefly.js';
 import { SourceProviderError } from '../src/modules/feoh/import/providers/types.js';
 
@@ -52,7 +52,10 @@ describe('parseTransactionsPage (fixture contract)', () => {
     const journal = { type: 'withdrawal', date: '2026-09-01T00:00:00+02:00', amount: '1.00', currency_code: 'EUR', description: 'x', source_id: '7', destination_id: '2' };
     const page = (id: unknown, j: Record<string, unknown>) => ({ data: [{ id, attributes: { transactions: [j] } }], meta: { pagination: { total_pages: 1 } } });
     expect(() => parseTransactionsPage(page('', { ...journal, transaction_journal_id: '9' }))).toThrow(/ids/);
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => parseTransactionsPage(page('5', { ...journal, transaction_journal_id: 'abc' }))).toThrow(/ids/);
+    expect(spy.mock.calls.some((c) => String(c[0]).includes('group 5 journal abc'))).toBe(true);
+    spy.mockRestore();
     expect(() => parseTransactionsPage(page('5', { ...journal, transaction_journal_id: '9', currency_code: '' }))).toThrow(/currency/);
     expect(() => parseTransactionsPage(page('5', { ...journal, transaction_journal_id: '9', source_id: '' }))).toThrow(/account id/);
   });
@@ -75,6 +78,13 @@ describe('minusDays', () => {
   });
 });
 
+describe('todayUtcPlus', () => {
+  it('returns a YYYY-MM-DD date consistent with minusDays', () => {
+    expect(todayUtcPlus(1)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(minusDays(todayUtcPlus(2), 1)).toBe(todayUtcPlus(1));
+  });
+});
+
 describe('createFireflyProvider', () => {
   it('sends the bearer token, sorts by (date, group, journal), and pages with a composite watermark', async () => {
     const f = fakeFetch();
@@ -92,13 +102,17 @@ describe('createFireflyProvider', () => {
     expect(page3.nextCursor).toBeNull();
     // checkpoint = last seen date minus the overlap, with no `after`
     expect(JSON.parse(page3.checkpoint)).toEqual({ since: '2026-08-27', after: null });
+    // one fetch for the whole sweep (three listSince calls), not one per page
+    expect(f.calls).toHaveLength(1);
+    await p.listSince(null, 2);
+    expect(f.calls).toHaveLength(2);
   });
 
-  it('a later sweep starts from the checkpoint date (start= is sent) and re-emits the overlap', async () => {
+  it('a later sweep starts from the checkpoint date (start= and end= are sent) and re-emits the overlap', async () => {
     const f = fakeFetch();
     const p = createFireflyProvider({ baseUrl: 'https://firefly.invalid', pat: 'x', fetchImpl: f.impl });
     const page = await p.listSince(JSON.stringify({ since: '2026-08-27', after: null }), 100);
-    expect(f.calls[0]!.url).toContain('start=2026-08-27');
+    expect(f.calls[0]!.url).toBe(`https://firefly.invalid/api/v1/transactions?limit=200&page=1&start=2026-08-27&end=${todayUtcPlus(1)}`);
     expect(page.items).toHaveLength(5);
     expect(page.nextCursor).toBeNull();
   });

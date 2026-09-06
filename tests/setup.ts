@@ -24,6 +24,10 @@ for (const k of [
   // Same reason as the M365 group above: enabled-path Google tests inject a
   // fake-Google runtime via setGoogleRuntime, never real credentials.
   'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI',
+  // Bank ingestion (ADR 0016): the import scheduler must never start under
+  // tests and no test may reach a real Firefly. Enabled-path tests install a
+  // FakeSource via setTransactionSourceProvider instead.
+  'FEOH_IMPORT_ENABLED', 'FIREFLY_BASE_URL', 'FIREFLY_PAT',
 ]) {
   process.env[k] = '';
 }

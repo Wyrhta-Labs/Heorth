@@ -138,6 +138,20 @@ export function buildEnvSchema() {
         )
         .refine((list) => new Set(list).size === list.length, 'SATELLITE_AUDIENCES has duplicates'),
     ),
+    // Bank ingestion (ADR 0016). Firefly III is a one-way ingestion provider,
+    // never the ledger. `true` requires BOTH FIREFLY_BASE_URL and FIREFLY_PAT
+    // (see superRefine); blank or `false` means the import scheduler never
+    // starts and the sync trigger answers PROVIDER_UNAVAILABLE. The inbox,
+    // the rules and confirming pending rows keep working either way — they
+    // are pure Feoh writes. The FIREFLY_* values may be present while disabled
+    // (compose passes defaults); they are simply unused then.
+    FEOH_IMPORT_ENABLED: emptyToUndefined(z.enum(['true', 'false'])),
+    FIREFLY_BASE_URL: emptyToUndefined(z.string().url()),
+    FIREFLY_PAT: emptyToUndefined(z.string().min(1)),
+    // The household's ONE currency (Feoh is single-currency by construction —
+    // there is no currency column anywhere). An imported line in any other
+    // currency stays in the inbox and is never booked. ISO 4217, default EUR.
+    FEOH_CURRENCY: emptyToUndefined(z.string().regex(/^[A-Z]{3}$/, 'FEOH_CURRENCY must be an ISO 4217 code such as EUR')),
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
@@ -260,6 +274,19 @@ export function buildEnvSchema() {
         });
       }
     }
+    if (env.FEOH_IMPORT_ENABLED === 'true') {
+      const missing = (['FIREFLY_BASE_URL', 'FIREFLY_PAT'] as const)
+        .filter((k) => env[k] === undefined || env[k] === '');
+      if (missing.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['FEOH_IMPORT'],
+          message:
+            `FEOH_IMPORT_ENABLED=true but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} blank — ` +
+            'set both, or set FEOH_IMPORT_ENABLED=false.',
+        });
+      }
+    }
   });
 }
 
@@ -328,6 +355,15 @@ export const config = {
           keyKind: (parsed.KITH_API_KEY_KIND ?? 'household') as 'household',
         }
       : null,
+  // Bank ingestion (ADR 0016) — `null` when FEOH_IMPORT_ENABLED is not `true`.
+  // The schema guarantees both Firefly values are present when enabled.
+  feohImport:
+    parsed.FEOH_IMPORT_ENABLED === 'true'
+      ? { baseUrl: parsed.FIREFLY_BASE_URL!, pat: parsed.FIREFLY_PAT! }
+      : null,
+  // The household's single currency; imported rows in any other currency are
+  // never booked (spec §2 "Currency").
+  feohCurrency: parsed.FEOH_CURRENCY ?? 'EUR',
   // Resolved satellite signing config, or null when no key is configured
   // (the default — JWKS then publishes an empty key set and nothing else
   // changes). All-or-nothing like m365/kith above: SATELLITE_SIGNING_KEY

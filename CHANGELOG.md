@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Bank import (ADR 0016)** — Firefly III as an optional one-way ingestion
+  sidecar (`src/modules/feoh/import/`). Four new tables (`feoh_import_accounts`,
+  `feoh_import_rules`, `feoh_imported_transactions`, `feoh_import_state`,
+  migration `0028`); none of the existing Feoh tables changes. A scheduler tick
+  pulls pages through a two-method `TransactionSourceProvider`, dedups on
+  `source_id`, books rule hits through `recordTransaction()` attributed to the
+  rule's author, and parks the rest in an inbox. New routes under
+  `/api/v1/feoh/ingestion/*`: `status`, `sync`, `accounts` (source → Feoh
+  account map), `rules`, `inbox` (+ `confirm`, `dismiss`, and a manual line
+  `POST`). Env: `FEOH_IMPORT_ENABLED`, `FIREFLY_BASE_URL`, `FIREFLY_PAT`,
+  `FEOH_CURRENCY` (default `EUR`). Off by default; the inbox and rules work
+  without Firefly.
+- **Feoh page: "Bank import" card** — inbox with book/dismiss, import rules,
+  and the source-account mapping, in English and German.
+
+### Changed
+
+- **Deleting a booked transaction returns its bank line to the inbox** instead
+  of erasing the record that the line existed (ADR 0016 consequence).
+- `DELETE /api/v1/feoh/envelopes/:id` answers `409 ENVELOPE_IN_USE` when an
+  import rule still points at the envelope (was a raw 500 on the FK restrict).
+
+### Known gaps
+
+- A member who authored an import rule cannot be hard-deleted while it exists
+  (`onDelete: restrict`, the same class of key as `transactions.created_by`).
+  The member-delete path does not yet explain which rows block it; that is
+  true of the existing finance keys too and is deferred together with them.
+- Firefly transfers between the household's own accounts are skipped; only
+  withdrawals and deposits become inbox lines.
+
 ## [0.7.0] - 2026-09-05
 
 ### Added

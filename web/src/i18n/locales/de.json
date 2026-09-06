@@ -327,6 +327,58 @@
       "laterTransactions": "Es gibt neuere Buchungen – mit dem heutigen Datum abgleichen.",
       "loadMore": "Mehr laden",
       "envelopeRequired": "Wähle einen Umschlag, auf den die Differenz gebucht wird"
+    },
+    "import": {
+      "title": "Bankimport",
+      "intro": "Kontoauszugszeilen aus Firefly III (oder von Hand eingetragen) warten hier, bis eine Regel oder ein Mitglied sie auf einen Umschlag bucht.",
+      "disabled": "Der Bankimport ist für diesen Haushalt aus – Zeilen lassen sich trotzdem eintragen und buchen.",
+      "syncNow": "Jetzt abholen",
+      "syncing": "Hole ab…",
+      "syncDone": "{{inserted}} neue Zeilen, {{booked}} gebucht",
+      "syncFailed": "Abholen fehlgeschlagen: {{reason}}",
+      "lastSuccess": "Zuletzt abgeholt {{when}}",
+      "lastError": "Letzter Fehler: {{reason}}",
+      "pending_one": "{{count}} Zeile wartet",
+      "pending_other": "{{count}} Zeilen warten",
+      "inbox": {
+        "title": "Eingang",
+        "empty": "Nichts wartet.",
+        "book": "Buchen",
+        "dismiss": "Verwerfen",
+        "envelope": "Umschlag",
+        "account": "Konto",
+        "pickEnvelope": "Umschlag wählen",
+        "pickAccount": "Konto wählen",
+        "unmapped": "Quellkonto {{source}} ist nicht zugeordnet – Feoh-Konto wählen",
+        "foreignCurrency": "{{currency}} – nicht buchbar (Haushaltswährung ist {{household}})",
+        "booked": "Gebucht",
+        "dismissed": "Verworfen",
+        "in": "Eingang",
+        "out": "Ausgang"
+      },
+      "rules": {
+        "title": "Regeln",
+        "intro": "Enthält der Empfänger das Muster, wird die Zeile auf den Umschlag gebucht. Kleinere Priorität läuft zuerst.",
+        "empty": "Noch keine Regeln.",
+        "pattern": "Empfänger enthält",
+        "patternPlaceholder": "rewe",
+        "envelope": "Umschlag",
+        "priority": "Priorität",
+        "add": "Regel anlegen",
+        "enabled": "An",
+        "disabled": "Aus",
+        "remove": "Entfernen"
+      },
+      "accounts": {
+        "title": "Kontozuordnung",
+        "intro": "Zu welchem Feoh-Konto die Zeilen eines Bankkontos gehören. Nicht zugeordnete Zeilen warten im Eingang.",
+        "empty": "Noch keine Zuordnungen.",
+        "source": "Quellkonto-ID",
+        "sourcePlaceholder": "7",
+        "account": "Feoh-Konto",
+        "add": "Zuordnen",
+        "remove": "Entfernen"
+      }
     }
   },
   "nav": {

@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "type": "accounts", "id": "7", "attributes": { "name": "Joint current account", "type": "asset", "account_role": "defaultAsset", "currency_code": "EUR", "active": true } },
+    { "type": "accounts", "id": "8", "attributes": { "name": "Savings", "type": "asset", "account_role": "savingAsset", "currency_code": "EUR", "active": true } }
+  ],
+  "meta": { "pagination": { "total": 2, "count": 2, "per_page": 100, "current_page": 1, "total_pages": 1 } }
+}

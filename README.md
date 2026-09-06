@@ -122,6 +122,59 @@ are rejected for a maintenance-admin acting principal
 expense-split `memberId` reference Heorth's `users` table directly — there is
 no separate parties/roster boundary.
 
+### Bank import (ADR 0016, optional)
+
+Firefly III and its Data Importer run as an optional **ingestion sidecar** whose
+only job is talking to banks. Heorth *pulls* normalised statement lines from it
+through a two-method, read-only provider (`src/modules/feoh/import/`), applies
+household-owned rules, and books what it can through the ordinary ledger call
+(`recordTransaction`). Feoh stays the system of record; Firefly's budgets,
+bills, rules engine and users are unused, and its web UI is an operator tool
+for connecting banks, never a household surface.
+
+**Enable** with `FEOH_IMPORT_ENABLED=true` plus `FIREFLY_BASE_URL` and
+`FIREFLY_PAT` (a personal access token minted in Firefly's UI: Profile → OAuth
+→ Personal Access Tokens). Blank/`false` means the poll loop never starts and
+`POST /api/v1/feoh/ingestion/sync` answers `409 PROVIDER_UNAVAILABLE` (and,
+whether or not the group is enabled, `409 ALREADY_RUNNING` if a tick is already
+in flight); the inbox, the rules and confirming pending lines keep working,
+because those are pure Feoh writes. `FEOH_CURRENCY` (ISO 4217, default `EUR`) is
+the household's one currency — a line in any other currency stays in the inbox
+for ever and is never booked, by the tick or by a member.
+
+```
+# Feoh bank import — optional, off unless explicitly enabled
+FEOH_IMPORT_ENABLED=true
+FIREFLY_BASE_URL=http://localhost:14001
+FIREFLY_PAT=<a personal access token minted in Firefly's UI: Profile → OAuth → Personal Access Tokens>
+
+# Optional, default EUR — the household's one currency (ISO 4217)
+FEOH_CURRENCY=EUR
+```
+
+**How a line moves.** Each tick pulls pages from the persisted cursor and, per
+line: already known by `source_id` → skipped (the overlap window replays a week
+of history on purpose); currency differs → `pending`, never booked; source
+account unmapped (`PUT /ingestion/accounts`) → `pending`; no rule matches
+(`/ingestion/rules`, case-insensitive payee substring, `(priority, id)` order,
+first enabled match wins) → `pending`; otherwise booked as two postings
+(out: envelope debit / account credit; in: the reverse), attributed to the
+**rule's author**. A member books a pending line with
+`POST /ingestion/inbox/:id/confirm { envelopeId, accountId? }` (attributed to
+them) or parks it with `.../dismiss`. `POST /ingestion/inbox` adds a hand-typed
+line (`source_id = manual:<id>`) through the same pipeline. The cursor advances
+only after a whole page is written, so a tick that dies mid-page replays
+harmlessly.
+
+**Deliberately not done:** deletions and later edits in Firefly are ignored
+(first read wins); rule changes re-evaluate `pending` lines only; transfers
+between the household's own Firefly accounts are skipped. **Deleting a booked
+transaction returns its line to the inbox** rather than erasing the record that
+the bank line existed. `GET /ingestion/status` reports health without ever
+exposing the cursor; `last_error` holds a short token only (`auth_failed`,
+`network_error`, `rate_limited`, `bad_response`, `no_credentials`, `error`) —
+no Firefly response body is ever persisted or logged.
+
 ## Ethel
 
 Ethel (`src/modules/ethel/`, ADR 0013) is the household's property register —

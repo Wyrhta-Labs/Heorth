@@ -22,12 +22,16 @@ both files are wrong — fix them.
   responses use `ok`/`err` from `@wyrhta/core/http`; auth via `requireAuth` /
   `requireRole` from `src/wiring.ts` (which sets the `auth` context key).
 - **Optional integrations are gated as a GROUP, never per variable.** `M365_*`,
-  `KITH_*` and `SATELLITE_SIGNING_*` each follow one pattern (`src/config/env.ts`):
-  all present → the feature is configured and its routes mount; all absent → the
-  module registers as a **no-op** with zero impact (routes fall through to the
-  catch-all 404); **partial presence is a startup error.** Adding a var to an
-  existing group means touching all three of the schema group, the `superRefine`
-  all-or-nothing check, and the `config.<group>` object.
+  `GOOGLE_*`, `KITH_*`, `SATELLITE_SIGNING_*` and `FEOH_IMPORT_ENABLED` +
+  `FIREFLY_*` each follow one pattern (`src/config/env.ts`): all present → the
+  feature is configured and its routes mount; all absent → the module registers
+  as a **no-op** with zero impact (routes fall through to the catch-all 404);
+  **partial presence is a startup error.** Adding a var to an existing group
+  means touching all three of the schema group, the `superRefine` all-or-nothing
+  check, and the `config.<group>` object. The Firefly group is the one
+  exception to *partial presence is an error*: `FIREFLY_*` may be present while
+  `FEOH_IMPORT_ENABLED` is not `true` (compose passes defaults), and is simply
+  unused then.
 - **External dependencies resolve through a `get*Runtime()` / `set*Runtime()`
   seam** — `getM365Runtime`, `getKithRuntime`, `getSatelliteKeys`. Tests install
   in-process fakes through the setter. **Never call a real external service
@@ -96,6 +100,28 @@ both files are wrong — fix them.
   free text. **`serviceIntervalMonths` on either table is documentation** — the
   interval the manufacturer states. Nothing in Heorth schedules from it; the
   routine that acts on it is Weorc's (ADR 0014).
+- **Feoh bank import** (`src/modules/feoh/import/`, ADR 0016) **has exactly one
+  write path into the ledger: `recordTransaction()`.** Never insert into
+  `transactions` or `postings` from under `import/`; the existing ledger tests
+  are the guarantee only while that holds.
+- **The provider contract is one-way and semantics-free** — `listSince` and
+  `listAccounts`, nothing else. Do not add create/update/delete, and do not let a
+  Firefly type cross `providers/types.ts`. Deletions and edits in Firefly are
+  ignored on purpose (first read wins); rule changes touch `pending` rows only.
+- **`feoh_imported_transactions` rows are never deleted** — the table is the dedup
+  register. `deleteTransaction()` reverts a booked row to `pending` BEFORE the
+  delete; the FK's `set null` is a backstop, not the mechanism (the booked-pair
+  CHECK would fail mid-statement otherwise).
+- **The cursor is the provider's** (opaque JSON for Firefly) and advances only
+  after a whole page is written. The overlap re-window happens INSIDE the
+  provider (`checkpoint`), never by date arithmetic in `sync.ts`.
+- **Never persist or log a Firefly response body, URL, or the PAT.** `last_error`
+  and log lines carry only the six `SourceErrorReason` tokens.
+- **Single currency:** compare against `config.feohCurrency`; a mismatching line
+  is never booked, by the tick or by `confirmInboxRow`.
+- **The import scheduler is gated on `config.feohImport`** (the
+  `FEOH_IMPORT_ENABLED` kill switch) and on `VITEST`. Inbox reads, rules and
+  confirmations are NOT gated — they are pure Feoh writes.
 - **KithLedger reminders** (`src/modules/kith/`) is a **stateless live proxy**
   (no DB) presenting the **`household`** credential — read-only and member-less.
   `requireAuth` authenticates the Heorth caller, but **that identity is NEVER

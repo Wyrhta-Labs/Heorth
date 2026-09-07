@@ -24,9 +24,18 @@ export function buildEnvSchema() {
     ADMIN_EMAIL: z.string().email(),
     ADMIN_PASSWORD: z.string().min(1),
     API_PORT: z.coerce.number().int().positive().default(3000),
-    TRAKT_CLIENT_ID: z.string().min(1).optional(),
-    TRAKT_CLIENT_SECRET: z.string().min(1).optional(),
-    LIBRARY_ENCRYPTION_KEY: z.string().min(1).optional(),
+    // Library credentials. `emptyToUndefined` like every other optional here:
+    // the household stack's compose files pass these as `${VAR:-}`, so an
+    // unset variable arrives as an EMPTY STRING, not as absent. Plain
+    // `.min(1).optional()` would turn a blank template value into a startup
+    // failure — the exact opposite of optional.
+    TRAKT_CLIENT_ID: emptyToUndefined(z.string().min(1)),
+    TRAKT_CLIENT_SECRET: emptyToUndefined(z.string().min(1)),
+    // The AES-256-GCM key for stored library credentials (base64, decoding to
+    // exactly 32 bytes — checked in src/modules/library/crypto.ts). Absent
+    // means the key is derived from JWT_SECRET by HKDF, which pins JWT_SECRET
+    // for the life of those credentials; the module warns at boot.
+    LIBRARY_ENCRYPTION_KEY: emptyToUndefined(z.string().min(1)),
     // Microsoft 365 integration (Phase 2). Optional AS A GROUP: either all five
     // present (integration enabled) or all absent (integration disabled). Partial
     // presence is a startup error (see superRefine). Absent = zero impact: the

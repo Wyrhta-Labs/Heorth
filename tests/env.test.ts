@@ -60,4 +60,20 @@ describe('library env vars', () => {
     const parsed = buildEnvSchema().parse(base);
     expect(parsed.TRAKT_CLIENT_ID).toBeUndefined();
   });
+
+  // The household stack passes these as `${VAR:-}` (deploy/compose.prod.yml),
+  // so a blank entry in deploy/.env arrives as an empty string rather than as
+  // absent. Treating that as a validation error would make every prod boot with
+  // an unset key fail instead of falling back to the JWT_SECRET-derived one.
+  it('treats blank library vars as absent, not as an error', () => {
+    const parsed = buildEnvSchema().safeParse({
+      ...base,
+      TRAKT_CLIENT_ID: '',
+      TRAKT_CLIENT_SECRET: '',
+      LIBRARY_ENCRYPTION_KEY: '',
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.LIBRARY_ENCRYPTION_KEY).toBeUndefined();
+    expect(parsed.success && parsed.data.TRAKT_CLIENT_ID).toBeUndefined();
+  });
 });

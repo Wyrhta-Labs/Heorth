@@ -15,13 +15,24 @@ cp .env.example .env
 # to generate the secrets; nothing has a usable default on purpose.
 ```
 
-Two settings deserve a second look before you expose this to anything:
+Three settings deserve a second look before you expose this to anything:
 
 - **`CORS_ORIGIN`** ships as `*`, which is right for localhost and wrong
   everywhere else — Heorth holds household, calendar, and finance data.
 - **`DATABASE_URL`** must never point at a database you care about while the
   test suite runs: `tests/setup.ts` truncates every table between tests and
   accepts only a database whose name ends in `_test`.
+- **`LIBRARY_ENCRYPTION_KEY`** left blank pins `JWT_SECRET` in place. The
+  library module then derives its AES-256-GCM key from `JWT_SECRET` by HKDF
+  (`src/modules/library/crypto.ts`) and warns at every boot; rotating
+  `JWT_SECRET` afterwards makes every stored library credential undecryptable,
+  and unlike the integrations' refresh tokens there is no re-consent path back.
+  Set a dedicated key **before** storing any library credential — base64
+  decoding to exactly 32 bytes, not hex like the other secrets:
+
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  ```
 
 `npm install` fetches `@wyrhta/core` straight from its **git tag** rather than
 from a registry, and builds it during install — so you need `git` on your PATH

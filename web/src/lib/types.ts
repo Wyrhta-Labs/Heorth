@@ -552,3 +552,42 @@ export interface AvailableCalendar {
   enabled: boolean;
   isHousehold: boolean;
 }
+
+// ---- Gewrit (ADR 0017) ----
+export type GewritLinkRole = 'manual' | 'warranty' | 'invoice' | 'contract' | 'certificate' | 'other';
+
+export interface GewritDocument {
+  id: string;
+  externalId: string;
+  title: string;
+  documentType: string | null;
+  correspondent: string | null;
+  createdOn: string | null;
+  status: 'available' | 'missing';
+  lastSeenAt: string;
+  externalUrl: string | null;
+}
+
+export interface GewritLink {
+  id: string;
+  role: GewritLinkRole;
+  note: string | null;
+  createdAt: string;
+  document: GewritDocument;
+}
+
+/** Text only — the search picker never shows thumbnails (preview gate). */
+export interface GewritSearchHit {
+  externalId: string;
+  title: string;
+  documentType: string | null;
+  correspondent: string | null;
+  createdOn: string | null;
+}
+
+export type GewritElement = { assetId: string } | { placeId: string };
+
+export interface GewritListResponse {
+  data: GewritLink[];
+  meta: { stale: boolean };
+}

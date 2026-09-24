@@ -85,3 +85,32 @@ export function qs(params: Record<string, unknown>): string {
   const s = p.toString();
   return s ? `?${s}` : '';
 }
+
+/**
+ * GET a binary body (the Gewrit preview). A raw fetch because `request()`
+ * always parses JSON; the Bearer header is why the UI cannot point an
+ * <iframe src> at the API directly. The Blob keeps the response's type, which
+ * the caller renders from.
+ */
+export async function apiGetBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal });
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    if (window.location.pathname !== '/login') window.location.href = '/login';
+    throw new ApiError(401, 'UNAUTHORIZED', '');
+  }
+  if (!res.ok) {
+    let code = 'UNKNOWN';
+    let message = '';
+    try {
+      const json = await res.json();
+      code = json.error?.code ?? code;
+      message = json.error?.message ?? '';
+    } catch {
+      // Not a JSON error body — keep the fallback code.
+    }
+    throw new ApiError(res.status, code, message);
+  }
+  return res.blob();
+}

@@ -5,6 +5,7 @@ export interface Features {
   finance: boolean;
   kithledger: boolean;
   kithledgerUrl: string | null;
+  gewrit: boolean;
 }
 
 export function getFeatures(): Promise<SingleResponse<Features>> { return apiGet('/features'); }

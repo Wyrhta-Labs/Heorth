@@ -45,6 +45,9 @@ export const QUERY_KEYS = {
   integrationsStatus: ['integrations', 'status'] as const,
   features: ['features'] as const,
   kithReminders: ['kith', 'reminders'] as const,
+  gewrit: ['gewrit'] as const,
+  gewritElement: (key: string) => ['gewrit', 'element', key] as const,
+  gewritSearch: (q: string) => ['gewrit', 'search', q] as const,
 } as const;
 
 /** Member avatar palette (ember / taupe / sage / sky) — hex per the brand guide. */

@@ -22,16 +22,18 @@ both files are wrong — fix them.
   responses use `ok`/`err` from `@wyrhta/core/http`; auth via `requireAuth` /
   `requireRole` from `src/wiring.ts` (which sets the `auth` context key).
 - **Optional integrations are gated as a GROUP, never per variable.** `M365_*`,
-  `GOOGLE_*`, `KITH_*`, `SATELLITE_SIGNING_*` and `FEOH_IMPORT_ENABLED` +
-  `FIREFLY_*` each follow one pattern (`src/config/env.ts`): all present → the
-  feature is configured and its routes mount; all absent → the module registers
-  as a **no-op** with zero impact (routes fall through to the catch-all 404);
-  **partial presence is a startup error.** Adding a var to an existing group
-  means touching all three of the schema group, the `superRefine` all-or-nothing
-  check, and the `config.<group>` object. The Firefly group is the one
-  exception to *partial presence is an error*: `FIREFLY_*` may be present while
-  `FEOH_IMPORT_ENABLED` is not `true` (compose passes defaults), and is simply
-  unused then.
+  `GOOGLE_*`, `KITH_*`, `SATELLITE_SIGNING_*`, `FEOH_IMPORT_ENABLED` +
+  `FIREFLY_*`, and `GEWRIT_PROVIDER` + `PAPERLESS_*` each follow one pattern
+  (`src/config/env.ts`): all present → the feature is configured and its routes
+  mount; all absent → the module registers as a **no-op** with zero impact
+  (routes fall through to the catch-all 404); **partial presence is a startup
+  error.** Adding a var to an existing group means touching all three of the
+  schema group, the `superRefine` all-or-nothing check, and the `config.<group>`
+  object. The Firefly and Paperless groups are the exceptions to *partial
+  presence is an error*: `FIREFLY_*` may be present while `FEOH_IMPORT_ENABLED`
+  is not `true` (compose passes defaults), and is simply unused then; similarly,
+  `PAPERLESS_PUBLIC_URL` is optional within the `GEWRIT_*` group while
+  `GEWRIT_PROVIDER` and `PAPERLESS_BASE_URL`/`PAPERLESS_TOKEN` require all-or-nothing.
 - **External dependencies resolve through a `get*Runtime()` / `set*Runtime()`
   seam** — `getM365Runtime`, `getKithRuntime`, `getSatelliteKeys`. Tests install
   in-process fakes through the setter. **Never call a real external service
@@ -133,6 +135,26 @@ both files are wrong — fix them.
   `KITH_CREDENTIAL_REJECTED` (upstream 401/403) distinct from
   `KITH_UNAVAILABLE`, so a misconfigured key never reads as an outage.
   → `README.md`, "Which principal this feed presents (ADR 0004 §2)".
+- **Gewrit** (`src/modules/gewrit/`, ADR 0017) is **optional** (`GEWRIT_PROVIDER`
+  blank → not mounted) and depends on Ethel one way: it reads Ethel's tables for
+  existence and its links cascade from them. **Ethel never imports Gewrit.**
+- **Files live in Paperless only.** Never write a document's bytes to disk or a
+  table, never buffer a whole preview, never call a Paperless write endpoint.
+  `providers/paperless.ts` is the only file where Paperless URLs, JSON shapes or
+  the token may appear.
+- **The preview gate:** `GET /gewrit/documents/:id/preview` serves only a
+  `gewrit_documents` row **with a link**, and inline only for the types in
+  `INLINE_TYPES` (`preview.ts`). Everything else is an `application/octet-stream`
+  attachment. Do not add a CSP to the preview to "harden" it — the web renders
+  from a `blob:` URL that never sees response headers; the allowlist is the
+  protection.
+- **Search is admin/adult** because it reaches unlinked documents; do not open it
+  to every member "for symmetry" with the lists.
+- **Recognise provider errors with `isDocumentProviderError`, never
+  `instanceof`** — the gating tests run the app in a fresh module graph.
+- **Never classify a missing document by deleting it.** Absent from `getMany`
+  means `status = 'missing'`; the row and its links stay until a member removes
+  the link.
 
 ## Token and key rules
 

@@ -660,6 +660,46 @@ read. A member who wants such a reminder on the wall changes its visibility to
 `household` in KithLedger. The wall degrades quietly: a narrowed or empty list
 is an ordinary `200` with fewer chips, never an error or an empty-state banner.
 
+## Gewrit — documents in Paperless-ngx (ADR 0017)
+
+Gewrit links documents that live in Paperless-ngx to Ethel assets and places —
+the boiler's manual, the car's registration, the floor plan. Paperless stays
+the system of record: Heorth keeps a reference and a metadata snapshot, streams
+a preview through while a member looks at it, and never stores a file.
+
+| Variable | Meaning |
+|---|---|
+| `GEWRIT_PROVIDER` | `paperless`, `fake` (built-in demo documents), or blank (off; routes not mounted) |
+| `PAPERLESS_BASE_URL` | Where Heorth reaches Paperless. Required for `paperless`. |
+| `PAPERLESS_TOKEN` | API token of the `heorth` user. Required for `paperless`. Never logged. |
+| `PAPERLESS_PUBLIC_URL` | Optional. The URL members' browsers use for "Open in Paperless". |
+
+### Setting up Paperless for Heorth
+
+1. In Paperless, create a user named `heorth`. It needs no admin rights.
+2. Give it **view** permission on the documents you want to link, **and** on the
+   document types and correspondents they use. Without the latter, the names
+   show as blank in Heorth (the document itself still works).
+3. Create an API token for `heorth` (Profile → API Auth Token) and put it in
+   `PAPERLESS_TOKEN`.
+
+What Heorth can see is exactly what is shared with that user. Only admins and
+adults can search Paperless or change links; every member can see the documents
+linked to an asset or place and open their preview.
+
+### Behaviour worth knowing
+
+- The Documents panel answers from the snapshot. A snapshot older than 15
+  minutes is refreshed in one call with a 3-second timeout; if Paperless does not
+  answer, the panel shows the last known details with a hint.
+- A document deleted or unshared in Paperless shows as "missing". It comes back
+  by itself when Paperless returns it; nothing is cleaned up silently.
+- Previews: PDF and PNG/JPEG/GIF/WebP are shown inline; any other type is
+  offered as a download and never rendered.
+- The Paperless API version is pinned to 10 (`PAPERLESS_API_VERSION` in
+  `src/modules/gewrit/providers/paperless.ts`). A Paperless too old for API 10
+  answers `406`, which shows as "Paperless is unavailable".
+
 ## Satellite identity — signing keys and JWKS (optional)
 
 Heorth is the household's identity provider for satellite services

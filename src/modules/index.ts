@@ -11,6 +11,7 @@ import { googleModule } from '../google/index.js';
 import { integrationsModule } from '../integrations/index.js';
 import { feohModule } from './feoh/index.js';
 import { kithModule } from './kith/index.js';
+import { gewritModule } from './gewrit/index.js';
 
 export const ALL_MODULES: HeorthModule[] = [
   householdModule,
@@ -21,6 +22,9 @@ export const ALL_MODULES: HeorthModule[] = [
   ethelModule,
   // Weorc: recurring household work — routines, history, and task projection.
   weorcModule,
+  // Gewrit: Paperless-backed document links on Ethel elements — a no-op when
+  // GEWRIT_PROVIDER is blank (ADR 0017).
+  gewritModule,
   // Tasks: household task surface backed by Microsoft To Do (mirror always present).
   tasksModule,
   // M365 is a no-op when its env is absent (integration disabled) — see src/m365.

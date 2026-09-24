@@ -15,3 +15,4 @@ export * from '../../integrations/schema.js';
 export * from '../../modules/ethel/schema.js';
 export * from '../../modules/weorc/schema.js';
 export * from '../../modules/feoh/import/schema.js';
+export * from '../../modules/gewrit/schema.js';

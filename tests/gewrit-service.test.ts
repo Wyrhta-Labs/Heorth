@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 import { ethelAssets, ethelPlaces } from '../src/modules/ethel/schema.js';
 import { gewritDocuments, gewritLinks } from '../src/modules/gewrit/schema.js';
@@ -23,6 +23,28 @@ async function backdate(documentId: string, fields: { lastSeenMinutes?: number; 
 async function reason(p: Promise<unknown>): Promise<string> {
   const e = await p.then(() => null, (x: unknown) => x);
   return (e as { code?: string; reason?: string } | null)?.code ?? (e as { reason?: string } | null)?.reason ?? 'no error';
+}
+
+/**
+ * Polls pg_stat_activity (its own pool connection, released after each check)
+ * until some OTHER backend is blocked on a row lock, or throws after
+ * `timeoutMs`. Deterministic-race tests use this instead of `Promise.all`
+ * timing to prove the interleaving they need actually happened — a defect
+ * that skips the lock (no `FOR UPDATE`, or the wrong lock order) never makes
+ * a backend block, so the poll times out and the test fails loudly instead of
+ * passing on luck.
+ */
+async function waitForLockWait(timeoutMs = 8000, intervalMs = 25): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const rows = await db.execute(sql`
+      SELECT 1 FROM pg_stat_activity
+       WHERE wait_event_type = 'Lock' AND datname = current_database() AND pid <> pg_backend_pid()
+    `) as unknown as unknown[];
+    if (rows.length > 0) return;
+    if (Date.now() >= deadline) throw new Error('Timed out waiting for a backend to block on a lock');
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
 }
 
 describe('gewrit service — linking', () => {
@@ -173,6 +195,91 @@ describe('gewrit service — deleting and the sweep', () => {
       expect((await db.select().from(gewritLinks)).map((x) => x.role)).toEqual(['invoice']);
       await service.deleteLink(relinked.id);
     }
+  });
+
+  it('deterministic: delete waits behind a held upsert, then sees the link the held transaction adds', async () => {
+    // Forces the exact interleaving the timing-based race test above can only hope
+    // for: deleteLink's FOR UPDATE must block on a row a concurrent upsert is
+    // holding, and must still see a link that upsert's transaction adds before it
+    // commits. A buggy deleteLink that deletes the link BEFORE locking the document
+    // (or never locks it at all) never blocks here — waitForLockWait times out and
+    // fails the test, instead of the five-iteration timing gamble silently passing.
+    const a = await asset();
+    const b = await asset('Car');
+    const fake = createFakeDocuments([doc('412')]);
+    const l1 = await service.createLink(fake, { externalId: '412', role: 'manual', assetId: a.id });
+
+    let release!: () => void;
+    const proceed = new Promise<void>((resolve) => { release = resolve; });
+    const held = db.transaction(async (tx) => {
+      // The same upsert createLink does, holding the document row's lock.
+      await tx.insert(gewritDocuments)
+        .values({
+          source: 'paperless', externalId: '412', title: 'x', documentType: null, correspondent: null,
+          createdOn: null, status: 'available', lastSeenAt: new Date(), updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [gewritDocuments.source, gewritDocuments.externalId],
+          set: { updatedAt: new Date() },
+        });
+      await proceed;
+      await tx.insert(gewritLinks).values({ documentId: l1.document.id, assetId: b.id, placeId: null, role: 'invoice', note: null });
+    }).then(() => ({ ok: true as const }), (error: unknown) => ({ ok: false as const, error }));
+
+    const deleted = service.deleteLink(l1.id).then((v) => ({ ok: true as const, v }), (error: unknown) => ({ ok: false as const, error }));
+
+    try {
+      await waitForLockWait();
+    } finally {
+      release();
+    }
+
+    const [heldOutcome, deletedOutcome] = await Promise.all([held, deleted]);
+    if (!heldOutcome.ok) throw heldOutcome.error;
+    if (!deletedOutcome.ok) throw deletedOutcome.error;
+    expect(deletedOutcome.v).toBe(true);
+    expect(await db.select().from(gewritDocuments).where(eq(gewritDocuments.externalId, '412'))).toHaveLength(1);
+    expect((await db.select().from(gewritLinks)).map((x) => x.assetId)).toEqual([b.id]);
+  });
+
+  it('deterministic: create waits behind a held delete, then gets a fresh document row', async () => {
+    // The mirror interleaving: createLink's INSERT .. ON CONFLICT must block on a
+    // row a concurrent transaction has FOR-UPDATE-locked and is about to delete,
+    // then succeed with a fresh row once that transaction commits. A createLink
+    // that does not re-resolve the conflict after the wait (or races the delete)
+    // either loses the link or errors instead of blocking here.
+    const a = await asset();
+    const b = await asset('Car');
+    const fake = createFakeDocuments([doc('412')]);
+    const l1 = await service.createLink(fake, { externalId: '412', role: 'manual', assetId: a.id });
+    const originalDocId = l1.document.id;
+
+    let release!: () => void;
+    const proceed = new Promise<void>((resolve) => { release = resolve; });
+    const held = db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM gewrit_documents WHERE id = ${originalDocId} FOR UPDATE`);
+      await tx.delete(gewritLinks).where(eq(gewritLinks.id, l1.id));
+      await tx.delete(gewritDocuments).where(eq(gewritDocuments.id, originalDocId));
+      await proceed;
+    }).then(() => ({ ok: true as const }), (error: unknown) => ({ ok: false as const, error }));
+
+    const created = service.createLink(fake, { externalId: '412', role: 'invoice', assetId: b.id })
+      .then((v) => ({ ok: true as const, v }), (error: unknown) => ({ ok: false as const, error }));
+
+    try {
+      await waitForLockWait();
+    } finally {
+      release();
+    }
+
+    const [heldOutcome, createdOutcome] = await Promise.all([held, created]);
+    if (!heldOutcome.ok) throw heldOutcome.error;
+    if (!createdOutcome.ok) throw createdOutcome.error;
+    expect(createdOutcome.v.document.externalId).toBe('412');
+    const rows = await db.select().from(gewritDocuments).where(eq(gewritDocuments.externalId, '412'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).not.toBe(originalDocId);
+    expect((await db.select().from(gewritLinks)).map((x) => x.assetId)).toEqual([b.id]);
   });
 
   it('sweeps an orphan older than an hour and spares a younger one', async () => {

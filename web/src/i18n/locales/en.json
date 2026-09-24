@@ -695,6 +695,54 @@
     "deleteFailed": "Failed to delete item",
     "deleteBlocked": "This item still has linked expenses — unlink them first."
   },
+  "gewrit": {
+    "title": "Documents",
+    "empty": "No documents linked yet.",
+    "link": "Link document",
+    "stale": "Paperless is not reachable — showing the last known details.",
+    "missing": "Deleted in Paperless",
+    "roles": {
+      "manual": "Manual",
+      "warranty": "Warranty",
+      "invoice": "Invoice",
+      "contract": "Contract",
+      "certificate": "Certificate",
+      "other": "Other"
+    },
+    "dialog": {
+      "title": "Link a document",
+      "search": "Search Paperless",
+      "searchHint": "Type at least two characters.",
+      "noHits": "No documents found.",
+      "paste": "Or paste a Paperless link or document number",
+      "pasteInvalid": "That is not a Paperless document link or number.",
+      "role": "Role",
+      "note": "Note (optional)",
+      "submit": "Link",
+      "selected": "Selected: {{title}}"
+    },
+    "preview": {
+      "loading": "Loading preview…",
+      "download": "This file type is not shown here.",
+      "downloadAction": "Download",
+      "open": "Open in Paperless",
+      "remove": "Remove link",
+      "removeConfirm": "Remove “{{title}}” from here? The document stays in Paperless.",
+      "save": "Save",
+      "failed": "The preview could not be loaded."
+    },
+    "placeAction": "Documents",
+    "placeTitle": "Documents — {{name}}",
+    "errors": {
+      "PROVIDER_UNAVAILABLE": "Paperless is not reachable.",
+      "PROVIDER_AUTH": "Gewrit is not configured correctly.",
+      "DOCUMENT_NOT_FOUND": "Paperless has no document with that number.",
+      "ALREADY_LINKED": "That document is already linked here in that role.",
+      "ELEMENT_NOT_FOUND": "This item no longer exists.",
+      "FORBIDDEN": "Only adults can link or change documents.",
+      "generic": "Something went wrong."
+    }
+  },
   "weorc": {
     "title": "Weorc",
     "subtitle": "The household's recurring work — the chores.",

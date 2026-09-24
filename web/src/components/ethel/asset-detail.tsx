@@ -8,6 +8,7 @@ import { useFormatters } from '@/hooks/use-formatters';
 import { useItemCosts, useCreateItemCost, useTransactions } from '@/hooks/use-feoh';
 import { useDeleteAsset, useAsset } from '@/hooks/use-ethel';
 import { ApiError } from '@/api/client';
+import DocumentsPanel from '@/components/gewrit/documents-panel';
 import DecommissionDialog from './decommission-dialog';
 import VehicleDetails from './vehicle-details';
 import FacilityDetails from './facility-details';
@@ -178,6 +179,8 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
             {(facility || adding === 'facility') && (
               <FacilityDetails assetId={asset.id} facility={facility} places={places} onRemoved={() => setAdding(null)} />
             )}
+
+            <DocumentsPanel element={{ assetId: asset.id }} />
 
             {/* Both actions, or neither. Opening one form also withdraws the
                 other action: two open forms would let the member fill in both

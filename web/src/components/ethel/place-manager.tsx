@@ -7,8 +7,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/api/client';
 import { usePlaces, useCreatePlace, useUpdatePlace, useDeletePlace } from '@/hooks/use-ethel';
+import { useFeatures } from '@/hooks/use-features';
 import { buildPlaceTree, flattenPlaceTree, subtreeIds } from '@/lib/place-tree';
 import PlacePicker from './place-picker';
+import PlaceDocumentsDialog from '@/components/gewrit/place-documents-dialog';
 import type { EthelPlace, PlaceKind } from '@/lib/types';
 
 export const PLACE_KINDS: PlaceKind[] = ['building', 'floor', 'room', 'outdoor', 'storage'];
@@ -48,6 +50,9 @@ export default function PlaceManager({ open, onClose, onShowServing }: Props) {
   const createPlace = useCreatePlace();
   const updatePlace = useUpdatePlace();
   const deletePlace = useDeletePlace();
+  const features = useFeatures();
+  const gewrit = features.data?.data.gewrit === true;
+  const [docsPlace, setDocsPlace] = useState<EthelPlace | null>(null);
   const [newName, setNewName] = useState('');
   const [newKind, setNewKind] = useState<PlaceKind>('room');
   const [newParentId, setNewParentId] = useState<string | null>(null);
@@ -98,7 +103,8 @@ export default function PlaceManager({ open, onClose, onShowServing }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <>
+    <Dialog open={open && !docsPlace} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('ethel.places.title')}</DialogTitle>
@@ -149,6 +155,15 @@ export default function PlaceManager({ open, onClose, onShowServing }: Props) {
                       className="text-xs text-ember underline"
                     >
                       {t('ethel.places.servingThis')}
+                    </button>
+                  )}
+                  {gewrit && (
+                    <button
+                      type="button"
+                      onClick={() => setDocsPlace(place)}
+                      className="text-xs text-ember underline"
+                    >
+                      {t('gewrit.placeAction')}
                     </button>
                   )}
                   <PlacePicker
@@ -202,5 +217,7 @@ export default function PlaceManager({ open, onClose, onShowServing }: Props) {
         </div>
       </DialogContent>
     </Dialog>
+    <PlaceDocumentsDialog place={docsPlace} onClose={() => setDocsPlace(null)} />
+    </>
   );
 }

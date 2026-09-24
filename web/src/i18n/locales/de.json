@@ -695,6 +695,54 @@
     "deleteFailed": "Gegenstand konnte nicht gelöscht werden",
     "deleteBlocked": "Dieser Gegenstand hat noch verknüpfte Ausgaben – zuerst die Verknüpfung aufheben."
   },
+  "gewrit": {
+    "title": "Dokumente",
+    "empty": "Noch keine Dokumente verknüpft.",
+    "link": "Dokument verknüpfen",
+    "stale": "Paperless ist nicht erreichbar – angezeigt werden die zuletzt bekannten Angaben.",
+    "missing": "In Paperless gelöscht",
+    "roles": {
+      "manual": "Anleitung",
+      "warranty": "Garantie",
+      "invoice": "Rechnung",
+      "contract": "Vertrag",
+      "certificate": "Nachweis",
+      "other": "Sonstiges"
+    },
+    "dialog": {
+      "title": "Dokument verknüpfen",
+      "search": "In Paperless suchen",
+      "searchHint": "Mindestens zwei Zeichen eingeben.",
+      "noHits": "Keine Dokumente gefunden.",
+      "paste": "Oder einen Paperless-Link bzw. eine Dokumentnummer einfügen",
+      "pasteInvalid": "Das ist weder ein Paperless-Dokumentlink noch eine Dokumentnummer.",
+      "role": "Rolle",
+      "note": "Notiz (optional)",
+      "submit": "Verknüpfen",
+      "selected": "Ausgewählt: {{title}}"
+    },
+    "preview": {
+      "loading": "Vorschau wird geladen …",
+      "download": "Dieser Dateityp wird hier nicht angezeigt.",
+      "downloadAction": "Herunterladen",
+      "open": "In Paperless öffnen",
+      "remove": "Verknüpfung entfernen",
+      "removeConfirm": "„{{title}}“ hier entfernen? Das Dokument bleibt in Paperless.",
+      "save": "Speichern",
+      "failed": "Die Vorschau konnte nicht geladen werden."
+    },
+    "placeAction": "Dokumente",
+    "placeTitle": "Dokumente – {{name}}",
+    "errors": {
+      "PROVIDER_UNAVAILABLE": "Paperless ist nicht erreichbar.",
+      "PROVIDER_AUTH": "Gewrit ist nicht richtig eingerichtet.",
+      "DOCUMENT_NOT_FOUND": "In Paperless gibt es kein Dokument mit dieser Nummer.",
+      "ALREADY_LINKED": "Dieses Dokument ist hier in dieser Rolle schon verknüpft.",
+      "ELEMENT_NOT_FOUND": "Diesen Eintrag gibt es nicht mehr.",
+      "FORBIDDEN": "Nur Erwachsene können Dokumente verknüpfen oder ändern.",
+      "generic": "Etwas ist schiefgegangen."
+    }
+  },
   "weorc": {
     "title": "Weorc",
     "subtitle": "Die wiederkehrende Arbeit im Haushalt — die Hausarbeit.",

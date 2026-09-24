@@ -161,6 +161,20 @@ export function buildEnvSchema() {
     // there is no currency column anywhere). An imported line in any other
     // currency stays in the inbox and is never booked. ISO 4217, default EUR.
     FEOH_CURRENCY: emptyToUndefined(z.string().regex(/^[A-Z]{3}$/, 'FEOH_CURRENCY must be an ISO 4217 code such as EUR')),
+    // Gewrit (ADR 0017). Household documents stay in Paperless-ngx; Heorth
+    // keeps references and a metadata snapshot, never a file. `paperless`
+    // requires BOTH PAPERLESS_BASE_URL and PAPERLESS_TOKEN (see superRefine);
+    // `fake` serves four built-in documents for the demo stack (ADR 0012);
+    // blank = off, the module registers nothing. The PAPERLESS_* values may be
+    // present while the provider is blank (compose passes defaults) and are
+    // simply unused then — the Firefly precedent.
+    GEWRIT_PROVIDER: emptyToUndefined(z.enum(['paperless', 'fake'])),
+    PAPERLESS_BASE_URL: emptyToUndefined(z.string().url()),
+    // API token of the dedicated `heorth` user in Paperless. Never logged.
+    PAPERLESS_TOKEN: emptyToUndefined(z.string().min(1)),
+    // Optional: the URL members' browsers use for "Open in Paperless", when it
+    // differs from the base URL Heorth reaches Paperless on.
+    PAPERLESS_PUBLIC_URL: emptyToUndefined(z.string().url()),
   }).superRefine((env, ctx) => {
     const m365Keys = [
       'M365_TENANT_ID', 'M365_CLIENT_ID', 'M365_CLIENT_SECRET',
@@ -296,6 +310,19 @@ export function buildEnvSchema() {
         });
       }
     }
+    if (env.GEWRIT_PROVIDER === 'paperless') {
+      const missing = (['PAPERLESS_BASE_URL', 'PAPERLESS_TOKEN'] as const)
+        .filter((k) => env[k] === undefined || env[k] === '');
+      if (missing.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['GEWRIT'],
+          message:
+            `GEWRIT_PROVIDER=paperless but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} blank — ` +
+            `set ${missing.length > 1 ? 'both' : 'it'}, or clear GEWRIT_PROVIDER.`,
+        });
+      }
+    }
   });
 }
 
@@ -373,6 +400,20 @@ export const config = {
   // The household's single currency; imported rows in any other currency are
   // never booked (spec §2 "Currency").
   feohCurrency: parsed.FEOH_CURRENCY ?? 'EUR',
+  // Gewrit (ADR 0017) — `null` when GEWRIT_PROVIDER is blank (module off).
+  // The schema guarantees base URL and token when the provider is `paperless`.
+  // NOTE: `token` is a credential. Never log it, never return it.
+  gewrit:
+    parsed.GEWRIT_PROVIDER === 'paperless'
+      ? {
+          provider: 'paperless' as const,
+          baseUrl: parsed.PAPERLESS_BASE_URL!,
+          token: parsed.PAPERLESS_TOKEN!,
+          publicUrl: parsed.PAPERLESS_PUBLIC_URL ?? parsed.PAPERLESS_BASE_URL!,
+        }
+      : parsed.GEWRIT_PROVIDER === 'fake'
+        ? { provider: 'fake' as const }
+        : null,
   // Resolved satellite signing config, or null when no key is configured
   // (the default — JWKS then publishes an empty key set and nothing else
   // changes). All-or-nothing like m365/kith above: SATELLITE_SIGNING_KEY
@@ -417,6 +458,9 @@ export type GoogleConfig = NonNullable<typeof config.google>;
 
 /** The resolved KithLedger config shape (present only when enabled). */
 export type KithConfig = NonNullable<typeof config.kith>;
+
+/** The resolved Gewrit config shape (present only when enabled). */
+export type GewritConfig = NonNullable<typeof config.gewrit>;
 
 /** The resolved satellite signing config shape (present only when configured). */
 export type SatelliteConfig = NonNullable<typeof config.satellite>;

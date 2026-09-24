@@ -28,6 +28,10 @@ for (const k of [
   // tests and no test may reach a real Firefly. Enabled-path tests install a
   // FakeSource via setTransactionSourceProvider instead.
   'FEOH_IMPORT_ENABLED', 'FIREFLY_BASE_URL', 'FIREFLY_PAT',
+  // Gewrit (ADR 0017): no test may reach a real Paperless. Enabled-path tests
+  // set GEWRIT_PROVIDER in a fresh module graph and install a fake through
+  // setGewritRuntime.
+  'GEWRIT_PROVIDER', 'PAPERLESS_BASE_URL', 'PAPERLESS_TOKEN', 'PAPERLESS_PUBLIC_URL',
 ]) {
   process.env[k] = '';
 }

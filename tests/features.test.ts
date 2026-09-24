@@ -17,4 +17,11 @@ describe('features', () => {
     const body = await res.json() as { data: { finance: boolean } };
     expect(body.data.finance).toBe(true);
   });
+
+  it('reports gewrit disabled by default', async () => {
+    const { child } = await seedTestHousehold();
+    const res = await app.request('/api/v1/features', { headers: authHeaders(child.jwt) });
+    const body = await res.json() as { data: { gewrit: boolean } };
+    expect(body.data.gewrit).toBe(false);
+  });
 });

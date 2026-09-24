@@ -6,9 +6,11 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  /** Width of the panel; defaults to `max-w-lg`. */
+  className?: string;
 }
 
-function Dialog({ open, onOpenChange, children }: DialogProps) {
+function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   React.useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -26,7 +28,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
         className="fixed inset-0 bg-black/50"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative z-50 w-full max-w-lg">{children}</div>
+      <div className={cn('relative z-50 w-full max-w-lg', className)}>{children}</div>
     </div>
   );
 }
@@ -36,7 +38,8 @@ const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
     <div
       ref={ref}
       className={cn(
-        'relative bg-white rounded-xl shadow-xl border border-gray-200 p-6 mx-4',
+        // Never taller than the viewport: long content scrolls inside the panel.
+        'relative bg-white rounded-xl shadow-xl border border-gray-200 p-6 mx-4 max-h-[calc(100vh-2rem)] overflow-y-auto',
         className
       )}
       {...props}

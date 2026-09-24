@@ -94,108 +94,114 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
 
   return (
     <>
-      <Dialog open={!!asset && !decommissionOpen} onOpenChange={(v) => !v && onClose()}>
+      <Dialog open={!!asset && !decommissionOpen} onOpenChange={(v) => !v && onClose()} className="max-w-6xl">
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{asset.name}</DialogTitle>
             <DialogClose onClose={onClose} />
           </DialogHeader>
           <div className="space-y-4 text-sm">
-            <div className="space-y-1">
-              <p className="text-muted-foreground">
-                {[asset.category, asset.manufacturer, asset.model].filter(Boolean).join(' · ') || '—'}
-              </p>
-              {asset.placeId && <p>{t('ethel.places.place')}: {placePath(places, asset.placeId)}</p>}
-              {asset.locationNote && <p>{t('ethel.fields.locationNote')}: {asset.locationNote}</p>}
-              {asset.serialNumber && <p>{t('ethel.fields.serialNumber')}: {asset.serialNumber}</p>}
-              {asset.notes && <p className="text-muted-foreground">{asset.notes}</p>}
-              {lifecycle && <p className="font-medium">{lifecycle}</p>}
-            </div>
+            {/* Side by side from md up (facts + details | cost | documents), so
+                the dialog grows wide rather than taller than the screen. */}
+            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">
+                    {[asset.category, asset.manufacturer, asset.model].filter(Boolean).join(' · ') || '—'}
+                  </p>
+                  {asset.placeId && <p>{t('ethel.places.place')}: {placePath(places, asset.placeId)}</p>}
+                  {asset.locationNote && <p>{t('ethel.fields.locationNote')}: {asset.locationNote}</p>}
+                  {asset.serialNumber && <p>{t('ethel.fields.serialNumber')}: {asset.serialNumber}</p>}
+                  {asset.notes && <p className="text-muted-foreground">{asset.notes}</p>}
+                  {lifecycle && <p className="font-medium">{lifecycle}</p>}
+                </div>
 
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-base">{t('ethel.tco.title')}</CardTitle></CardHeader>
-              <CardContent className="space-y-1">
-                {totals ? (
-                  <>
-                    <div className="flex justify-between"><span>{t('ethel.tco.capital')}</span><span>{formatMoney(totals.capital)}</span></div>
-                    <div className="flex justify-between"><span>{t('ethel.tco.tier2')}</span><span>{formatMoney(totals.tier2)}</span></div>
-                    <div className="flex justify-between"><span>{t('ethel.tco.recurring')}</span><span>{formatMoney(totals.recurring)}</span></div>
-                    <div className="flex justify-between"><span>{t('ethel.tco.proceeds')}</span><span>{formatMoney(totals.proceeds)}</span></div>
-                    <div className="flex justify-between font-medium"><span>{t('ethel.tco.total')}</span><span>{formatMoney(totals.total)}</span></div>
-                    <div className="flex justify-between">
-                      <span>{t('ethel.tco.perYear')}</span>
-                      <span>{totals.perYear === null ? '—' : formatMoney(totals.perYear)}</span>
-                    </div>
-                  </>
-                ) : <p className="text-muted-foreground">{t('common.loading')}</p>}
-
-                {links.length > 0 && (
-                  <ul className="pt-2 space-y-1">
-                    {links.map((link) => (
-                      <li key={link.id} className="flex justify-between text-xs text-muted-foreground">
-                        <span className="rounded-full bg-linen px-2 py-0.5">{t(`ethel.tco.kind.${link.kind}`)}</span>
-                        <span>{link.transaction.payee} · {formatMoney(link.transaction.amount)}</span>
-                      </li>
-                    ))}
-                  </ul>
+                {(vehicle || adding === 'vehicle') && (
+                  <VehicleDetails assetId={asset.id} vehicle={vehicle} onRemoved={() => setAdding(null)} />
+                )}
+                {(facility || adding === 'facility') && (
+                  <FacilityDetails assetId={asset.id} facility={facility} places={places} onRemoved={() => setAdding(null)} />
                 )}
 
-                {!linkOpen ? (
-                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setLinkOpen(true)}>
-                    {t('ethel.tco.linkExpense')}
-                  </Button>
-                ) : (
-                  <form onSubmit={submitLink} className="mt-2 space-y-2">
-                    <select
-                      aria-label={t('ethel.tco.linkExpense')}
-                      value={linkTransactionId}
-                      onChange={(e) => setLinkTransactionId(e.target.value)}
-                      className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
-                    >
-                      <option value="">—</option>
-                      {transactions.map((tx) => (
-                        <option key={tx.id} value={tx.id}>{tx.date} · {tx.payee} · {tx.amount}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={linkKind}
-                      onChange={(e) => setLinkKind(e.target.value as ItemCostKind)}
-                      className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
-                    >
-                      {COST_KINDS.map((k) => <option key={k} value={k}>{t(`ethel.tco.kind.${k}`)}</option>)}
-                    </select>
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setLinkOpen(false)}>{t('common.cancel')}</Button>
-                      <Button type="submit" size="sm" disabled={createCost.isPending}>{t('common.save')}</Button>
-                    </div>
-                  </form>
+                {/* Both actions, or neither. Opening one form also withdraws the
+                    other action: two open forms would let the member fill in both
+                    and meet the 409 on the second save, which is exactly the
+                    error this arrangement exists to prevent. */}
+                {canAddDetail && adding === null && (
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setAdding('vehicle')}>
+                      {t('ethel.vehicle.add')}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setAdding('facility')}>
+                      {t('ethel.facility.add')}
+                    </Button>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {(vehicle || adding === 'vehicle') && (
-              <VehicleDetails assetId={asset.id} vehicle={vehicle} onRemoved={() => setAdding(null)} />
-            )}
-            {(facility || adding === 'facility') && (
-              <FacilityDetails assetId={asset.id} facility={facility} places={places} onRemoved={() => setAdding(null)} />
-            )}
-
-            <DocumentsPanel element={{ assetId: asset.id }} />
-
-            {/* Both actions, or neither. Opening one form also withdraws the
-                other action: two open forms would let the member fill in both
-                and meet the 409 on the second save, which is exactly the
-                error this arrangement exists to prevent. */}
-            {canAddDetail && adding === null && (
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setAdding('vehicle')}>
-                  {t('ethel.vehicle.add')}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setAdding('facility')}>
-                  {t('ethel.facility.add')}
-                </Button>
               </div>
-            )}
+
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-base">{t('ethel.tco.title')}</CardTitle></CardHeader>
+                <CardContent className="space-y-1">
+                  {totals ? (
+                    <>
+                      <div className="flex justify-between"><span>{t('ethel.tco.capital')}</span><span>{formatMoney(totals.capital)}</span></div>
+                      <div className="flex justify-between"><span>{t('ethel.tco.tier2')}</span><span>{formatMoney(totals.tier2)}</span></div>
+                      <div className="flex justify-between"><span>{t('ethel.tco.recurring')}</span><span>{formatMoney(totals.recurring)}</span></div>
+                      <div className="flex justify-between"><span>{t('ethel.tco.proceeds')}</span><span>{formatMoney(totals.proceeds)}</span></div>
+                      <div className="flex justify-between font-medium"><span>{t('ethel.tco.total')}</span><span>{formatMoney(totals.total)}</span></div>
+                      <div className="flex justify-between">
+                        <span>{t('ethel.tco.perYear')}</span>
+                        <span>{totals.perYear === null ? '—' : formatMoney(totals.perYear)}</span>
+                      </div>
+                    </>
+                  ) : <p className="text-muted-foreground">{t('common.loading')}</p>}
+
+                  {links.length > 0 && (
+                    <ul className="pt-2 space-y-1">
+                      {links.map((link) => (
+                        <li key={link.id} className="flex justify-between text-xs text-muted-foreground">
+                          <span className="rounded-full bg-linen px-2 py-0.5">{t(`ethel.tco.kind.${link.kind}`)}</span>
+                          <span>{link.transaction.payee} · {formatMoney(link.transaction.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {!linkOpen ? (
+                    <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setLinkOpen(true)}>
+                      {t('ethel.tco.linkExpense')}
+                    </Button>
+                  ) : (
+                    <form onSubmit={submitLink} className="mt-2 space-y-2">
+                      <select
+                        aria-label={t('ethel.tco.linkExpense')}
+                        value={linkTransactionId}
+                        onChange={(e) => setLinkTransactionId(e.target.value)}
+                        className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
+                      >
+                        <option value="">—</option>
+                        {transactions.map((tx) => (
+                          <option key={tx.id} value={tx.id}>{tx.date} · {tx.payee} · {tx.amount}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={linkKind}
+                        onChange={(e) => setLinkKind(e.target.value as ItemCostKind)}
+                        className="h-9 w-full rounded-md border border-tan bg-card px-3 text-sm"
+                      >
+                        {COST_KINDS.map((k) => <option key={k} value={k}>{t(`ethel.tco.kind.${k}`)}</option>)}
+                      </select>
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setLinkOpen(false)}>{t('common.cancel')}</Button>
+                        <Button type="submit" size="sm" disabled={createCost.isPending}>{t('common.save')}</Button>
+                      </div>
+                    </form>
+                  )}
+                </CardContent>
+              </Card>
+
+              <DocumentsPanel element={{ assetId: asset.id }} />
+            </div>
 
             <div className="flex justify-between pt-2">
               <Button type="button" variant="outline" onClick={() => setDecommissionOpen(true)} disabled={!!asset.decommissionedAt}>

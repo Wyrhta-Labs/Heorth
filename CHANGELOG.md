@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   manager; link by search or by pasting a Paperless link; inline PDF/image
   preview.
 
+### Changed
+
+- Web: the asset detail dialog is wider and shows its sections side by side
+  (details, cost of ownership, documents) instead of one tall column; no dialog
+  grows taller than the viewport any more — long content scrolls inside it.
+
 ## [0.8.0] - 2026-09-06
 
 ### Added

@@ -154,7 +154,11 @@ export function createPaperlessProvider(cfg: PaperlessConfig, o: PaperlessOption
     id: 'paperless',
 
     async search(query, limit) {
-      const qs = new URLSearchParams({ query, page_size: String(limit) });
+      // Paperless full-text matches whole words only, so a half-typed "Tel"
+      // would never find "Telekom". Match the last word as a prefix, unless
+      // the member closed it off themselves (a *, a quoted phrase, a group).
+      const prefixed = /[\p{L}\p{N}]$/u.test(query) ? `${query}*` : query;
+      const qs = new URLSearchParams({ query: prefixed, page_size: String(limit) });
       return toMeta(results(await getJson(`/api/documents/?${qs}`, JSON_TIMEOUT_MS)), JSON_TIMEOUT_MS);
     },
 

@@ -105,9 +105,24 @@ describe('paperless provider — metadata', () => {
     const { fetchImpl, calls } = stub(standard);
     await createPaperlessProvider(cfg, { fetchImpl }).search('Rechnung & Garantie #2', 25);
     const c = calls.find((x) => x.url.pathname === '/api/documents/')!;
-    expect(c.url.searchParams.get('query')).toBe('Rechnung & Garantie #2');
+    expect(c.url.searchParams.get('query')).toBe('Rechnung & Garantie #2*');
     expect(c.url.searchParams.get('page_size')).toBe('25');
     expect([...c.url.searchParams.keys()].sort()).toEqual(['page_size', 'query']);
+  });
+
+  it('matches the last word as a prefix, so typing "Tel" finds "Telekom"', async () => {
+    for (const [typed, sent] of [
+      ['Tel', 'Tel*'],
+      ['Telekom Rech', 'Telekom Rech*'],
+      ['Bestätig', 'Bestätig*'],
+      ['Tel*', 'Tel*'],
+      ['"Telekom Hilfe"', '"Telekom Hilfe"'],
+      ['(Telekom OR Vodafone)', '(Telekom OR Vodafone)'],
+    ] as const) {
+      const { fetchImpl, calls } = stub(standard);
+      await createPaperlessProvider(cfg, { fetchImpl }).search(typed, 25);
+      expect(calls.find((x) => x.url.pathname === '/api/documents/')!.url.searchParams.get('query')).toBe(sent);
+    }
   });
 });
 

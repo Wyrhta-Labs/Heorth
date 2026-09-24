@@ -2,6 +2,9 @@
 // The fake is installed through the FRESH graph's setGewritRuntime; its errors
 // are duck-typed, so they classify in any graph.
 import { describe, it, expect, vi, afterAll } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { db } from '../src/db/index.js';
+import { gewritDocuments } from '../src/modules/gewrit/schema.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
 import { createFakeDocuments, doc, type FakeDocuments } from './fake-documents.js';
 
@@ -92,9 +95,10 @@ describe('gewrit linking over REST', () => {
     expect(view.document.title).toBe('Vitodens manual');
 
     const list = await app.request(`/api/v1/gewrit/assets/${assetId}/documents`, { headers: authHeaders(adult.jwt) });
-    const listBody = (await list.json()) as { data: unknown[]; meta: { stale: boolean } };
+    const listBody = (await list.json()) as { data: unknown[]; meta: { stale: boolean; staleReason: string | null } };
     expect(listBody.data).toHaveLength(1);
     expect(listBody.meta.stale).toBe(false);
+    expect(listBody.meta.staleReason).toBeNull();
 
     const patched = await app.request(`/api/v1/gewrit/links/${view.id}`, { method: 'PATCH', headers: authHeaders(adult.jwt), body: JSON.stringify({ role: 'warranty', note: '' }) });
     expect(((await patched.json()) as { data: { role: string; note: string | null } }).data).toMatchObject({ role: 'warranty', note: null });
@@ -148,6 +152,25 @@ describe('gewrit linking over REST', () => {
     fake.failWith = 'auth';
     const refused = await app.request('/api/v1/gewrit/documents/search?q=boiler', { headers: authHeaders(adult.jwt) });
     expect([refused.status, await code(refused)]).toEqual([502, 'PROVIDER_AUTH']);
+  });
+
+  it('lists meta.staleReason auth for a refused credential and unavailable for any other outage', async () => {
+    const { app, fake } = await freshApp('fake');
+    const { adult } = await seedTestHousehold();
+    const assetId = await newAsset(app, adult.jwt);
+    const documentId = await linkedDocumentId(app, adult.jwt, assetId);
+    const backdate = () => db.update(gewritDocuments)
+      .set({ lastSeenAt: new Date(Date.now() - 20 * 60_000) })
+      .where(eq(gewritDocuments.id, documentId));
+    const staleReason = async (failWith: FakeDocuments['failWith']) => {
+      await backdate();
+      fake.failWith = failWith;
+      const res = await app.request(`/api/v1/gewrit/assets/${assetId}/documents`, { headers: authHeaders(adult.jwt) });
+      return ((await res.json()) as { meta: { staleReason: string | null } }).meta.staleReason;
+    };
+    expect(await staleReason('auth')).toBe('auth');
+    expect(await staleReason('timeout')).toBe('unavailable');
+    expect(await staleReason('unreachable')).toBe('unavailable');
   });
 
   it('404s the list of an unknown element', async () => {

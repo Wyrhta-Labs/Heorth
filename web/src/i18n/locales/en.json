@@ -739,6 +739,7 @@
       "DOCUMENT_NOT_FOUND": "Paperless has no document with that number.",
       "ALREADY_LINKED": "That document is already linked here in that role.",
       "ELEMENT_NOT_FOUND": "This item no longer exists.",
+      "LINK_NOT_FOUND": "That link was already removed.",
       "FORBIDDEN": "Only adults can link or change documents.",
       "generic": "Something went wrong."
     }

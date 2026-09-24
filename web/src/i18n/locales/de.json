@@ -739,6 +739,7 @@
       "DOCUMENT_NOT_FOUND": "In Paperless gibt es kein Dokument mit dieser Nummer.",
       "ALREADY_LINKED": "Dieses Dokument ist hier in dieser Rolle schon verknüpft.",
       "ELEMENT_NOT_FOUND": "Diesen Eintrag gibt es nicht mehr.",
+      "LINK_NOT_FOUND": "Diese Verknüpfung wurde bereits entfernt.",
       "FORBIDDEN": "Nur Erwachsene können Dokumente verknüpfen oder ändern.",
       "generic": "Etwas ist schiefgegangen."
     }

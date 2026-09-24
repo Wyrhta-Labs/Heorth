@@ -15,9 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   New optional env group `GEWRIT_PROVIDER` (`paperless` | `fake` | blank) with
   `PAPERLESS_BASE_URL`, `PAPERLESS_TOKEN`, `PAPERLESS_PUBLIC_URL`. Routes under
   `/api/v1/gewrit`: search (admin/adult), per-element lists with a metadata
-  snapshot and `meta.stale`, link create/edit/delete (admin/adult), and a
-  streamed preview of linked documents. Migration `0029_gewrit` adds
-  `gewrit_documents` and `gewrit_links`. `GET /api/v1/features` reports `gewrit`.
+  snapshot and `meta.stale`/`meta.staleReason` (`auth` | `unavailable` | `null`,
+  so a rejected credential never reads as a plain outage), link
+  create/edit/delete (admin/adult), and a streamed preview of linked documents.
+  Migration `0029_gewrit` adds `gewrit_documents` and `gewrit_links`.
+  `GET /api/v1/features` reports `gewrit`.
 - Web: a Documents panel in the asset detail and, per place, from the place
   manager; link by search or by pasting a Paperless link; inline PDF/image
   preview.

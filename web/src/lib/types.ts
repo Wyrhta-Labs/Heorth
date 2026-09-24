@@ -589,5 +589,5 @@ export type GewritElement = { assetId: string } | { placeId: string };
 
 export interface GewritListResponse {
   data: GewritLink[];
-  meta: { stale: boolean };
+  meta: { stale: boolean; staleReason: 'auth' | 'unavailable' | null };
 }

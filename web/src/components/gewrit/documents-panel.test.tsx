@@ -74,10 +74,25 @@ describe('DocumentsPanel', () => {
 
   it('shows a missing document and the stale hint', async () => {
     features(true);
-    listDocuments.mockResolvedValue({ data: [link('1', 'manual', 'Gone manual', { status: 'missing' })], meta: { stale: true } });
+    listDocuments.mockResolvedValue({ data: [link('1', 'manual', 'Gone manual', { status: 'missing' })], meta: { stale: true, staleReason: 'unavailable' } });
     renderPanel();
     expect(await screen.findByText('Deleted in Paperless')).toBeInTheDocument();
     expect(screen.getByText('Paperless is not reachable — showing the last known details.')).toBeInTheDocument();
+  });
+
+  it('shows the auth hint instead of the generic stale text when staleReason is auth', async () => {
+    features(true);
+    listDocuments.mockResolvedValue({ data: [], meta: { stale: true, staleReason: 'auth' } });
+    renderPanel();
+    expect(await screen.findByText('Gewrit is not configured correctly.')).toBeInTheDocument();
+    expect(screen.queryByText('Paperless is not reachable — showing the last known details.')).toBeNull();
+  });
+
+  it('shows a list error', async () => {
+    features(true);
+    listDocuments.mockRejectedValue(new ApiError(502, 'PROVIDER_UNAVAILABLE', 'Paperless is unavailable'));
+    renderPanel();
+    expect(await screen.findByText('Paperless is not reachable.')).toBeInTheDocument();
   });
 
   it('links a search hit', async () => {

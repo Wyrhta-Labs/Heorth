@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ApiError } from '@/api/client';
 import type { GewritLink } from '@/lib/types';
 
 const fetchPreview = vi.fn();
@@ -19,13 +20,14 @@ const LINK: GewritLink = {
 
 function renderPreview(link: GewritLink) {
   const qc = new QueryClient();
-  return render(
+  const result = render(
     <QueryClientProvider client={qc}>
       <ToastProvider>
         <PreviewDialog link={link} onClose={() => undefined} />
       </ToastProvider>
     </QueryClientProvider>,
   );
+  return { ...result, qc };
 }
 
 beforeEach(() => {
@@ -79,5 +81,26 @@ describe('PreviewDialog', () => {
     expect(signal.aborted).toBe(false);
     unmount();
     expect(signal.aborted).toBe(true);
+  });
+
+  it('shows the mapped cause of a preview failure, not the generic message', async () => {
+    fetchPreview.mockRejectedValue(new ApiError(502, 'PROVIDER_UNAVAILABLE', 'Paperless is unavailable'));
+    renderPreview(LINK);
+    expect(await screen.findByText('Paperless is not reachable.')).toBeInTheDocument();
+    expect(screen.queryByText('The preview could not be loaded.')).toBeNull();
+  });
+
+  it('falls back to the generic preview-failed text for an unmapped error', async () => {
+    fetchPreview.mockRejectedValue(new Error('boom'));
+    renderPreview(LINK);
+    expect(await screen.findByText('The preview could not be loaded.')).toBeInTheDocument();
+  });
+
+  it('invalidates the gewrit query on a 404 so the panel refreshes to missing', async () => {
+    fetchPreview.mockRejectedValue(new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Paperless no longer has that document'));
+    const { qc } = renderPreview(LINK);
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    await screen.findByText('Paperless has no document with that number.');
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['gewrit'] }));
   });
 });

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
+import { ApiError } from '@/api/client';
 import { fetchPreview } from '@/api/gewrit';
 import { useDeleteLink, useUpdateLink } from '@/hooks/use-gewrit';
+import { QUERY_KEYS } from '@/lib/constants';
 import { LINK_ROLES, previewKind, type PreviewKind } from '@/lib/gewrit';
 import type { GewritLink, GewritLinkRole } from '@/lib/types';
 import { useGewritError } from './use-gewrit-error';
@@ -15,12 +18,13 @@ interface Props {
   onClose: () => void;
 }
 
-type PreviewState = { status: 'idle' } | { status: 'loading' } | { status: 'failed' } | { status: 'ready'; url: string; kind: PreviewKind };
+type PreviewState = { status: 'idle' } | { status: 'loading' } | { status: 'failed'; message: string } | { status: 'ready'; url: string; kind: PreviewKind };
 
 export default function PreviewDialog({ link, onClose }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const describe = useGewritError();
+  const qc = useQueryClient();
   const update = useUpdateLink();
   const remove = useDeleteLink();
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' });
@@ -52,8 +56,13 @@ export default function PreviewDialog({ link, onClose }: Props) {
         url = URL.createObjectURL(blob);
         setPreview({ status: 'ready', url, kind: previewKind(blob.type) });
       })
-      .catch(() => {
-        if (!cancelled) setPreview({ status: 'failed' });
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        // The server has just marked the row missing — refetch the list so the
+        // panel picks up the "missing" state without a manual reload.
+        if (e instanceof ApiError && e.status === 404) void qc.invalidateQueries({ queryKey: QUERY_KEYS.gewrit });
+        const mapped = describe(e);
+        setPreview({ status: 'failed', message: mapped === t('gewrit.errors.generic') ? t('gewrit.preview.failed') : mapped });
       });
     return () => {
       cancelled = true;
@@ -93,7 +102,7 @@ export default function PreviewDialog({ link, onClose }: Props) {
         <div className="space-y-3 text-sm">
           {missing && <p className="text-muted-foreground">{t('gewrit.missing')}</p>}
           {preview.status === 'loading' && <p className="text-muted-foreground">{t('gewrit.preview.loading')}</p>}
-          {preview.status === 'failed' && <p className="text-red-700">{t('gewrit.preview.failed')}</p>}
+          {preview.status === 'failed' && <p className="text-red-700">{preview.message}</p>}
           {preview.status === 'ready' && preview.kind === 'pdf' && (
             // No sandbox attribute: Chrome's and Firefox's built-in PDF viewers
             // refuse to render in a sandboxed frame, and a PDF is not HTML in

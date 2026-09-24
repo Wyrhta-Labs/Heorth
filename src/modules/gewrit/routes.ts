@@ -25,6 +25,9 @@ function providerFailure(c: Context, e: DocumentProviderError): Response {
     logEvent({ event: 'gewrit.credential.rejected', success: false, request_id: c.get('requestId') });
     return c.json({ error: { code: 'PROVIDER_AUTH', message: "Paperless refused Heorth's credential" } }, 502);
   }
+  // Every other reason is an outage, not a credential problem — logged too, so
+  // it shows up in the same place as the auth event.
+  logEvent({ event: 'gewrit.provider.unavailable', success: false, reason: e.reason, request_id: c.get('requestId') });
   // `err` caps at 500; an upstream failure is a 502 like the kith routes.
   return c.json({ error: { code: 'PROVIDER_UNAVAILABLE', message: 'Paperless is unavailable' } }, 502);
 }
@@ -41,7 +44,7 @@ function fail(c: Context, e: unknown): Response {
 async function listFor(c: Context, el: service.ElementRef): Promise<Response> {
   const r = await service.listForElement(getGewritRuntime(), el);
   if (!r) return err(c, 'ELEMENT_NOT_FOUND', 'That asset or place does not exist', 404);
-  return ok(c, r.links, { stale: r.stale });
+  return ok(c, r.links, { stale: r.stale, staleReason: r.staleReason });
 }
 
 gewritRouter.get('/documents/search', canWrite, async (c) => {

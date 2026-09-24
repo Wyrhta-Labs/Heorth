@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
 
-const KNOWN = ['PROVIDER_UNAVAILABLE', 'PROVIDER_AUTH', 'DOCUMENT_NOT_FOUND', 'ALREADY_LINKED', 'ELEMENT_NOT_FOUND'] as const;
+const KNOWN = ['PROVIDER_UNAVAILABLE', 'PROVIDER_AUTH', 'DOCUMENT_NOT_FOUND', 'ALREADY_LINKED', 'ELEMENT_NOT_FOUND', 'LINK_NOT_FOUND'] as const;
 type Known = (typeof KNOWN)[number];
 
 /** Error → a translated sentence. A 403 is the role guard (FORBIDDEN); raw

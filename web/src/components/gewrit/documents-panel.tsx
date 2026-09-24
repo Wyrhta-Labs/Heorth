@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import type { GewritElement, GewritLink } from '@/lib/types';
 import LinkDocumentDialog from './link-document-dialog';
 import PreviewDialog from './preview-dialog';
+import { useGewritError } from './use-gewrit-error';
 
 /** Gewrit's panel on an asset or place (ADR 0017). Renders nothing unless the
  *  deployment has Gewrit on. Write actions are not hidden by role — the server
@@ -17,6 +18,7 @@ import PreviewDialog from './preview-dialog';
 export default function DocumentsPanel({ element }: { element: GewritElement }) {
   const { t } = useTranslation();
   const { formatDate } = useFormatters();
+  const describe = useGewritError();
   const features = useFeatures();
   const enabled = features.data?.data.gewrit === true;
   const list = useElementDocuments(element, enabled);
@@ -34,7 +36,12 @@ export default function DocumentsPanel({ element }: { element: GewritElement }) 
         <Button type="button" size="sm" variant="outline" onClick={() => setLinkOpen(true)}>{t('gewrit.link')}</Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        {list.data?.meta.stale && <p role="status" className="text-xs text-amber-700">{t('gewrit.stale')}</p>}
+        {list.isError && <p role="alert" className="text-xs text-amber-700">{describe(list.error)}</p>}
+        {list.data?.meta.stale && (
+          <p role="status" className="text-xs text-amber-700">
+            {list.data.meta.staleReason === 'auth' ? t('gewrit.errors.PROVIDER_AUTH') : t('gewrit.stale')}
+          </p>
+        )}
         {list.isSuccess && links.length === 0 && <p className="text-muted-foreground">{t('gewrit.empty')}</p>}
         {LINK_ROLES.map((role) => {
           const group = links.filter((l) => l.role === role);

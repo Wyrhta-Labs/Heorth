@@ -153,6 +153,26 @@ describe('gewrit service — listing', () => {
     expect(r!.links[0]!.document).toMatchObject({ title: 'Kept title', status: 'available' });
   });
 
+  it('classifies a refused credential as staleReason auth, and every other outage as unavailable', async () => {
+    const a = await asset();
+    const fake = createFakeDocuments([doc('412')]);
+    const l = await service.createLink(fake, { externalId: '412', role: 'manual', assetId: a.id });
+    await backdate(l.document.id, { lastSeenMinutes: 20 });
+    fake.failWith = 'auth';
+    expect((await service.listForElement(fake, { assetId: a.id }))!.staleReason).toBe('auth');
+
+    await backdate(l.document.id, { lastSeenMinutes: 20 });
+    fake.failWith = 'timeout';
+    expect((await service.listForElement(fake, { assetId: a.id }))!.staleReason).toBe('unavailable');
+  });
+
+  it('reports staleReason null when the snapshot is fresh or the refresh succeeds', async () => {
+    const a = await asset();
+    const fake = createFakeDocuments([doc('412')]);
+    await service.createLink(fake, { externalId: '412', role: 'manual', assetId: a.id });
+    expect((await service.listForElement(fake, { assetId: a.id }))!.staleReason).toBeNull();
+  });
+
   it('orders by the fixed role order, then title', async () => {
     const a = await asset();
     const fake = createFakeDocuments([doc('1', 'Zeta'), doc('2', 'Alpha'), doc('3', 'Beta')]);
@@ -282,18 +302,24 @@ describe('gewrit service — deleting and the sweep', () => {
     expect((await db.select().from(gewritLinks)).map((x) => x.assetId)).toEqual([b.id]);
   });
 
-  it('sweeps an orphan older than an hour and spares a younger one', async () => {
+  it('sweeps an orphan older than an hour, spares a younger one, and never touches a still-linked document', async () => {
     const a = await asset();
     const b = await asset('Car');
-    const fake = createFakeDocuments([doc('1'), doc('2')]);
+    const c = await asset('Ladder');
+    const fake = createFakeDocuments([doc('1'), doc('2'), doc('3')]);
     const old = await service.createLink(fake, { externalId: '1', role: 'manual', assetId: a.id });
     const young = await service.createLink(fake, { externalId: '2', role: 'manual', assetId: b.id });
+    // Still linked and backdated the same as the orphan — this is what catches
+    // a sweep whose NOT EXISTS got lost and started deleting live documents.
+    const linked = await service.createLink(fake, { externalId: '3', role: 'manual', assetId: c.id });
     await db.delete(ethelAssets).where(eq(ethelAssets.id, a.id));
     await db.delete(ethelAssets).where(eq(ethelAssets.id, b.id));
     await backdate(old.document.id, { updatedMinutes: 61 });
     await backdate(young.document.id, { updatedMinutes: 30 });
+    await backdate(linked.document.id, { updatedMinutes: 61 });
     await service.sweepOrphans();
-    expect((await db.select().from(gewritDocuments)).map((d) => d.externalId)).toEqual(['2']);
+    expect((await db.select().from(gewritDocuments)).map((d) => d.externalId).sort()).toEqual(['2', '3']);
+    expect(await db.select().from(gewritLinks).where(eq(gewritLinks.id, linked.id))).toHaveLength(1);
   });
 
   it('edits role and note, and refuses a role that collides', async () => {

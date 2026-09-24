@@ -1,5 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { pgErrorCode } from '@wyrhta/core/db';
+import { logEvent } from '@wyrhta/core/lib';
 import { db } from '../../db/index.js';
 import { ethelAssets, ethelPlaces } from '../ethel/schema.js';
 import { gewritDocuments, gewritLinks, LINK_ROLES, type GewritDocument, type GewritLink, type LinkRole } from './schema.js';
@@ -110,17 +111,23 @@ export async function sweepOrphans(): Promise<void> {
        AND d.updated_at < now() - interval '1 hour'`);
 }
 
+export type StaleReason = 'auth' | 'unavailable' | null;
+
 /** Returns whether the provider could NOT be asked (the response's `stale`),
- *  and whether any row changed. */
-async function refresh(provider: DocumentProvider, docs: GewritDocument[]): Promise<{ stale: boolean; changed: boolean }> {
+ *  the reason class for that staleness, and whether any row changed. */
+async function refresh(provider: DocumentProvider, docs: GewritDocument[]): Promise<{ stale: boolean; staleReason: StaleReason; changed: boolean }> {
   const cutoff = Date.now() - REFRESH_AFTER_MS;
   const due = docs.filter((d) => d.source === provider.id && d.lastSeenAt.getTime() < cutoff);
-  if (due.length === 0) return { stale: false, changed: false };
+  if (due.length === 0) return { stale: false, staleReason: null, changed: false };
   let metas: DocumentMeta[];
   try {
     metas = await provider.getMany(due.map((d) => d.externalId), { timeoutMs: REFRESH_TIMEOUT_MS });
   } catch (e) {
-    if (isDocumentProviderError(e)) return { stale: true, changed: false };
+    if (isDocumentProviderError(e)) {
+      // Fixed text only: never the error message, the token or an upstream body.
+      logEvent({ event: 'gewrit.refresh.failed', success: false, reason: e.reason });
+      return { stale: true, staleReason: e.reason === 'auth' ? 'auth' : 'unavailable', changed: false };
+    }
     throw e;
   }
   const byId = new Map(metas.map((m) => [m.externalId, m]));
@@ -135,19 +142,19 @@ async function refresh(provider: DocumentProvider, docs: GewritDocument[]): Prom
         : { status: 'missing', updatedAt: now })
       .where(eq(gewritDocuments.id, d.id));
   }
-  return { stale: false, changed: true };
+  return { stale: false, staleReason: null, changed: true };
 }
 
 export async function listForElement(
   provider: DocumentProvider, el: ElementRef,
-): Promise<{ links: LinkView[]; stale: boolean } | null> {
+): Promise<{ links: LinkView[]; stale: boolean; staleReason: StaleReason } | null> {
   if (!(await elementExists(el))) return null;
   await sweepOrphans();
   let rows = await linkRows(el);
   const docs = [...new Map(rows.map((r) => [r.document.id, r.document])).values()];
   const r = await refresh(provider, docs);
   if (r.changed) rows = await linkRows(el);
-  return { links: sortViews(rows.map((x) => linkView(provider, x.link, x.document))), stale: r.stale };
+  return { links: sortViews(rows.map((x) => linkView(provider, x.link, x.document))), stale: r.stale, staleReason: r.staleReason };
 }
 
 export async function createLink(provider: DocumentProvider, input: CreateLinkInput): Promise<LinkView> {

@@ -691,7 +691,10 @@ linked to an asset or place and open their preview.
 
 - The Documents panel answers from the snapshot. A snapshot older than 15
   minutes is refreshed in one call with a 3-second timeout; if Paperless does not
-  answer, the panel shows the last known details with a hint.
+  answer, the panel shows the last known details with a hint. The list response
+  carries `meta.staleReason` (`auth` | `unavailable` | `null`) alongside
+  `meta.stale`, so a rejected credential shows "Gewrit is not configured
+  correctly" instead of reading as an ordinary outage.
 - A document deleted or unshared in Paperless shows as "missing". It comes back
   by itself when Paperless returns it; nothing is cleaned up silently.
 - Previews: PDF and PNG/JPEG/GIF/WebP are shown inline; any other type is

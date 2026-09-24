@@ -32,8 +32,9 @@ both files are wrong — fix them.
   object. The Firefly and Paperless groups are the exceptions to *partial
   presence is an error*: `FIREFLY_*` may be present while `FEOH_IMPORT_ENABLED`
   is not `true` (compose passes defaults), and is simply unused then; similarly,
-  `PAPERLESS_PUBLIC_URL` is optional within the `GEWRIT_*` group while
-  `GEWRIT_PROVIDER` and `PAPERLESS_BASE_URL`/`PAPERLESS_TOKEN` require all-or-nothing.
+  `GEWRIT_PROVIDER` selects the provider; only `paperless` requires
+  `PAPERLESS_BASE_URL` and `PAPERLESS_TOKEN`; `PAPERLESS_*` may be present while
+  the provider is blank.
 - **External dependencies resolve through a `get*Runtime()` / `set*Runtime()`
   seam** — `getM365Runtime`, `getKithRuntime`, `getSatelliteKeys`. Tests install
   in-process fakes through the setter. **Never call a real external service

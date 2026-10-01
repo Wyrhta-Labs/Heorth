@@ -24,6 +24,8 @@ export interface Household {
   name: string;
   timezone: string;
   locale: string;
+  /** Household-wide UI theme (`hearth` | `slate`), see lib/theme.ts. */
+  theme: string;
   createdAt: string;
 }
 

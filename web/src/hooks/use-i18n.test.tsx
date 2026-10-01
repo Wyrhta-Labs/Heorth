@@ -26,10 +26,10 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 // Adjust this helper to the ACTUAL return shape of getHousehold() (ok envelope).
-function householdResponse(locale: string) {
+function householdResponse(locale: string, theme = 'hearth') {
   return {
     data: {
-      id: 'h1', name: 'Home', timezone: 'Europe/Berlin', locale, createdAt: '2026-01-01T00:00:00Z',
+      id: 'h1', name: 'Home', timezone: 'Europe/Berlin', locale, theme, createdAt: '2026-01-01T00:00:00Z',
     },
   } as Awaited<ReturnType<typeof householdApi.getHousehold>>;
 }
@@ -53,6 +53,14 @@ describe('I18nProvider', () => {
     renderWithProviders(<Probe />);
     await waitFor(() => expect(screen.getByTestId('code').textContent).toBe('de'));
     expect(i18n.language).toBe('de');
+  });
+
+  it('applies the household theme to <html> once the household loads', async () => {
+    localStorage.setItem(TOKEN_KEY, 'jwt');
+    document.documentElement.dataset['theme'] = 'hearth';
+    vi.mocked(householdApi.getHousehold).mockResolvedValue(householdResponse('en-GB', 'slate'));
+    renderWithProviders(<Probe />);
+    await waitFor(() => expect(document.documentElement.dataset['theme']).toBe('slate'));
   });
 
   it('gives useDateFnsLocale a safe enUS default outside the provider', () => {

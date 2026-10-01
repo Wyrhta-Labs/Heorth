@@ -36,6 +36,7 @@ export default function HouseholdSettings({ readOnly = false }: Props) {
   const [name, setName] = useState('');
   const [timezone, setTimezone] = useState('');
   const [locale, setLocale] = useState('');
+  const [theme, setTheme] = useState('');
 
   // Resync local fields whenever the underlying household query data changes
   // (initial load, refetch after another admin's edit, etc). `Household` has
@@ -46,6 +47,7 @@ export default function HouseholdSettings({ readOnly = false }: Props) {
       setName(h.name);
       setTimezone(h.timezone);
       setLocale(h.locale);
+      setTheme(h.theme);
     }
   }, [h]);
 
@@ -65,9 +67,16 @@ export default function HouseholdSettings({ readOnly = false }: Props) {
       : locales;
   }, [options, locale]);
 
+  const themeOptions = useMemo(() => {
+    const themes = options?.themes ?? [];
+    return theme && !themes.some((o) => o.value === theme)
+      ? [{ value: theme, label: theme }, ...themes]
+      : themes;
+  }, [options, theme]);
+
   const save = async () => {
     try {
-      await update.mutateAsync({ name, timezone, locale });
+      await update.mutateAsync({ name, timezone, locale, theme });
       toast(t('settings.household.updated'), 'success');
     } catch (e) {
       // A rejected timezone/locale (an unvalidated legacy value left in place,
@@ -92,6 +101,11 @@ export default function HouseholdSettings({ readOnly = false }: Props) {
         <select id="locale" className={SELECT_CLASS} value={locale} disabled={readOnly}
           onChange={(e) => setLocale(e.target.value)}>
           {localeOptions.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+        </select></div>
+      <div className="space-y-1"><Label htmlFor="theme">{t('settings.household.theme')}</Label>
+        <select id="theme" className={SELECT_CLASS} value={theme} disabled={readOnly}
+          onChange={(e) => setTheme(e.target.value)}>
+          {themeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select></div>
       {readOnly
         ? <p className="text-sm text-ash">{t('settings.household.readOnlyHint')}</p>

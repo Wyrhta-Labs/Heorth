@@ -419,6 +419,7 @@
       "name": "Name",
       "timezone": "Zeitzone",
       "locale": "Sprache",
+      "theme": "Design",
       "readOnlyHint": "Nur Admins können diese Angaben ändern.",
       "updated": "Haushalt aktualisiert",
       "updateFailed": "Haushalt konnte nicht aktualisiert werden"

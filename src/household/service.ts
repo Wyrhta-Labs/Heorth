@@ -3,21 +3,34 @@ import { household } from '@wyrhta/core/household';
 import type { Role } from '@wyrhta/core/identity';
 import { db } from '../db/index.js';
 import { identity, householdCore } from '../wiring.js';
+import { householdAppearance } from './schema.js';
+import { DEFAULT_THEME } from './options.js';
 import { MAINTENANCE_ADMIN_HANDLE, MaintenanceAdminError } from './maintenance-admin.js';
 import type { CreateMemberInput, UpdateMemberInput, UpdateHouseholdInput } from './validators.js';
 
-export function getHousehold() {
-  return householdCore.getHousehold();
+async function readTheme(): Promise<string> {
+  const [row] = await db.select({ theme: householdAppearance.theme }).from(householdAppearance);
+  return row?.theme ?? DEFAULT_THEME;
+}
+
+/** The core household row plus Heorth's own display settings (`schema.ts`). */
+export async function getHousehold() {
+  const h = await householdCore.getHousehold();
+  return h ? { ...h, theme: await readTheme() } : null;
 }
 
 export async function updateHousehold(input: UpdateHouseholdInput) {
+  if (input.theme !== undefined) {
+    await db.insert(householdAppearance).values({ theme: input.theme })
+      .onConflictDoUpdate({ target: householdAppearance.singleton, set: { theme: input.theme } });
+  }
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch['name'] = input.name;
   if (input.timezone !== undefined) patch['timezone'] = input.timezone;
   if (input.locale !== undefined) patch['locale'] = input.locale;
-  if (Object.keys(patch).length === 0) return householdCore.getHousehold();
+  if (Object.keys(patch).length === 0) return getHousehold();
   const [row] = await db.update(household).set(patch).returning();
-  return row ?? null;
+  return row ? { ...row, theme: await readTheme() } : null;
 }
 
 export function listMembers() {

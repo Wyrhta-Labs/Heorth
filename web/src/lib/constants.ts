@@ -65,14 +65,15 @@ export const AVATAR_COLOR_OPTIONS = [
   { value: 'sky', labelKey: 'options.avatarColor.sky' },
 ] as const satisfies { value: AvatarColor; labelKey: string }[];
 
-/** Feoh envelope tone -> progress-bar hue (primary/amber/sage/ink from the mockup). */
+/** Feoh envelope tone -> progress-bar hue (primary/amber/sage/ink from the mockup).
+ *  Theme tokens rather than hex, so the bars follow the household theme. */
 export const ENVELOPE_TONES: Record<string, string> = {
-  primary: '#b5542f',
-  ember: '#b5542f',
-  amber: '#a07535',
-  sage: '#7a8b6f',
-  sky: '#6b7e8c',
-  ink: '#2b2823',
+  primary: 'var(--color-ember)',
+  ember: 'var(--color-ember)',
+  amber: 'var(--color-amber)',
+  sage: 'var(--color-sage)',
+  sky: 'var(--color-sky)',
+  ink: 'var(--color-ink)',
 };
 export function toneColor(tone: string | null | undefined): string {
   return (tone && ENVELOPE_TONES[tone]) || ENVELOPE_TONES['primary']!;

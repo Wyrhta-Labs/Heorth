@@ -21,7 +21,7 @@ export default function EnvelopeCard({ envelope }: { envelope: EnvelopeSummary }
           </span>
         </div>
         <div className="mt-3">
-          <Progress value={pct} color={over ? '#c0392b' : toneColor(envelope.tone)} />
+          <Progress value={pct} color={over ? 'var(--color-danger)' : toneColor(envelope.tone)} />
         </div>
         <div className="mt-1 text-xs text-ash">
           {over

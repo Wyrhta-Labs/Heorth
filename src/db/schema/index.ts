@@ -3,7 +3,7 @@
 export { users, apiKeys, userRole } from '@wyrhta/core/identity';
 export { household } from '@wyrhta/core/household';
 // Module tables are appended here as each module lands:
-// export * from './../../household/schema.js';  (Heorth-local, if any)
+export * from '../../household/schema.js';
 export * from '../../modules/calendar/schema.js';
 export * from '../../modules/calendar/mirror-schema.js';
 export * from '../../modules/calendar/allowlist-schema.js';

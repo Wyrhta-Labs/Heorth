@@ -1,5 +1,5 @@
 /**
- * The allowed values for the household's `timezone` and `locale`.
+ * The allowed values for the household's `timezone`, `locale` and `theme`.
  *
  * Both settings used to be free text, which made it easy to leave the timezone
  * wrong â€” and `household.timezone` drives To Do/calendar date semantics, so a
@@ -55,6 +55,25 @@ export const SUPPORTED_LOCALES: readonly LocaleOption[] = Object.freeze([
 
 const LOCALE_SET = new Set(SUPPORTED_LOCALES.map((l) => l.value));
 
+/**
+ * Household-wide UI themes. `hearth` is the warm original and the default for
+ * every household; `slate` is the cool, crisp variant. The web app maps each
+ * value to a `data-theme` on <html> (web/src/index.css) — adding one here
+ * requires a matching block there.
+ */
+export const SUPPORTED_THEMES: readonly LocaleOption[] = Object.freeze([
+  { value: 'hearth', label: 'Hearth' },
+  { value: 'slate', label: 'Slate' },
+]);
+
+export const DEFAULT_THEME = 'hearth';
+
+const THEME_SET = new Set(SUPPORTED_THEMES.map((t) => t.value));
+
+export function isSupportedTheme(theme: string): boolean {
+  return THEME_SET.has(theme);
+}
+
 export function isSupportedTimezone(zone: string): boolean {
   return TIMEZONE_SET.has(zone);
 }
@@ -65,5 +84,5 @@ export function isSupportedLocale(locale: string): boolean {
 
 /** Payload for `GET /api/v1/household/options`. */
 export function householdOptions() {
-  return { timezones: SUPPORTED_TIMEZONES, locales: SUPPORTED_LOCALES };
+  return { timezones: SUPPORTED_TIMEZONES, locales: SUPPORTED_LOCALES, themes: SUPPORTED_THEMES };
 }

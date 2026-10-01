@@ -2,11 +2,11 @@ import { cn } from '@/lib/utils';
 
 interface ProgressProps {
   value: number;            // 0..100
-  color?: string;           // hex fill; defaults to ember
+  color?: string;           // any CSS colour; defaults to the theme's ember
   className?: string;
 }
 
-export function Progress({ value, color = '#b5542f', className }: ProgressProps) {
+export function Progress({ value, color = 'var(--color-ember)', className }: ProgressProps) {
   const pct = Math.max(0, Math.min(100, value));
   return (
     <div

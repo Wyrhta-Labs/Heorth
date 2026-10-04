@@ -97,7 +97,9 @@
   },
   "today": {
     "title": "Heute",
-    "dueSoon": "Bald fällig",
+    "tomorrow": "Morgen",
+    "noEventsTomorrow": "Morgen keine Termine.",
+    "tomorrowLoadError": "Der morgige Tag konnte nicht geladen werden.",
     "agendaLoadError": "Der heutige Tag konnte nicht geladen werden.",
     "noEventsToday": "Heute keine Termine.",
     "supperLoadError": "Das heutige Abendessen konnte nicht geladen werden.",
@@ -181,9 +183,11 @@
   "dashboard": {
     "home": "Zuhause",
     "membersLoadError": "Mitglieder konnten nicht geladen werden.",
-    "chores": {
+    "work": {
       "title": "Aufgaben",
-      "comingSoon": "Kommt in einer späteren Version"
+      "chores": "Hausarbeit",
+      "tasks": "Aufgaben",
+      "noChores": "Bis morgen ist keine Hausarbeit fällig."
     }
   },
   "calendar": {

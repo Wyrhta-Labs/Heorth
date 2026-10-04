@@ -1,6 +1,6 @@
 // web/src/lib/format.test.ts
 import { describe, it, expect } from 'vitest';
-import { formatMoney, progressPercent, formatDate, formatTime, weekDays, dayLabel, dayRangeIso } from './format';
+import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso } from './format';
 import { startOfDay, endOfDay, parseISO } from 'date-fns';
 import { de, enGB, enUS } from 'date-fns/locale';
 
@@ -64,5 +64,16 @@ describe('dayRangeIso', () => {
     expect(dayLabel(parseISO(to)).iso).toBe(dayLabel(d).iso);
     // Spans one full day minus a millisecond, in any timezone.
     expect(parseISO(to).getTime() - parseISO(from).getTime()).toBe(86_399_999);
+  });
+});
+
+describe('nextDays', () => {
+  it('starts on the reference day and runs seven consecutive days, across a week boundary', () => {
+    const sunday = new Date(2026, 9, 4); // Sun 4 Oct 2026
+    const days = nextDays(sunday);
+    expect(days).toHaveLength(7);
+    expect(dayLabel(days[0]!).iso).toBe('2026-10-04');
+    expect(dayLabel(days[1]!).iso).toBe('2026-10-05');
+    expect(dayLabel(days[6]!).iso).toBe('2026-10-10');
   });
 });

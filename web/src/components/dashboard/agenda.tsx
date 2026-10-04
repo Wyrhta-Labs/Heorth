@@ -4,16 +4,19 @@ import { useEvents } from '@/hooks/use-calendar';
 import { useFormatters } from '@/hooks/use-formatters';
 import { dayRangeIso } from '@/lib/format';
 
-export default function Agenda() {
+/** The events of one local day — today unless `day` says otherwise. */
+export default function Agenda(
+  { day, emptyMessage, errorMessage }: { day?: Date; emptyMessage?: string; errorMessage?: string } = {},
+) {
   const { t } = useTranslation();
   const { formatTime } = useFormatters();
-  const { from, to } = dayRangeIso();
+  const { from, to } = dayRangeIso(day);
   const { data, isLoading, isError, refetch } = useEvents({ from, to });
   const events = data?.data ?? [];
 
-  if (isError) return <ErrorState compact message={t('today.agendaLoadError')} onRetry={() => refetch()} />;
+  if (isError) return <ErrorState compact message={errorMessage ?? t('today.agendaLoadError')} onRetry={() => refetch()} />;
   if (isLoading) return <div className="text-sm text-ash py-4 text-center">{t('common.loading')}</div>;
-  if (events.length === 0) return <div className="text-sm text-ash py-4 text-center">{t('today.noEventsToday')}</div>;
+  if (events.length === 0) return <div className="text-sm text-ash py-4 text-center">{emptyMessage ?? t('today.noEventsToday')}</div>;
 
   return (
     <ul className="space-y-2">

@@ -31,6 +31,12 @@ export function weekDays(ref: Date = new Date(), locale: Locale = enUS): Date[] 
   return Array.from({ length: 7 }, (_, i) => addDays(first, i));
 }
 
+/** `ref`'s day and the six after it — a rolling week that never shows days already past. */
+export function nextDays(ref: Date = new Date(), count = 7): Date[] {
+  const first = startOfDay(ref);
+  return Array.from({ length: count }, (_, i) => addDays(first, i));
+}
+
 export function dayLabel(d: Date, locale: Locale = enUS): { dow: string; dom: string; iso: string } {
   // iso is a data key — NEVER localized.
   return { dow: format(d, 'EEE', { locale }), dom: format(d, 'd'), iso: format(d, 'yyyy-MM-dd') };

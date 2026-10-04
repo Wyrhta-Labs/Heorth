@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Web: UI state is remembered per browser (localStorage, `heorth:ui:*`):
+  the week/month view on Calendar and on the Hearth wall, the Ethel filters
+  (status, place, include contents, facilities) and the Library filters
+  (media type, status, list). Search text and paging are not kept. A
+  remembered value that no longer fits (an unknown option, a deleted place)
+  falls back to the default. The Hearth wall also keeps the week/month it
+  was paged to, but only for 30 minutes after the last paging, so an
+  always-on wall returns to today.
+
 ## [0.9.0] - 2026-09-24
 
 ### Added

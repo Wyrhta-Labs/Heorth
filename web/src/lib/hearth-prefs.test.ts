@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadHearthDisplayPrefs, saveHearthDisplayPrefs } from './hearth-prefs';
+import {
+  loadHearthDisplayPrefs, saveHearthDisplayPrefs, loadHearthPosition, saveHearthPosition,
+} from './hearth-prefs';
 
 const KEY = 'heorth:hearth:show-kith-reminders';
 
@@ -49,5 +51,38 @@ describe('hearth display preferences', () => {
     localStorage.setItem(KEY, '"yes"');
     expect(loadHearthDisplayPrefs()).toEqual(ALL_ON);
     expect(localStorage.getItem(DISPLAY_KEY)).toBeNull();
+  });
+});
+
+describe('hearth navigation position', () => {
+  // Wednesday 2026-10-07, local time.
+  const NOW = new Date(2026, 9, 7, 9, 0).getTime();
+  const MIN = 60_000;
+
+  it('starts on today when nothing is remembered', () => {
+    expect(loadHearthPosition(NOW)).toEqual({ weekOffset: 0, monthOffset: 0 });
+  });
+
+  it('restores the paged-to week and month within 30 minutes', () => {
+    saveHearthPosition({ weekOffset: 2, monthOffset: -1 }, NOW);
+    expect(loadHearthPosition(NOW + 29 * MIN)).toEqual({ weekOffset: 2, monthOffset: -1 });
+  });
+
+  it('falls back to today after 30 minutes', () => {
+    saveHearthPosition({ weekOffset: 2, monthOffset: -1 }, NOW);
+    expect(loadHearthPosition(NOW + 31 * MIN)).toEqual({ weekOffset: 0, monthOffset: 0 });
+  });
+
+  it('remembers the absolute week, so a week boundary in between does not drift it', () => {
+    // Sunday 23:50 → next week shown; reloaded Monday 00:10 it is the current week.
+    const sunday = new Date(2026, 9, 11, 23, 50).getTime();
+    saveHearthPosition({ weekOffset: 1, monthOffset: 0 }, sunday);
+    expect(loadHearthPosition(sunday + 20 * MIN).weekOffset).toBe(0);
+  });
+
+  it('keeps no position while the wall shows today', () => {
+    saveHearthPosition({ weekOffset: 3, monthOffset: 0 }, NOW);
+    saveHearthPosition({ weekOffset: 0, monthOffset: 0 }, NOW);
+    expect(localStorage.getItem('heorth:ui:hearth:position')).toBeNull();
   });
 });

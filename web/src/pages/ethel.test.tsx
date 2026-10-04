@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiError } from '@/api/client';
-import type { EthelAsset, Transaction } from '@/lib/types';
+import type { EthelAsset, EthelPlace, Transaction } from '@/lib/types';
 
 const listAssets = vi.fn();
 const createAsset = vi.fn();
@@ -15,7 +15,7 @@ const deleteVehicle = vi.fn();
 const upsertFacility = vi.fn();
 const deleteFacility = vi.fn();
 
-const listPlaces = vi.fn((..._args: unknown[]) => Promise.resolve({ data: [] }));
+const listPlaces = vi.fn((..._args: unknown[]) => Promise.resolve({ data: [] as EthelPlace[] }));
 const createPlace = vi.fn();
 const updatePlace = vi.fn();
 const deletePlace = vi.fn();
@@ -55,6 +55,8 @@ vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast }) }));
 import EthelPage from './ethel';
 
 beforeEach(() => {
+  // Filters are remembered per browser (heorth:ui:ethel:*); start each test clean.
+  localStorage.clear();
   // AssetDetail/DecommissionDialog always call useTransactions() for the "link
   // sale" picker, even before an asset is selected — give it a default so
   // react-query doesn't warn about an undefined resolved value in the tests
@@ -390,5 +392,46 @@ describe('AssetDetail detail-row mutual exclusion', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add vehicle details' }));
     expect(await screen.findByText('From the manual. Recording a routine that acts on it comes later.')).toBeInTheDocument();
+  });
+});
+
+describe('EthelPage filter memory', () => {
+  const garage = {
+    id: 'p-garage', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z',
+    name: 'Garage', kind: 'room' as const, parentId: null, notes: null,
+  };
+  const lastParams = () => listAssets.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
+  it('reopens with the status, place and toggles last used in this browser', async () => {
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, offset: 0 } });
+    listPlaces.mockResolvedValue({ data: [garage] });
+    const first = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /decommissioned/i }));
+    await screen.findByRole('option', { name: /Garage/ });
+    fireEvent.change(screen.getByLabelText(/^place$/i), { target: { value: 'p-garage' } });
+    fireEvent.click(screen.getByLabelText(/contents/i));
+    fireEvent.click(screen.getByLabelText(/facilit/i));
+    fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'drill' } });
+    first.unmount();
+    listAssets.mockClear();
+
+    renderPage();
+    await waitFor(() => expect(lastParams()).toMatchObject({
+      status: 'decommissioned', placeId: 'p-garage', includeDescendants: 'true', hasFacility: 'true',
+    }));
+    expect(lastParams().q).toBeUndefined();
+  });
+
+  it('drops a remembered place that no longer exists', async () => {
+    localStorage.setItem('heorth:ui:ethel:placeId', '"p-gone"');
+    localStorage.setItem('heorth:ui:ethel:includeDescendants', 'true');
+    listAssets.mockResolvedValue({ data: [], meta: { total: 0, offset: 0 } });
+    listPlaces.mockResolvedValue({ data: [garage] });
+    renderPage();
+    await waitFor(() => {
+      expect(lastParams().placeId).toBeUndefined();
+      expect(lastParams().includeDescendants).toBeUndefined();
+    });
+    expect(localStorage.getItem('heorth:ui:ethel:placeId')).toBe('null');
   });
 });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { z } from 'zod';
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,12 +12,15 @@ import MonthView from '@/components/calendar/month-view';
 import EventForm, { type EventFormValues } from '@/components/calendar/event-form';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/use-calendar';
 import type { Event, EventOccurrence } from '@/lib/types';
 
+const CalendarView = z.enum(['week', 'month']);
+
 export default function CalendarPage() {
   const { t } = useTranslation();
-  const [view, setView] = useState<'week' | 'month'>('week');
+  const [view, setView] = usePersistedState('calendar:view', CalendarView, 'week');
   const [ref] = useState(new Date());
   const [editing, setEditing] = useState<Event | null>(null);
   const [open, setOpen] = useState(false);

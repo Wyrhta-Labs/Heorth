@@ -78,6 +78,8 @@ import OccurrenceStrip from '@/components/feoh/occurrence-strip';
 import AccountsPanel from '@/components/feoh/accounts-panel';
 
 beforeEach(async () => {
+  // Filters are remembered per browser (heorth:ui:ethel:*); start each test clean.
+  localStorage.clear();
   await i18n.changeLanguage('de');
   // AssetDetail/DecommissionDialog always call useTransactions() for the "link
   // sale" picker, even before an asset is selected.

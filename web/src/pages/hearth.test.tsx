@@ -83,6 +83,34 @@ describe('HearthPage view + paging', () => {
     expect(screen.getByLabelText('Back to today')).toBeInTheDocument();
   });
 
+  it('reopens in the view last chosen on this wall', () => {
+    const first = render(<HearthPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Month' }));
+    first.unmount();
+    const { container } = render(<HearthPage />);
+    expect(container.querySelectorAll('[data-hearth-day]')).toHaveLength(0);
+  });
+
+  it('reopens on the paged-to week within 30 minutes, and on today after that', () => {
+    const first = render(<HearthPage />);
+    fireEvent.click(screen.getByLabelText('Next'));
+    first.unmount();
+
+    vi.setSystemTime(new Date('2026-07-24T12:29:00Z'));
+    useTasksSpy.mockClear();
+    const second = render(<HearthPage />);
+    expect(new Date(useTasksSpy.mock.calls[0][0].due_from).getTime())
+      .toBe(new Date('2026-07-27T00:00:00').getTime());
+    second.unmount();
+
+    // 30 minutes after the last paging, the wall is back on today.
+    vi.setSystemTime(new Date('2026-07-24T12:31:00Z'));
+    useTasksSpy.mockClear();
+    render(<HearthPage />);
+    expect(new Date(useTasksSpy.mock.calls[0][0].due_from).getTime())
+      .toBe(new Date('2026-07-20T00:00:00').getTime());
+  });
+
   it('queries tasks with full ISO instants, not date-only values (#3)', () => {
     // The server validator (src/modules/tasks/validators.ts) requires
     // z.string().datetime() — a date-only yyyy-MM-dd 400s on every poll.

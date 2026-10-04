@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import {
   addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { z } from 'zod';
 import type { TFunction } from 'i18next';
 import { ToastProvider, useToast } from '@/components/ui/toast';
 import { ApiError } from '@/api/client';
@@ -23,7 +24,10 @@ import { useIntegrationsFeedStatus } from '@/hooks/use-m365';
 import { useFeatures } from '@/hooks/use-features';
 import { useKithReminders } from '@/hooks/use-kith';
 import { useFormatters } from '@/hooks/use-formatters';
-import { loadHearthDisplayPrefs, saveHearthDisplayPrefs } from '@/lib/hearth-prefs';
+import {
+  loadHearthDisplayPrefs, saveHearthDisplayPrefs, loadHearthPosition, saveHearthPosition,
+} from '@/lib/hearth-prefs';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import {
   composeDay, computeMealSwap, deriveStaleness, tasksForDay, formatAge,
   type DayComposition, type MealOp,
@@ -36,14 +40,18 @@ const POLL_TASKS = 30_000;
 const POLL_EVENTS = 60_000;
 const POLL_MEALS = 120_000;
 const GC = 10 * 60_000; // cap retained (paged-away) week/month query pages
+const HearthView = z.enum(['week', 'month']);
 
 function HearthInner() {
   const { toast } = useToast();
   const { t } = useTranslation();
   const { weekDays, dayLabel, locale } = useFormatters();
-  const [view, setView] = useState<'week' | 'month'>('week');
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [monthOffset, setMonthOffset] = useState(0);
+  // View is remembered per browser; the paged-to week/month only for a short
+  // while (lib/hearth-prefs.ts), so the wall drifts back to today.
+  const [view, setView] = usePersistedState('hearth:view', HearthView, 'week');
+  const [initialPosition] = useState(() => loadHearthPosition());
+  const [weekOffset, setWeekOffset] = useState(initialPosition.weekOffset);
+  const [monthOffset, setMonthOffset] = useState(initialPosition.monthOffset);
   const [openRecipeId, setOpenRecipeId] = useState<string | null>(null);
   const [addEventDate, setAddEventDate] = useState<string | null>(null);
   const [displayPrefs, setDisplayPrefs] = useState(() => loadHearthDisplayPrefs());
@@ -57,6 +65,18 @@ function HearthInner() {
     const id = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  // Save on paging only, not on mount: re-saving a restored position would
+  // restart its expiry on every reload and keep the wall off today for good.
+  // Compared by value rather than a "first run" flag, which StrictMode's
+  // double-invoked effects would defeat.
+  const savedPosition = useRef(initialPosition);
+  useEffect(() => {
+    const saved = savedPosition.current;
+    if (saved.weekOffset === weekOffset && saved.monthOffset === monthOffset) return;
+    savedPosition.current = { weekOffset, monthOffset };
+    saveHearthPosition({ weekOffset, monthOffset });
+  }, [weekOffset, monthOffset]);
 
   const now = new Date(nowMs);
   const todayIso = dayLabel(now).iso;

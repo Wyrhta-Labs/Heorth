@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { retryOf } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
 import { ETHEL_PAGE_SIZE } from '@/lib/constants';
 import { useFormatters } from '@/hooks/use-formatters';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useEthelAssets, useCreateAsset, usePlaces } from '@/hooks/use-ethel';
 import AssetForm from '@/components/ethel/asset-form';
 import AssetDetail from '@/components/ethel/asset-detail';
@@ -21,16 +23,19 @@ import { lifecycleLine } from '@/components/ethel/lifecycle';
 import type { EthelAsset } from '@/lib/types';
 
 const STATUS_FILTERS = ['', 'active', 'decommissioned'] as const;
+const StatusFilter = z.enum(STATUS_FILTERS);
+const PlaceFilter = z.string().nullable();
 
 export default function EthelPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { formatDate, formatMoney } = useFormatters();
-  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>('');
+  // The filters are remembered per browser; search text and paging are not.
+  const [status, setStatus] = usePersistedState('ethel:status', StatusFilter, '');
   const [q, setQ] = useState('');
-  const [placeId, setPlaceId] = useState<string | null>(null);
-  const [includeDescendants, setIncludeDescendants] = useState(false);
-  const [hasFacility, setHasFacility] = useState(false);
+  const [placeId, setPlaceId] = usePersistedState('ethel:placeId', PlaceFilter, null);
+  const [includeDescendants, setIncludeDescendants] = usePersistedState('ethel:includeDescendants', z.boolean(), false);
+  const [hasFacility, setHasFacility] = usePersistedState('ethel:hasFacility', z.boolean(), false);
   // Set from the place manager's "systems serving this place" link. Unlike
   // placeId this is not "where the asset lives" but "what it serves", so the
   // two are independent filters and can be combined.
@@ -69,6 +74,17 @@ export default function EthelPage() {
   const placesQuery = usePlaces();
   const places = placesQuery.data?.data ?? [];
   const retry = retryOf(assetsQuery);
+
+  // A remembered place may have been deleted since: once the places are
+  // known, drop it (and the toggle that only makes sense with a place)
+  // instead of filtering by an id that no longer exists.
+  useEffect(() => {
+    if (!placesQuery.isSuccess || !placeId) return;
+    if (!places.some((p) => p.id === placeId)) {
+      setPlaceId(null);
+      setIncludeDescendants(false);
+    }
+  }, [placesQuery.isSuccess, places, placeId, setPlaceId, setIncludeDescendants]);
 
   // A changed filter is a different result set: drop the accumulated pages and
   // restart at the top rather than paging into a list that no longer matches.

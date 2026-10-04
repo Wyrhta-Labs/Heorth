@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useConnections, useLibraryItems } from '@/hooks/use-library';
 import ConnectionsPanel from '@/components/library/connections-panel';
 import ConnectDialog from '@/components/library/connect-dialog';
@@ -16,13 +18,19 @@ const TYPES: LibraryMediaType[] = ['book', 'ebook', 'movie', 'series'];
 const STATUSES: LibraryItemStatus[] = ['unread', 'reading', 'read', 'watching', 'watched'];
 const LISTS: LibraryList[] = ['later', 'favorites'];
 
+// A remembered filter is '' (all) or one of the options this page still offers.
+const filterOf = (opts: readonly string[]) => z.string().refine((v) => v === '' || opts.includes(v));
+const TypeFilter = filterOf(TYPES);
+const StatusFilter = filterOf(STATUSES);
+const ListFilter = filterOf(LISTS);
+
 export default function LibraryPage() {
   const { t } = useTranslation();
   const [connectOpen, setConnectOpen] = useState(false);
   const [selected, setSelected] = useState<LibraryItem | null>(null);
-  const [mediaType, setMediaType] = useState('');
-  const [status, setStatus] = useState('');
-  const [list, setList] = useState('');
+  const [mediaType, setMediaType] = usePersistedState('library:mediaType', TypeFilter, '');
+  const [status, setStatus] = usePersistedState('library:status', StatusFilter, '');
+  const [list, setList] = usePersistedState('library:list', ListFilter, '');
   const [q, setQ] = useState('');
 
   const connectionsQuery = useConnections();

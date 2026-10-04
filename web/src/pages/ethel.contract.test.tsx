@@ -73,6 +73,8 @@ const HOUSE = '11111111-1111-4111-8111-111111111111';
 const KITCHEN = '22222222-2222-4222-8222-222222222222';
 
 beforeEach(() => {
+  // Filters are remembered per browser (heorth:ui:ethel:*); start each test clean.
+  localStorage.clear();
   listTransactions.mockResolvedValue({ data: [], meta: { total: 0 } });
   getAsset.mockResolvedValue({ data: { ...asset('i1', 'Drill'), vehicle: null, facility: null } });
   listPlaces.mockResolvedValue({

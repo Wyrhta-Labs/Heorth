@@ -32,7 +32,7 @@ export default function OccurrenceList(
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="zebra space-y-2">
       {entries.map(({ routine, occurrence }) => (
         <li
           key={occurrence.id}

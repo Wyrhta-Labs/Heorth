@@ -264,10 +264,10 @@ function RoutineCard({ routine, expanded, onToggleHistory, onEdit, onDeactivate,
           <Button variant="ghost" size="sm" onClick={onToggleHistory}>{t('weorc.history')}</Button>
         </div>
         {expanded && (
-          <ul className="space-y-1 pt-2">
+          <ul className="zebra space-y-1 pt-2">
             {history.length === 0 && <li className="text-xs text-muted-foreground">—</li>}
             {history.map((occ) => (
-              <li key={occ.id} className="text-xs text-muted-foreground">
+              <li key={occ.id} className="rounded px-2 py-0.5 text-xs text-muted-foreground">
                 {occ.status === 'completed'
                   ? t('weorc.completedOn', { date: formatDate(occ.completedAt) })
                   : t('weorc.skipped')}

@@ -40,9 +40,9 @@ export default function ImportRules() {
       {rules.length === 0 ? (
         <p className="text-sm text-gray-500">{t('feoh.import.rules.empty')}</p>
       ) : (
-        <ul className="divide-y divide-tan">
+        <ul className="zebra divide-y divide-tan">
           {rules.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-2 py-2">
               <div className="flex items-baseline gap-3">
                 <span className="font-mono text-sm">{r.pattern}</span>
                 <span className="text-sm">→ {envelopeName.get(r.envelopeId) ?? r.envelopeId}</span>

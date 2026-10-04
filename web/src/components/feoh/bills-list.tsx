@@ -16,9 +16,9 @@ export default function BillsList({ bills, onRemove }: Props) {
       {bills.length === 0 ? (
         <div className="text-sm text-ash py-4 text-center">{t('feoh.noRecurringBills')}</div>
       ) : (
-        <ul className="space-y-2">
+        <ul className="zebra space-y-2">
           {bills.map((b) => (
-            <li key={b.id} className="rounded-lg border border-tan bg-card even:bg-linen/60 px-3 py-2">
+            <li key={b.id} className="rounded-lg border border-tan bg-card px-3 py-2">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-ink">{b.payee}</div>

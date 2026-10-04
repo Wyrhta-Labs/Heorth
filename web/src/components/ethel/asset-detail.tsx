@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Coins } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { SectionTitle, toneCard } from '@/components/ui/section-tone';
 import { useToast } from '@/components/ui/toast';
 import { useFormatters } from '@/hooks/use-formatters';
 import { useItemCosts, useCreateItemCost, useTransactions } from '@/hooks/use-feoh';
@@ -139,8 +141,8 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
                 )}
               </div>
 
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-base">{t('ethel.tco.title')}</CardTitle></CardHeader>
+              <Card className={toneCard('sage', 1)}>
+                <CardHeader className="pb-2"><SectionTitle icon={Coins} tone="sage">{t('ethel.tco.title')}</SectionTitle></CardHeader>
                 <CardContent className="space-y-1">
                   {totals ? (
                     <>

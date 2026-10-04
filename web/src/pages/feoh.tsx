@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { ArrowLeftRight, CalendarClock, Inbox, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { SectionCard, SectionTitle, toneCard } from '@/components/ui/section-tone';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
 import SummaryHeader from '@/components/feoh/summary-header';
@@ -78,26 +79,24 @@ export default function FeohPage() {
             {(summary?.envelopes ?? []).map((e) => <EnvelopeCard key={e.envelopeId} envelope={e} />)}
           </div>
 
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.recurringBills')}</CardTitle></CardHeader>
-            <CardContent><BillsList bills={bills} onRemove={(id) => deleteBill.mutate(id)} /></CardContent>
-          </Card>
+          <SectionCard title={t('feoh.recurringBills')} icon={CalendarClock} tone="amber" shade={1}>
+            <BillsList bills={bills} onRemove={(id) => deleteBill.mutate(id)} />
+          </SectionCard>
 
           <AccountsPanel />
 
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.importExport')}</CardTitle></CardHeader>
-            <CardContent><CsvPanel /></CardContent>
-          </Card>
+          <SectionCard title={t('feoh.importExport')} icon={ArrowLeftRight} tone="amber" shade={1}>
+            <CsvPanel />
+          </SectionCard>
 
-          <Card>
+          <Card className={toneCard('amber', 2)}>
             <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-base">
+              <SectionTitle icon={Inbox} tone="amber">
                 {t('feoh.import.title')}
                 {status && status.pendingCount > 0 && (
                   <span className="ml-2 text-sm font-normal text-gray-500">{t('feoh.import.pending', { count: status.pendingCount })}</span>
                 )}
-              </CardTitle>
+              </SectionTitle>
               {status?.enabled && (
                 <Button size="sm" variant="outline" onClick={pullNow} disabled={sync.isPending}>
                   {sync.isPending ? t('feoh.import.syncing') : t('feoh.import.syncNow')}

@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { Car } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { SectionTitle, toneCard } from '@/components/ui/section-tone';
 import { ApiError } from '@/api/client';
 import { useUpsertVehicle, useDeleteVehicle } from '@/hooks/use-ethel';
 import type { EthelVehicle } from '@/lib/types';
@@ -83,8 +85,8 @@ export default function VehicleDetails({ assetId, vehicle, onRemoved }: Props) {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-base">{t('ethel.vehicle.title')}</CardTitle></CardHeader>
+    <Card className={toneCard('sage', 2)}>
+      <CardHeader className="pb-2"><SectionTitle icon={Car} tone="sage">{t('ethel.vehicle.title')}</SectionTitle></CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">

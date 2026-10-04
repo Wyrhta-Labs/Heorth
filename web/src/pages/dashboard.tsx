@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { addDays } from 'date-fns';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { CalendarDays, House, ListChecks, Sunrise } from 'lucide-react';
+import { SectionCard } from '@/components/ui/section-tone';
 import DayStrip from '@/components/dashboard/day-strip';
 import SupperCard from '@/components/dashboard/supper-card';
 import Agenda from '@/components/dashboard/agenda';
@@ -17,31 +18,25 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 space-y-6">
           <SupperCard />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">{t('today.title')}</CardTitle></CardHeader>
-              <CardContent><Agenda /></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">{t('today.tomorrow')}</CardTitle></CardHeader>
-              <CardContent>
-                <Agenda
-                  day={addDays(new Date(), 1)}
-                  emptyMessage={t('today.noEventsTomorrow')}
-                  errorMessage={t('today.tomorrowLoadError')}
-                />
-              </CardContent>
-            </Card>
+            <SectionCard title={t('today.title')} icon={CalendarDays} tone="ember">
+              <Agenda />
+            </SectionCard>
+            <SectionCard title={t('today.tomorrow')} icon={Sunrise} tone="sky">
+              <Agenda
+                day={addDays(new Date(), 1)}
+                emptyMessage={t('today.noEventsTomorrow')}
+                errorMessage={t('today.tomorrowLoadError')}
+              />
+            </SectionCard>
           </div>
         </div>
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">{t('dashboard.work.title')}</CardTitle></CardHeader>
-            <CardContent><DueWork /></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">{t('dashboard.home')}</CardTitle></CardHeader>
-            <CardContent><MembersRow /></CardContent>
-          </Card>
+          <SectionCard title={t('dashboard.work.title')} icon={ListChecks} tone="amber">
+            <DueWork />
+          </SectionCard>
+          <SectionCard title={t('dashboard.home')} icon={House} tone="sage">
+            <MembersRow />
+          </SectionCard>
         </div>
       </div>
     </div>

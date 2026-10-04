@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { SectionTitle, toneCard } from '@/components/ui/section-tone';
 import { ApiError } from '@/api/client';
 import { useUpsertFacility, useDeleteFacility } from '@/hooks/use-ethel';
 import { buildPlaceTree, flattenPlaceTree } from '@/lib/place-tree';
@@ -72,8 +74,8 @@ export default function FacilityDetails({ assetId, facility, places = [], onRemo
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-base">{t('ethel.facility.title')}</CardTitle></CardHeader>
+    <Card className={toneCard('sage', 3)}>
+      <CardHeader className="pb-2"><SectionTitle icon={Wrench} tone="sage">{t('ethel.facility.title')}</SectionTitle></CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">

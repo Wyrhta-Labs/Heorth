@@ -10,6 +10,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { cn } from '@/lib/utils';
 import { ETHEL_PAGE_SIZE } from '@/lib/constants';
+import { shadeFor, toneCard } from '@/components/ui/section-tone';
 import { useFormatters } from '@/hooks/use-formatters';
 import { useEthelAssets, useCreateAsset, usePlaces } from '@/hooks/use-ethel';
 import AssetForm from '@/components/ethel/asset-form';
@@ -221,7 +222,7 @@ export default function EthelPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {assets.map((asset) => (
-            <Card key={asset.id} className="cursor-pointer" onClick={() => setSelected(asset)}>
+            <Card key={asset.id} className={cn('cursor-pointer', toneCard('sage', shadeFor(asset.category)))} onClick={() => setSelected(asset)}>
               <CardContent className="p-4 space-y-1">
                 <p className="font-medium">{asset.name}</p>
                 <p className="text-xs text-muted-foreground">

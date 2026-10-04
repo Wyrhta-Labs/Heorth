@@ -71,6 +71,15 @@
   letter-spacing: -0.02em;
 }
 
+/* Odd/even rows for lists and tables: put `zebra` on the <ul>/<tbody> and
+   every second row takes a light linen ground. Its selector outranks a row's
+   own bg-card/bg-white, so rows keep their classes. */
+@utility zebra {
+  & > :nth-child(even) {
+    background-color: color-mix(in srgb, var(--color-linen) 60%, var(--color-card));
+  }
+}
+
 * {
   box-sizing: border-box;
   border-color: var(--color-tan);

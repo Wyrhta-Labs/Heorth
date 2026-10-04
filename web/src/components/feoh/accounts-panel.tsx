@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Landmark } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { SectionTitle, toneCard } from '@/components/ui/section-tone';
 import { Button } from '@/components/ui/button';
 import { useAccounts, useLedger } from '@/hooks/use-feoh';
 import { useFormatters } from '@/hooks/use-formatters';
@@ -63,8 +64,8 @@ export default function AccountsPanel() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <Card>
-      <CardHeader className="pb-3"><CardTitle className="text-base">{t('feoh.accounts.title')}</CardTitle></CardHeader>
+    <Card className={toneCard('amber', 3)}>
+      <CardHeader className="pb-3"><SectionTitle icon={Landmark} tone="amber">{t('feoh.accounts.title')}</SectionTitle></CardHeader>
       <CardContent className="space-y-2">
         {accounts.map((a) => (
           <AccountRow

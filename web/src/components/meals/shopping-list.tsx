@@ -30,7 +30,7 @@ export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGener
         <span className="text-sm text-ash">{t('shopping.toBuy', { count: items.filter((i) => !i.checked).length })}</span>
         <Button variant="outline" size="sm" onClick={onGenerate}>{t('shopping.generateFromWeek')}</Button>
       </div>
-      <ul className="space-y-1.5">
+      <ul className="zebra space-y-1.5">
         {sorted.map((item) => (
           <li key={item.id} className="flex items-center gap-2 rounded-lg border border-tan bg-card px-3 py-2">
             <label className="flex flex-1 items-center gap-3 min-w-0 py-1 cursor-pointer">

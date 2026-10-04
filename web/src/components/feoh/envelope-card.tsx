@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
+import { toneCard } from '@/components/ui/section-tone';
 import { Progress } from '@/components/ui/progress';
 import { progressPercent } from '@/lib/format';
 import { toneColor } from '@/lib/constants';
@@ -11,8 +12,9 @@ export default function EnvelopeCard({ envelope }: { envelope: EnvelopeSummary }
   const { formatMoney } = useFormatters();
   const pct = progressPercent(envelope.spent, envelope.budget);
   const over = envelope.spent > envelope.budget;
+  const tone = toneColor(envelope.tone);
   return (
-    <Card>
+    <Card className={toneCard('amber', 2)}>
       <CardContent className="p-4">
         <div className="flex items-baseline justify-between">
           <h4 className="font-serif text-lg text-ink">{envelope.name}</h4>
@@ -21,7 +23,7 @@ export default function EnvelopeCard({ envelope }: { envelope: EnvelopeSummary }
           </span>
         </div>
         <div className="mt-3">
-          <Progress value={pct} color={over ? 'var(--color-danger)' : toneColor(envelope.tone)} />
+          <Progress value={pct} color={over ? 'var(--color-danger)' : tone} />
         </div>
         <div className="mt-1 text-xs text-ash">
           {over

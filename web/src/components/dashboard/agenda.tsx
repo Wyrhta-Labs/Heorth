@@ -19,7 +19,7 @@ export default function Agenda(
   if (events.length === 0) return <div className="text-sm text-ash py-4 text-center">{emptyMessage ?? t('today.noEventsToday')}</div>;
 
   return (
-    <ul className="space-y-2">
+    <ul className="zebra space-y-2">
       {events.map((e) => (
         <li key={`${e.id}-${e.occurrenceStart}`} className="flex items-center gap-3 rounded-lg border border-tan bg-card px-3 py-2">
           <span className="text-xs font-medium text-ember w-16 shrink-0">

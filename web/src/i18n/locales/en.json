@@ -97,7 +97,9 @@
   },
   "today": {
     "title": "Today",
-    "dueSoon": "Due soon",
+    "tomorrow": "Tomorrow",
+    "noEventsTomorrow": "No events tomorrow.",
+    "tomorrowLoadError": "We couldn’t load tomorrow.",
     "agendaLoadError": "Couldn’t load today’s agenda.",
     "noEventsToday": "No events today.",
     "supperLoadError": "Couldn’t load tonight’s supper.",
@@ -181,9 +183,11 @@
   "dashboard": {
     "home": "Home",
     "membersLoadError": "Couldn’t load members.",
-    "chores": {
-      "title": "Chores",
-      "comingSoon": "Coming in a later release"
+    "work": {
+      "title": "To do",
+      "chores": "Chores",
+      "tasks": "Tasks",
+      "noChores": "No chores due by tomorrow."
     }
   },
   "calendar": {
@@ -419,6 +423,7 @@
       "name": "Name",
       "timezone": "Timezone",
       "locale": "Locale",
+      "theme": "Theme",
       "readOnlyHint": "Only admins can change these.",
       "updated": "Household updated",
       "updateFailed": "Could not update household"

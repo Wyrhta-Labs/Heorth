@@ -17,8 +17,67 @@
   --color-sage: #7a8b6f;
   --color-sky: #6b7e8c;
   --color-amber: #a07535;
+  --color-danger: #c0392b;
 
   --radius: 0.375rem;
+}
+
+/*
+ * Slate: the household's alternative theme (household.theme, set by an admin;
+ * applied as data-theme on <html> by web/src/lib/theme.ts). Cool grey ground,
+ * white cards with fine borders and soft shadows, blue primary, system sans
+ * throughout. It redefines the same tokens, so every bg-card / text-ink /
+ * bg-ember utility follows without touching components. Hearth is :root.
+ */
+:root[data-theme='slate'] {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', ui-sans-serif, sans-serif;
+  --font-serif: var(--font-sans);
+
+  --color-parchment: #f0f2f5;
+  --color-linen: #eef1f5;
+  --color-card: #ffffff;
+  --color-ink: #1a1d23;
+  --color-ash: #6b7380;
+  --color-tan: #e2e6ea;
+
+  --color-ember: #2563eb;
+  --color-ember-soft: #93b4f5;
+  --color-taupe: #7c3aed;
+  --color-sage: #16a34a;
+  --color-sky: #0369a1;
+  --color-amber: #d97706;
+  --color-danger: #dc2626;
+
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+}
+
+/* Tailwind inlines shadow values into the utilities (they do not read a theme
+   variable), so Slate's softer, cooler shadows override the utilities' own
+   --tw-shadow instead. */
+:root[data-theme='slate'] .shadow-sm {
+  --tw-shadow: 0 1px 3px var(--tw-shadow-color, rgb(0 0 0 / 0.07)), 0 1px 2px var(--tw-shadow-color, rgb(0 0 0 / 0.05));
+}
+:root[data-theme='slate'] .shadow,
+:root[data-theme='slate'] .shadow-md {
+  --tw-shadow: 0 4px 12px var(--tw-shadow-color, rgb(0 0 0 / 0.08));
+}
+
+:root[data-theme='slate'] h1,
+:root[data-theme='slate'] h2,
+:root[data-theme='slate'] h3,
+:root[data-theme='slate'] h4 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Odd/even rows for lists and tables: put `zebra` on the <ul>/<tbody> and
+   every second row takes a light linen ground. Its selector outranks a row's
+   own bg-card/bg-white, so rows keep their classes. */
+@utility zebra {
+  & > :nth-child(even) {
+    background-color: color-mix(in srgb, var(--color-linen) 60%, var(--color-card));
+  }
 }
 
 * {

@@ -118,7 +118,7 @@ export default function ImportInbox({ householdCurrency }: Props) {
       {rows.length === 0 ? (
         <p className="text-sm text-gray-500">{t('feoh.import.inbox.empty')}</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="zebra space-y-2">
           {rows.map((row) => (
             <InboxRow key={row.id} row={row} householdCurrency={householdCurrency} mappedAccountId={accountFor.get(row.sourceAccountId)} />
           ))}

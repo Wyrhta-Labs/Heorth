@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ShoppingCart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { SectionCard } from '@/components/ui/section-tone';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
@@ -83,18 +84,15 @@ export default function MealsPage() {
       </TabsContent>
 
       <TabsContent value="shopping">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">{t('shopping.title')}</CardTitle></CardHeader>
-          <CardContent>
-            <ShoppingList
-              items={items}
-              onToggle={(id, checked) => updateItem.mutate({ id, input: { checked } })}
-              onAdd={(name) => addItem.mutate({ name })}
-              onRemove={(id) => removeItem.mutate(id)}
-              onGenerate={() => generate.mutate({ from, to }, { onSuccess: () => toast(t('meals.listGenerated'), 'success') })}
-            />
-          </CardContent>
-        </Card>
+        <SectionCard title={t('shopping.title')} icon={ShoppingCart} tone="sage" shade={2}>
+          <ShoppingList
+            items={items}
+            onToggle={(id, checked) => updateItem.mutate({ id, input: { checked } })}
+            onAdd={(name) => addItem.mutate({ name })}
+            onRemove={(id) => removeItem.mutate(id)}
+            onGenerate={() => generate.mutate({ from, to }, { onSuccess: () => toast(t('meals.listGenerated'), 'success') })}
+          />
+        </SectionCard>
       </TabsContent>
 
       <Dialog open={recipeOpen} onOpenChange={setRecipeOpen}>

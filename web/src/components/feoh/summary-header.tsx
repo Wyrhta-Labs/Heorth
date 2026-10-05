@@ -3,13 +3,15 @@ import { progressPercent } from '@/lib/format';
 import { Progress } from '@/components/ui/progress';
 import { useFormatters } from '@/hooks/use-formatters';
 import type { MonthSummary } from '@/lib/types';
+import { toneCard } from '@/components/ui/section-tone';
+import { cn } from '@/lib/utils';
 
 export default function SummaryHeader({ summary }: { summary: MonthSummary }) {
   const { t } = useTranslation();
   const { formatMoney } = useFormatters();
   const { totals } = summary;
   return (
-    <div className="rounded-xl border border-tan bg-card p-6">
+    <div className={cn('rounded-xl border p-6', toneCard('amber', 4))}>
       <div className="text-sm text-ash">{t('feoh.thisMonth')}</div>
       <div className="mt-1 font-serif text-3xl text-ink">
         {formatMoney(totals.spent)} <span className="text-ash text-xl">{t('feoh.ofBudget', { amount: formatMoney(totals.budget) })}</span>

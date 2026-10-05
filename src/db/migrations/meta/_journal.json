@@ -211,6 +211,13 @@
       "when": 1790225308717,
       "tag": "0029_gewrit",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790878422189,
+      "tag": "0030_household_appearance",
+      "breakpoints": true
     }
   ]
 }

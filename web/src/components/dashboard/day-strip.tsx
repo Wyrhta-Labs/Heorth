@@ -1,9 +1,12 @@
 import { cn } from '@/lib/utils';
 import { useFormatters } from '@/hooks/use-formatters';
 
+/** Today and the six days after it. A rolling window rather than the calendar
+ *  week: on a Sunday the calendar week is all behind you, and the week ahead
+ *  is what matters. */
 export default function DayStrip({ selected }: { selected?: string }) {
-  const { weekDays, dayLabel } = useFormatters();
-  const days = weekDays();
+  const { nextDays, dayLabel } = useFormatters();
+  const days = nextDays();
   const todayIso = dayLabel(new Date()).iso;
   return (
     <div className="grid grid-cols-7 gap-2">
@@ -14,6 +17,9 @@ export default function DayStrip({ selected }: { selected?: string }) {
         return (
           <div
             key={iso}
+            data-testid="day-strip-cell"
+            data-iso={iso}
+            data-today={isToday ? 'true' : undefined}
             className={cn(
               'flex flex-col items-center rounded-xl border py-3 transition-colors',
               isSelected ? 'border-ember bg-ember/10' : 'border-tan bg-card',

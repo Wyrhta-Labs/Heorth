@@ -39,9 +39,9 @@ export default function ImportAccounts() {
       {mappings.length === 0 ? (
         <p className="text-sm text-gray-500">{t('feoh.import.accounts.empty')}</p>
       ) : (
-        <ul className="divide-y divide-tan">
+        <ul className="zebra divide-y divide-tan">
           {mappings.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-2 py-2">
+            <li key={m.id} className="flex items-center justify-between gap-2 px-2 py-2">
               <span className="text-sm"><span className="font-mono">{m.sourceAccountId}</span> → {accountName.get(m.accountId) ?? m.accountId}</span>
               <Button
                 size="sm"

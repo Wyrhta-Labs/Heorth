@@ -15,12 +15,16 @@ interface Props {
    *  with no action to complete work that is not due yet. */
   onComplete?: (occurrenceId: string) => void;
   onSkip?: (occurrenceId: string) => void;
+  /** Off where space is tight (the start page) — the Weorc page keeps it. */
+  showProjectionProblem?: boolean;
 }
 
 /** Rows for one occurrence bucket ("Due now" / "Coming up"). A `projectionError`
  *  is surfaced as a quiet note next to the row, never as an alert — in the demo
  *  stack every occurrence is unprojected, permanently, and that is not a fault. */
-export default function OccurrenceList({ entries, emptyMessage, formatDate, onComplete, onSkip }: Props) {
+export default function OccurrenceList(
+  { entries, emptyMessage, formatDate, onComplete, onSkip, showProjectionProblem = true }: Props,
+) {
   const { t } = useTranslation();
 
   if (entries.length === 0) {
@@ -28,7 +32,7 @@ export default function OccurrenceList({ entries, emptyMessage, formatDate, onCo
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="zebra space-y-2">
       {entries.map(({ routine, occurrence }) => (
         <li
           key={occurrence.id}
@@ -42,7 +46,7 @@ export default function OccurrenceList({ entries, emptyMessage, formatDate, onCo
           <div>
             <p className="text-sm font-medium">{routine.name}</p>
             <p className="text-xs text-muted-foreground">{formatDate(occurrence.dueOn)}</p>
-            {occurrence.projectionError && (
+            {showProjectionProblem && occurrence.projectionError && (
               <p className="text-xs text-ash">{t('weorc.projectionProblem')}</p>
             )}
           </div>

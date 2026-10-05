@@ -6,13 +6,14 @@ import { resolveLocale, DEFAULT_RESOLVED } from '@/i18n/locale-map';
 import { QUERY_KEYS } from '@/lib/constants';
 import { getHousehold } from '@/api/household';
 import { useAuth } from '@/hooks/use-auth';
+import { applyTheme } from '@/lib/theme';
 
 // Safe default (enUS): components rendered outside the provider — most tests —
 // format in English instead of throwing.
 const DateFnsLocaleContext = createContext<Locale>(DEFAULT_RESOLVED.dateFnsLocale);
 
 /**
- * Applies household.locale app-wide: i18next language (en/de catalogs) and the
+ * Applies household.locale and household.theme app-wide: i18next language (en/de catalogs) and the
  * date-fns locale for useFormatters(). The household query is GATED ON AUTH —
  * the API client clears the stored token on 401, so an ungated query on /login
  * would log people out as a side effect. Logout hard-navigates (full reload),
@@ -31,6 +32,13 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (i18n.language !== resolved.language) void i18n.changeLanguage(resolved.language);
   }, [resolved.language]);
+
+  // household.theme rides on the same query. Logged out, the page keeps the
+  // theme main.tsx restored from localStorage rather than snapping to hearth.
+  const theme = isAuthenticated && data ? data.data.theme : undefined;
+  useEffect(() => {
+    if (theme !== undefined) applyTheme(theme);
+  }, [theme]);
 
   return (
     <DateFnsLocaleContext.Provider value={resolved.dateFnsLocale}>

@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   falls back to the default. The Hearth wall also keeps the week/month it
   was paged to, but only for 30 minutes after the last paging, so an
   always-on wall returns to today.
+- **Household theme**: a second UI theme, `slate` (cool grey ground, white
+  cards, blue primary, system sans), next to the warm original `hearth`, which
+  stays the default. Household-wide and admin-only like timezone and locale:
+  `GET /api/v1/household` returns `theme`, `PATCH` accepts it (validated
+  against the new `themes` list in `GET /api/v1/household/options`).
+  Migration `0030_household_appearance` adds a single-row
+  `household_appearance` table — Heorth-local, so the core `household` table
+  stays untouched.
+- Web: a Theme select in the household settings; the theme is applied as
+  `data-theme` on `<html>` (plus the browser `theme-color`) and remembered per
+  device so the login screen and reloads do not flash the default.
 
 ## [0.9.0] - 2026-09-24
 

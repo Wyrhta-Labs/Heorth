@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import HouseholdSettings from './household-settings';
 import type { Household } from '@/lib/types';
 
 const household = (over: Partial<Household>): Household => ({
-  id: 'h1', name: 'The Smiths', timezone: 'Europe/London', locale: 'en-GB', createdAt: '', ...over,
+  id: 'h1', name: 'The Smiths', timezone: 'Europe/London', locale: 'en-GB', theme: 'hearth', createdAt: '', ...over,
 });
 
 const OPTIONS = {
@@ -14,15 +14,20 @@ const OPTIONS = {
     { value: 'en-GB', label: 'English (United Kingdom)' },
     { value: 'en-US', label: 'English (United States)' },
   ],
+  themes: [
+    { value: 'hearth', label: 'Hearth' },
+    { value: 'slate', label: 'Slate' },
+  ],
 };
 
 const useHouseholdMock = vi.fn();
+const mutateAsyncMock = vi.fn();
 const useHouseholdOptionsMock = vi.fn(() => ({ data: { data: OPTIONS } }));
 
 vi.mock('@/hooks/use-household', () => ({
   useHousehold: () => useHouseholdMock(),
   useHouseholdOptions: () => useHouseholdOptionsMock(),
-  useUpdateHousehold: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateHousehold: () => ({ mutateAsync: mutateAsyncMock, isPending: false }),
 }));
 
 // `readOnly` is presentation only — `PATCH /household` stays admin-gated
@@ -85,8 +90,22 @@ describe('HouseholdSettings', () => {
     expect(screen.getByLabelText('Name')).toBeDisabled();
     expect(screen.getByLabelText('Timezone')).toBeDisabled();
     expect(screen.getByLabelText('Locale')).toBeDisabled();
+    expect(screen.getByLabelText('Theme')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
     expect(screen.getByText('Only admins can change these.')).toBeInTheDocument();
+  });
+
+  it('offers the household themes and saves the chosen one', () => {
+    useHouseholdMock.mockReturnValue({ data: { data: household({}) } });
+    render(<HouseholdSettings />);
+
+    const theme = screen.getByLabelText('Theme');
+    expect(theme).toHaveValue('hearth');
+    expect([...(theme as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['Hearth', 'Slate']);
+
+    fireEvent.change(theme, { target: { value: 'slate' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(mutateAsyncMock).toHaveBeenCalledWith(expect.objectContaining({ theme: 'slate' }));
   });
 
   it('stays editable by default', () => {
@@ -100,5 +119,6 @@ describe('HouseholdSettings', () => {
   afterEach(() => {
     cleanup();
     useHouseholdMock.mockReset();
+    mutateAsyncMock.mockReset();
   });
 });

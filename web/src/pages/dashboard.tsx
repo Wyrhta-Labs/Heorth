@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { addDays } from 'date-fns';
+import { CalendarDays, House, ListChecks, Sunrise } from 'lucide-react';
+import { SectionCard } from '@/components/ui/section-tone';
 import DayStrip from '@/components/dashboard/day-strip';
 import SupperCard from '@/components/dashboard/supper-card';
 import Agenda from '@/components/dashboard/agenda';
 import MembersRow from '@/components/dashboard/members-row';
-import ChoresSlot from '@/components/dashboard/chores-slot';
+import DueWork from '@/components/dashboard/due-work';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -15,18 +17,26 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <SupperCard />
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">{t('today.title')}</CardTitle></CardHeader>
-            <CardContent><Agenda /></CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SectionCard title={t('today.title')} icon={CalendarDays} tone="ember">
+              <Agenda />
+            </SectionCard>
+            <SectionCard title={t('today.tomorrow')} icon={Sunrise} tone="sky">
+              <Agenda
+                day={addDays(new Date(), 1)}
+                emptyMessage={t('today.noEventsTomorrow')}
+                errorMessage={t('today.tomorrowLoadError')}
+              />
+            </SectionCard>
+          </div>
         </div>
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">{t('dashboard.home')}</CardTitle></CardHeader>
-            <CardContent><MembersRow /></CardContent>
-          </Card>
-          {/* Reserved-but-empty chores slot (Chores module deferred). */}
-          <ChoresSlot />
+          <SectionCard title={t('dashboard.work.title')} icon={ListChecks} tone="amber">
+            <DueWork />
+          </SectionCard>
+          <SectionCard title={t('dashboard.home')} icon={House} tone="sage">
+            <MembersRow />
+          </SectionCard>
         </div>
       </div>
     </div>

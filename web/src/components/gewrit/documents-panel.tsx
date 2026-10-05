@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { SectionTitle, toneCard } from '@/components/ui/section-tone';
 import { useFeatures } from '@/hooks/use-features';
 import { useFormatters } from '@/hooks/use-formatters';
 import { useElementDocuments } from '@/hooks/use-gewrit';
@@ -30,9 +32,9 @@ export default function DocumentsPanel({ element }: { element: GewritElement }) 
   const links = list.data?.data ?? [];
 
   return (
-    <Card>
+    <Card className={toneCard('sage', 2)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">{t('gewrit.title')}</CardTitle>
+        <SectionTitle icon={FileText} tone="sage">{t('gewrit.title')}</SectionTitle>
         <Button type="button" size="sm" variant="outline" onClick={() => setLinkOpen(true)}>{t('gewrit.link')}</Button>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -49,9 +51,9 @@ export default function DocumentsPanel({ element }: { element: GewritElement }) 
           return (
             <div key={role} className="space-y-1">
               <p className="text-xs font-medium uppercase text-muted-foreground">{t(`gewrit.roles.${role}`)}</p>
-              <ul className="space-y-1">
+              <ul className="zebra space-y-1">
                 {group.map((l) => (
-                  <li key={l.id}>
+                  <li key={l.id} className="rounded px-2 py-1">
                     <button
                       type="button"
                       onClick={() => setPreviewing(l)}

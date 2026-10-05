@@ -4,9 +4,11 @@ import userEvent from '@testing-library/user-event';
 
 const refetch = vi.fn();
 let queryState: any = { data: undefined, isLoading: false, isError: false, refetch };
-vi.mock('@/hooks/use-calendar', () => ({ useEvents: () => queryState }));
+let lastParams: unknown;
+vi.mock('@/hooks/use-calendar', () => ({ useEvents: (p: unknown) => { lastParams = p; return queryState; } }));
 
 import Agenda from './agenda';
+import { dayRangeIso } from '@/lib/format';
 
 describe('Agenda error handling', () => {
   beforeEach(() => { refetch.mockClear(); });
@@ -27,5 +29,14 @@ describe('Agenda error handling', () => {
     render(<Agenda />);
     expect(screen.getByText('No events today.')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('Agenda for another day', () => {
+  it('queries the given day and shows the caller’s empty message', () => {
+    queryState = { data: { data: [] }, isLoading: false, isError: false, refetch };
+    render(<Agenda day={new Date(2026, 9, 5)} emptyMessage="Nothing tomorrow." />);
+    expect(screen.getByText('Nothing tomorrow.')).toBeInTheDocument();
+    expect(lastParams).toEqual(dayRangeIso(new Date(2026, 9, 5)));
   });
 });

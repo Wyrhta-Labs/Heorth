@@ -28,7 +28,7 @@ export default function CompactTaskList({ tasks, limit = 5, onToggle }: Props) {
   if (shown.length === 0) return <p className="text-sm text-ash py-2 text-center">{t('tasks.noOpenTasks')}</p>;
 
   return (
-    <ul className="space-y-1.5">
+    <ul className="zebra space-y-1.5">
       {shown.map((task) => (
         <li key={task.id} className="flex items-center gap-3 rounded-lg border border-tan bg-card px-3 py-2">
           <input

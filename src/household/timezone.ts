@@ -1,4 +1,4 @@
-import { getHousehold } from './service.js';
+import { householdCore } from '../wiring.js';
 
 /**
  * Resolve the household's IANA timezone for date-semantics conversions (e.g.
@@ -24,7 +24,7 @@ function isValidZone(zone: string): boolean {
 }
 
 export async function getHouseholdTimeZone(): Promise<string> {
-  const row = await getHousehold();
+  const row = await householdCore.getHousehold();
   const zone = row?.timezone?.trim();
   if (!zone) return 'UTC';
   if (!isValidZone(zone)) {

@@ -28,6 +28,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web: a Theme select in the household settings; the theme is applied as
   `data-theme` on `<html>` (plus the browser `theme-color`) and remembered per
   device so the login screen and reloads do not flash the default.
+- Web: the start page and /today show tomorrow's agenda next to today's, and
+  a "To do" card with chores due by tomorrow and open tasks, completable in
+  place.
+- Web: section cards carry an icon and a light ground in an accent colour
+  from the theme tokens, so both themes follow. The start page and /today
+  give each section its own colour; Feoh (amber) and Ethel (sage) keep one
+  colour per page and set neighbouring sections apart by shade, Ethel's
+  asset cards by category.
+- Web: lists and tables alternate their row background (tasks, shopping,
+  agenda, Weorc, Feoh bills and bank import, linked documents, and every
+  table).
+
+### Changed
+
+- Web: the day strip is a rolling seven days from today instead of the
+  calendar week, so a Sunday still looks ahead.
+
+### Removed
+
+- Web: the reserved "Chores — coming in a later release" slot on the start
+  page; the "To do" card replaces it.
 
 ## [0.9.0] - 2026-09-24
 

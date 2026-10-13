@@ -218,6 +218,13 @@
       "when": 1790878422189,
       "tag": "0030_household_appearance",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791915277144,
+      "tag": "0031_appearance_default_slate",
+      "breakpoints": true
     }
   ]
 }

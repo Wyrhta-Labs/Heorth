@@ -56,17 +56,17 @@ export const SUPPORTED_LOCALES: readonly LocaleOption[] = Object.freeze([
 const LOCALE_SET = new Set(SUPPORTED_LOCALES.map((l) => l.value));
 
 /**
- * Household-wide UI themes. `hearth` is the warm original and the default for
- * every household; `slate` is the cool, crisp variant. The web app maps each
- * value to a `data-theme` on <html> (web/src/index.css) — adding one here
- * requires a matching block there.
+ * Household-wide UI themes. `slate` is the default for every household (the
+ * cool, crisp look with a device-following dark mode); `hearth` is the warm
+ * original, light only. The web app maps each value to its tokens in
+ * web/src/index.css - adding one here requires a matching block there.
  */
 export const SUPPORTED_THEMES: readonly LocaleOption[] = Object.freeze([
-  { value: 'hearth', label: 'Hearth' },
   { value: 'slate', label: 'Slate' },
+  { value: 'hearth', label: 'Hearth' },
 ]);
 
-export const DEFAULT_THEME = 'hearth';
+export const DEFAULT_THEME = 'slate';
 
 const THEME_SET = new Set(SUPPORTED_THEMES.map((t) => t.value));
 

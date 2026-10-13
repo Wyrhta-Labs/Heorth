@@ -87,15 +87,15 @@ describe('household & members routes', () => {
     expect(data.locale).toBe('de-DE');
   });
 
-  it('serves the hearth theme by default and the theme list in the options', async () => {
+  it('serves the slate theme by default and the theme list in the options', async () => {
     const { child } = await seedTestHousehold();
     const res = await app.request('/api/v1/household', { headers: authHeaders(child.jwt) });
     expect(res.status).toBe(200);
-    expect((await res.json() as { data: { theme: string } }).data.theme).toBe('hearth');
+    expect((await res.json() as { data: { theme: string } }).data.theme).toBe('slate');
 
     const opts = await app.request('/api/v1/household/options', { headers: authHeaders(child.jwt) });
     const { data } = await opts.json() as { data: { themes: { value: string; label: string }[] } };
-    expect(data.themes.map((t) => t.value)).toEqual(['hearth', 'slate']);
+    expect(data.themes.map((t) => t.value)).toEqual(['slate', 'hearth']);
   });
 
   it('only an admin can switch the household theme, and only to a listed one', async () => {
@@ -104,21 +104,21 @@ describe('household & members routes', () => {
       method: 'PATCH', headers: authHeaders(jwt), body: JSON.stringify(body),
     });
 
-    expect((await patch(adult.jwt, { theme: 'slate' })).status).toBe(403);
+    expect((await patch(adult.jwt, { theme: 'hearth' })).status).toBe(403);
 
     const bad = await patch(admin.jwt, { theme: 'neon' });
     expect(bad.status).toBe(400);
     expect((await bad.json() as { error: { message: string } }).error.message).toBe('Unsupported theme');
 
-    const good = await patch(admin.jwt, { theme: 'slate' });
+    const good = await patch(admin.jwt, { theme: 'hearth' });
     expect(good.status).toBe(200);
-    expect((await good.json() as { data: { theme: string } }).data.theme).toBe('slate');
+    expect((await good.json() as { data: { theme: string } }).data.theme).toBe('hearth');
 
     // The theme survives a later edit that leaves it out, and reads back.
     const rename = await patch(admin.jwt, { name: 'Renamed' });
-    expect((await rename.json() as { data: { theme: string } }).data.theme).toBe('slate');
+    expect((await rename.json() as { data: { theme: string } }).data.theme).toBe('hearth');
     const read = await app.request('/api/v1/household', { headers: authHeaders(adult.jwt) });
-    expect((await read.json() as { data: { theme: string } }).data.theme).toBe('slate');
+    expect((await read.json() as { data: { theme: string } }).data.theme).toBe('hearth');
   });
 
   it('logs in and returns a token; whoami reflects the caller', async () => {

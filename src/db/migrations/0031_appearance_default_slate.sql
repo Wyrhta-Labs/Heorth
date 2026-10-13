@@ -1,0 +1,1 @@
+ALTER TABLE "household_appearance" ALTER COLUMN "theme" SET DEFAULT 'slate';

@@ -10,7 +10,7 @@ import { sql } from 'drizzle-orm';
  */
 export const householdAppearance = pgTable('household_appearance', {
   singleton: boolean('singleton').primaryKey().default(true),
-  theme: text('theme').notNull().default('hearth'),
+  theme: text('theme').notNull().default('slate'),
 }, (t) => [
   check('household_appearance_singleton', sql`${t.singleton}`),
 ]);

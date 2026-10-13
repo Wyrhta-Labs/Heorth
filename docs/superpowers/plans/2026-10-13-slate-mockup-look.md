@@ -22,6 +22,7 @@
 - Every `t()` key added goes into **both** `web/src/i18n/locales/en.json` and `de.json`.
 - Commit messages in English, no AI co-author trailer, ending with the `Claude-Session:` line the session supplies.
 - Mobile breakpoint stays Tailwind's `md` (768px); the rail starts below 1100px (`max-[1100px]:` arbitrary variant).
+- Tailwind only generates classes it finds **literally** in the source. Never build a class name from a variable or template (`` `${prefix}:w-16` ``); write every candidate out in full.
 - Never derive a date from `toISOString()`; the household's today is `todayInTimeZone(household.timezone)` from `web/src/lib/format.ts`.
 
 ### Token names (Tailwind utility ← mockup variable)
@@ -289,7 +290,7 @@ function block(selector: string): string {
 
 describe('index.css tokens', () => {
   it('declares every Slate token in @theme', () => {
-    const theme = block('@theme {');
+    const theme = block('@theme static {');
     for (const t of TOKENS) expect(theme, t).toContain(`--color-${t}:`);
     expect(theme).toContain('--radius-card: 8px');
     expect(theme).toContain('--radius-control: 5px');
@@ -301,7 +302,7 @@ describe('index.css tokens', () => {
   });
 
   it('keeps the old names as aliases onto the new tokens', () => {
-    const theme = block('@theme {');
+    const theme = block('@theme static {');
     expect(theme).toContain('--color-card: var(--color-surface)');
     expect(theme).toContain('--color-ember: var(--color-primary)');
     expect(theme).toContain('--color-ink: var(--color-fg)');
@@ -326,7 +327,7 @@ describe('index.css tokens', () => {
  * below; Slate's dark palette follows the device (added with the colour sweep).
  * Values for Slate are the Jaguar mockup's (decision-platform/mockup-jaguar-app.html).
  */
-@theme {
+@theme static {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-serif: var(--font-sans);
   --font-mono: ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', monospace;
@@ -465,7 +466,7 @@ h1, h2, h3, h4 {
 
 …followed by the unchanged `hearth-drift` keyframes, class and reduced-motion block.
 
-Note: `--color-*` values declared in `@theme` are emitted on `:root`; the Hearth block has a higher specificity selector on the same element, so it wins. The aliases are declared on `:root` too and resolve from whichever `--color-surface` etc. applies.
+Note: `@theme static` makes Tailwind emit **every** token on `:root`, used by a utility or not — Hearth and dark mode redefine tokens that no utility may reference yet, and the aliases point at them. `--color-*` values are emitted on `:root`; the Hearth block has a higher specificity selector on the same element, so it wins. The aliases are declared on `:root` too and resolve from whichever `--color-surface` etc. applies.
 
 - [ ] **Step 4: Run** `cd web && npx vitest run src/index-css.test.ts && npm run build` — test PASS, build succeeds.
 
@@ -886,7 +887,7 @@ git commit -m "feat(web): mockup forms, tables, dialogs, toasts and segmented ta
 vi.mock('@/hooks/use-household', () => ({
   useWhoami: () => ({ data: { data: { displayName: 'Ana', avatarColor: 'sky', role: 'adult' } } }),
 }));
-const logoutMock = vi.fn();
+const logoutMock = vi.hoisted(() => vi.fn());
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ logout: logoutMock }) }));
 
 function activeLabel(): string | undefined {
@@ -1039,8 +1040,6 @@ export function NavBadge({ count, className }: { count: number | undefined; clas
   );
 }
 
-const RAIL = 'max-[1100px]';
-
 export default function Sidebar({ counts = {} }: { counts?: NavCounts }) {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -1052,18 +1051,18 @@ export default function Sidebar({ counts = {} }: { counts?: NavCounts }) {
   return (
     <aside className={cn(
       'hidden md:flex h-dvh w-[220px] shrink-0 flex-col gap-0.5 overflow-y-auto bg-nav px-2.5 py-3.5 text-nav-fg',
-      `${RAIL}:w-16`,
+      'max-[1100px]:w-16',
     )}>
-      <div className={cn('flex items-center gap-2.5 px-2 pb-4 pt-1', `${RAIL}:justify-center ${RAIL}:px-0`)}>
+      <div className={cn('flex items-center gap-2.5 px-2 pb-4 pt-1', 'max-[1100px]:justify-center max-[1100px]:px-0')}>
         <span className="grid size-[30px] shrink-0 place-items-center rounded-card bg-primary text-on-primary">
           <Flame className="size-[17px]" aria-hidden="true" />
         </span>
-        <span className={cn('text-base font-extrabold tracking-[-0.2px]', `${RAIL}:hidden`)}>Heorth</span>
+        <span className={cn('text-base font-extrabold tracking-[-0.2px]', 'max-[1100px]:hidden')}>Heorth</span>
       </div>
       <nav className="flex flex-col gap-0.5">
         {groups.map(({ group, items }) => (
           <div key={group} data-nav-group={group} className="flex flex-col gap-0.5">
-            <div className={cn('px-2.5 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[0.7px] text-nav-muted', `${RAIL}:hidden`)}>
+            <div className={cn('px-2.5 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[0.7px] text-nav-muted', 'max-[1100px]:hidden')}>
               {t(`nav.group.${group}`)}
             </div>
             {items.map((item) => {
@@ -1074,14 +1073,14 @@ export default function Sidebar({ counts = {} }: { counts?: NavCounts }) {
               const className = cn(
                 'relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left font-medium transition-colors hover:bg-nav-hover',
                 active && 'bg-nav-active font-[650]',
-                `${RAIL}:justify-center ${RAIL}:px-0 ${RAIL}:py-2.5`,
+                'max-[1100px]:justify-center max-[1100px]:px-0 max-[1100px]:py-2.5',
               );
               const body = (
                 <>
                   <Icon className="size-[17px] shrink-0 opacity-85" aria-hidden="true" />
-                  <span className={cn('flex-1', `${RAIL}:hidden`)}>{label}</span>
-                  {item.external && <ExternalLink className={cn('size-3.5 shrink-0', `${RAIL}:hidden`)} aria-hidden="true" />}
-                  <NavBadge count={count} className={cn(`${RAIL}:absolute ${RAIL}:right-1 ${RAIL}:top-0.5 ${RAIL}:min-w-4 ${RAIL}:px-[5px] ${RAIL}:text-[9.5px]`)} />
+                  <span className={cn('flex-1', 'max-[1100px]:hidden')}>{label}</span>
+                  {item.external && <ExternalLink className={cn('size-3.5 shrink-0', 'max-[1100px]:hidden')} aria-hidden="true" />}
+                  <NavBadge count={count} className={cn('max-[1100px]:absolute max-[1100px]:right-1 max-[1100px]:top-0.5 max-[1100px]:min-w-4 max-[1100px]:px-[5px] max-[1100px]:text-[9.5px]')} />
                 </>
               );
               return item.external ? (
@@ -1094,10 +1093,10 @@ export default function Sidebar({ counts = {} }: { counts?: NavCounts }) {
         ))}
       </nav>
       <div className="min-h-3 flex-1" />
-      <div className={cn('flex items-center gap-2.5 border-t border-nav-active px-2 pb-0.5 pt-2.5', `${RAIL}:flex-col ${RAIL}:px-0`)}>
+      <div className={cn('flex items-center gap-2.5 border-t border-nav-active px-2 pb-0.5 pt-2.5', 'max-[1100px]:flex-col max-[1100px]:px-0')}>
         <Link to="/profile" className="flex min-w-0 flex-1 items-center gap-2.5" title={me?.displayName}>
           {me && <MemberAvatar name={me.displayName} color={me.avatarColor} size="sm" />}
-          <span className={cn('min-w-0 text-[12.5px] leading-tight', `${RAIL}:hidden`)}>
+          <span className={cn('min-w-0 text-[12.5px] leading-tight', 'max-[1100px]:hidden')}>
             <span className="block truncate">{me?.displayName}</span>
             {me && <span className="block text-[11px] text-nav-muted">{t(`options.role.${me.role}`)}</span>}
           </span>
@@ -1264,11 +1263,11 @@ export default function TopBar({ title }: { title: string }) {
 - More button same classes as an inactive tab.
 - More sheet: replace the flat `navItems.map` with `navGroups(navItems).map(({ group, items }) => …)` rendering a heading `<div className="px-3 pb-1 pt-3 text-[10.5px] font-bold uppercase tracking-[0.7px] text-muted">{t(GROUP_KEYS[group])}</div>` and the existing link markup per item, with link classes `'flex items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium text-fg hover:bg-surface-2'`, icon `text-muted`, and `<NavBadge count={item.count ? counts[item.count] : undefined} className="ml-auto" />` at the end. `GROUP_KEYS`, `navGroups`, `NavBadge` and `NavCounts` are imported from `./sidebar`.
 
-Update `mobile-nav.test.tsx`: any assertion on `text-ember` for the active tab becomes `text-nav-fg`; add
+Update `mobile-nav.test.tsx`: extend its helper to `function renderAt(path = '/', counts: NavCounts = {})` rendering `<MobileNav counts={counts} />` (import `type NavCounts` from `./sidebar`); any assertion on `text-ember` for the active tab becomes `text-nav-fg`; add
 
 ```tsx
   it('shows the shopping count on the Shopping tab', async () => {
-    renderMobileNav({ shopping: 4 });   // extend the file's render helper to pass counts
+    renderAt('/', { shopping: 4 });
     expect(await screen.findByLabelText('4 open')).toBeInTheDocument();
   });
 ```
@@ -1287,7 +1286,7 @@ git commit -m "feat(web): compact top bar, navy bottom bar and a viewport-high s
 ### Task 9: `useNavCounts`
 
 **Files:**
-- Create: `web/src/hooks/use-nav-counts.ts`, `web/src/hooks/use-nav-counts.test.tsx`
+- Create: `web/src/hooks/use-nav-counts.ts`, `web/src/hooks/use-nav-counts.test.tsx`, `web/src/api/client.test.ts`
 - Modify: `web/src/lib/constants.ts` (one key)
 
 **Interfaces:**
@@ -1352,6 +1351,16 @@ describe('useNavCounts', () => {
     expect(api.listOccurrences).toHaveBeenCalledWith({ status: 'due', due_to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
   });
 
+  it('refreshes the Weorc badge when a Weorc mutation invalidates the routines prefix', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrap = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useNavCounts(), { wrapper: wrap });
+    await waitFor(() => expect(result.current.weorc).toBe(5));
+    api.listOccurrences.mockResolvedValue({ data: [], meta: { total: 4 } });
+    await qc.invalidateQueries({ queryKey: ['weorc', 'routines'] });   // what the Weorc page and DueWork do
+    await waitFor(() => expect(result.current.weorc).toBe(4));
+  });
+
   it('a failing source yields undefined, no toast, others unaffected', async () => {
     api.getImportStatus.mockRejectedValue(new ApiError(500, 'INTERNAL', 'boom'));
     const { result } = renderHook(() => useNavCounts(), { wrapper: wrapper() });
@@ -1363,7 +1372,26 @@ describe('useNavCounts', () => {
 });
 ```
 
-(The 401 path is the API client's own, unchanged — `client.ts:36-40` logs out before the query sees the error; `useNavCounts` adds nothing to it, so it needs no test of its own here.)
+The 401 path is the API client's own (`client.ts:36-40`): it clears the token and redirects before any query sees the error, and `useNavCounts` must not interfere. Pin it in a new `web/src/api/client.test.ts`:
+
+```ts
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { apiGet, TOKEN_KEY } from './client';
+
+afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
+
+describe('apiGet on 401', () => {
+  it('clears the token and throws UNAUTHORIZED', async () => {
+    localStorage.setItem(TOKEN_KEY, 'stale');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })));
+
+    await expect(apiGet('/feoh/ingestion/status')).rejects.toMatchObject({ status: 401, code: 'UNAUTHORIZED' });
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+  });
+});
+```
+
+The redirect itself (`window.location.href = '/login'`) is not asserted: jsdom's `window.location` cannot be replaced, and assigning `href` only logs "navigation not implemented". This test passes against today's client — it pins behaviour the badges rely on, not new code; run it in Step 4 with the hook test.
 
 - [ ] **Step 2: Run** `cd web && npx vitest run src/hooks/use-nav-counts.test.tsx` — FAIL (module missing).
 
@@ -1429,12 +1457,12 @@ export function useNavCounts(): NavCounts {
 
 `ListMeta` is `{ total: number; limit?; offset? }` (`web/src/lib/types.ts:470`); the Weorc route fills `total` (`src/modules/weorc/routes.ts:76-85`). No toast fires on a query error anywhere in the app — toasts are raised by components, not by the QueryClient — so swallowing an error only means not rendering it.
 
-- [ ] **Step 4: Run** the test — PASS. Then `cd web && npx tsc -b --noEmit` — PASS.
+- [ ] **Step 4: Run** `cd web && npx vitest run src/hooks/use-nav-counts.test.tsx src/api/client.test.ts` — PASS. Then `npx tsc -b --noEmit` — PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add web/src/hooks/use-nav-counts.ts web/src/hooks/use-nav-counts.test.tsx web/src/lib/constants.ts
+git add web/src/hooks/use-nav-counts.ts web/src/hooks/use-nav-counts.test.tsx web/src/api/client.test.ts web/src/lib/constants.ts
 git commit -m "feat(web): nav counts for tasks due, shopping left, Weorc due and Feoh imports"
 ```
 

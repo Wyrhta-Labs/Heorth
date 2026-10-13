@@ -1,28 +1,19 @@
 import { Link } from '@tanstack/react-router';
-import { LogOut } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
 import { MemberAvatar } from '@/components/ui/member-avatar';
-import { useAuth } from '@/hooks/use-auth';
 import { useWhoami } from '@/hooks/use-household';
 
+/** The page title. The member and sign-out live in the sidebar footer; on
+ *  phone widths, where the sidebar is hidden, the avatar stays here. */
 export default function TopBar({ title }: { title: string }) {
-  const { t } = useTranslation();
-  const { logout } = useAuth();
-  const { data } = useWhoami();
-  const me = data?.data;
+  const me = useWhoami().data?.data;
   return (
-    <header className="flex items-center justify-between px-6 py-4 bg-card border-b border-tan">
-      <h2 className="font-serif text-2xl text-ink">{title}</h2>
-      <div className="flex items-center gap-3">
-        <Link to="/profile" className="flex items-center gap-3">
-          {me && <MemberAvatar name={me.displayName} color={me.avatarColor} size="sm" />}
-          <span className="text-sm text-ash hidden sm:block">{me?.displayName}</span>
+    <header className="z-[2] flex h-[52px] shrink-0 items-center gap-3.5 border-b border-line bg-surface px-4 shadow-card md:px-5">
+      <h1 className="font-sans text-[15px] font-bold text-fg">{title}</h1>
+      {me && (
+        <Link to="/profile" className="ml-auto md:hidden" title={me.displayName}>
+          <MemberAvatar name={me.displayName} color={me.avatarColor} size="sm" />
         </Link>
-        <Button variant="ghost" size="icon" onClick={logout} title={t('nav.signOut')}>
-          <LogOut className="h-4 w-4" />
-        </Button>
-      </div>
+      )}
     </header>
   );
 }

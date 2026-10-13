@@ -1,9 +1,11 @@
+import { useEffect, useRef } from 'react';
 import { Outlet, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import Sidebar from './sidebar';
 import TopBar from './top-bar';
 import MobileNav from './mobile-nav';
 import { ToastProvider } from '@/components/ui/toast';
+import { SCROLL_ROOT_ATTR } from '@/components/ui/dialog';
 import type { NavLabelKey } from './sidebar';
 
 type PageTitleKey = NavLabelKey | 'nav.homeTitle';
@@ -41,13 +43,25 @@ export default function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const titleKey = titleKeyFor(pathname);
   const title = titleKey ? t(titleKey) : 'Heorth';
+  const mainRef = useRef<HTMLElement>(null);
+
+  // <main> is the page's scroller (the shell is viewport-high), so the
+  // router's window scroll restoration does not reach it: start each page at the top.
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [pathname]);
+
   return (
     <ToastProvider>
-      <div className="flex min-h-screen bg-parchment">
+      <div className="flex h-dvh overflow-hidden bg-ground">
         <Sidebar />
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopBar title={title} />
-          <main className="flex-1 p-3 sm:p-6 pb-20 md:pb-6 overflow-auto">
+          <main
+            ref={mainRef}
+            {...{ [SCROLL_ROOT_ATTR]: '' }}
+            className="min-h-0 flex-1 overflow-y-auto p-3 pb-20 sm:p-5 md:pb-6"
+          >
             <Outlet />
           </main>
         </div>

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { createRootRoute, createRoute, createRouter, createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import MobileNav from './mobile-nav';
+import type { NavCounts } from './sidebar';
 
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({ logout: vi.fn() }),
@@ -13,8 +14,8 @@ vi.mock('@/hooks/use-features', () => ({
   useFeatures: () => useFeaturesMock(),
 }));
 
-function renderAt(path = '/') {
-  const rootRoute = createRootRoute({ component: () => <MobileNav /> });
+function renderAt(path = '/', counts: NavCounts = {}) {
+  const rootRoute = createRootRoute({ component: () => <MobileNav counts={counts} /> });
   const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: () => null });
   const routeTree = rootRoute.addChildren([indexRoute]);
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
@@ -52,5 +53,10 @@ describe('MobileNav "More" sheet', () => {
     const link = screen.getByRole('link', { name: 'KithLedger' });
     expect(link).toHaveAttribute('href', 'http://kith.test');
     expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('shows the shopping count on the Shopping tab', async () => {
+    renderAt('/', { shopping: 4 });
+    expect(await screen.findByLabelText('4 open')).toBeInTheDocument();
   });
 });

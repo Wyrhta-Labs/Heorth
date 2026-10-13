@@ -90,7 +90,7 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
               <div className="space-y-2">
                 <p>{t('library.connectDialog.goTo')} <a className="underline" href={device.verification_url} target="_blank" rel="noreferrer">{device.verification_url}</a> {t('library.connectDialog.andEnter')}</p>
                 <p className="text-2xl font-mono tracking-widest">{device.user_code}</p>
-                <p className="text-sm text-muted-foreground">{t('library.connectDialog.waitingAuth')}</p>
+                <p className="text-sm text-muted">{t('library.connectDialog.waitingAuth')}</p>
               </div>
             ) : (
               <Button onClick={beginTrakt} disabled={startDevice.isPending}>{t('library.connectDialog.connectTrakt')}</Button>
@@ -101,7 +101,7 @@ export default function ConnectDialog({ open, onClose }: { open: boolean; onClos
               <Input placeholder={t('library.connectDialog.userIdPlaceholder')} value={userid} onChange={(e) => setUserid(e.target.value)} />
               <Input placeholder={t('library.connectDialog.apiKeyPlaceholder')} value={key} onChange={(e) => setKey(e.target.value)} />
               <Button onClick={connectLT} disabled={!userid || !key || createLT.isPending}>{t('library.connectDialog.connectLibraryThing')}</Button>
-              <p className="text-sm text-muted-foreground">{t('library.connectDialog.unavailableHint')}</p>
+              <p className="text-sm text-muted">{t('library.connectDialog.unavailableHint')}</p>
             </div>
           </TabsContent>
         </Tabs>

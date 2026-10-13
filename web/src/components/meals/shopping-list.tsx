@@ -45,7 +45,7 @@ export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGener
               </span>
             </label>
             <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)}>
-              <Trash2 className="h-3.5 w-3.5 text-red-500" />
+              <Trash2 className="h-3.5 w-3.5 text-danger" />
             </Button>
           </li>
         ))}

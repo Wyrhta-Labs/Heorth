@@ -40,7 +40,7 @@ export default function ConnectionsPanel({ connections }: { connections: Library
     }
   };
 
-  if (connections.length === 0) return <p className="text-muted-foreground">{t('library.connections.noneYet')}</p>;
+  if (connections.length === 0) return <p className="text-muted">{t('library.connections.noneYet')}</p>;
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -48,16 +48,16 @@ export default function ConnectionsPanel({ connections }: { connections: Library
         <Card key={c.id}>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">{c.label}</CardTitle>
-            <span className={`text-xs rounded px-2 py-0.5 ${c.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>{t(`library.connectionStatus.${STATUS_KEYS[c.status]}`)}</span>
+            <span className={`text-xs rounded px-2 py-0.5 ${c.status === 'active' ? 'bg-success-bg text-success' : 'bg-warning-bg text-warning'}`}>{t(`library.connectionStatus.${STATUS_KEYS[c.status]}`)}</span>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted">
               {t('library.connections.summary', {
                 count: c.itemCount,
                 lastSync: c.lastSyncedAt ? `${formatDate(c.lastSyncedAt)} ${formatTime(c.lastSyncedAt)}` : t('library.connections.neverSynced'),
               })}
             </p>
-            {c.lastSyncError && <p className="text-sm text-red-600">{c.lastSyncError}</p>}
+            {c.lastSyncError && <p className="text-sm text-danger">{c.lastSyncError}</p>}
             <div className="flex gap-2">
               <Button size="sm" variant="secondary" onClick={() => onSync(c.id)} disabled={sync.isPending}>
                 <RefreshCw className="h-4 w-4 mr-1" /> {t('library.connections.syncNow')}

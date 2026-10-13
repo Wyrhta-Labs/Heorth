@@ -45,7 +45,7 @@ export default function UpdateBanner() {
       <span>{t('pwa.updateReady')}</span>
       <button
         onClick={() => applyServiceWorkerUpdate()}
-        className="inline-flex items-center gap-1.5 rounded-md bg-ember px-3 py-1 font-medium text-white hover:bg-ember/90"
+        className="inline-flex items-center gap-1.5 rounded-md bg-ember px-3 py-1 font-medium text-on-primary hover:bg-ember/90"
       >
         <RefreshCw className="h-3.5 w-3.5" /> {t('pwa.reload')}
       </button>

@@ -57,7 +57,7 @@ export default function RecipeForm({ recipe, onSubmit, onCancel, isLoading }: Pr
             <Input className="w-20" type="number" placeholder={t('meals.form.qtyPlaceholder')} value={ing.qty} onChange={(e) => setIng(i, { qty: Number(e.target.value) })} />
             <Input className="w-24" placeholder={t('meals.form.unitPlaceholder')} value={ing.unit} onChange={(e) => setIng(i, { unit: e.target.value })} />
             <Button type="button" variant="ghost" size="icon" onClick={() => setIngredients((p) => p.filter((_, idx) => idx !== i))}>
-              <Trash2 className="h-4 w-4 text-red-500" />
+              <Trash2 className="h-4 w-4 text-danger" />
             </Button>
           </div>
         ))}
@@ -72,7 +72,7 @@ export default function RecipeForm({ recipe, onSubmit, onCancel, isLoading }: Pr
           <div key={i} className="flex gap-2">
             <Textarea className="flex-1" rows={1} value={s} onChange={(e) => setSteps((p) => p.map((x, idx) => (idx === i ? e.target.value : x)))} />
             <Button type="button" variant="ghost" size="icon" onClick={() => setSteps((p) => p.filter((_, idx) => idx !== i))}>
-              <Trash2 className="h-4 w-4 text-red-500" />
+              <Trash2 className="h-4 w-4 text-danger" />
             </Button>
           </div>
         ))}

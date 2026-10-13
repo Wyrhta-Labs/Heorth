@@ -1,103 +1,146 @@
 @import "tailwindcss";
 
-@theme {
+/*
+ * Theme tokens. Slate (household.theme 'slate', the default) owns :root and is
+ * declared here; Hearth redefines the same tokens under [data-theme='hearth']
+ * below; Slate's dark palette follows the device (added with the colour sweep).
+ * Values for Slate are the Jaguar mockup's (decision-platform/mockup-jaguar-app.html).
+ */
+@theme static {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: var(--font-sans);
+  --font-mono: ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', monospace;
+
+  --color-ground: #f0f2f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #f8f9fb;
+  --color-surface-3: #eef1f5;
+  --color-line: #e2e6ea;
+  --color-line-strong: #cdd2d8;
+  --color-fg: #1a1d23;
+  --color-muted: #6b7380;
+  --color-faint: #9aa0ab;
+
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #eff4ff;
+  --color-primary-border: #bfdbfe;
+  --color-on-primary: #ffffff;
+
+  --color-success: #16a34a; --color-success-bg: #f0fdf4; --color-success-border: #bbf7d0;
+  --color-danger: #dc2626;  --color-danger-bg: #fff5f5;  --color-danger-border: #fecaca;
+  --color-warning: #b45309; --color-warning-bg: #fffbeb; --color-warning-border: #fde68a;
+  --color-accent: #7c3aed;  --color-accent-bg: #f3effe;  --color-accent-border: #e3d8fd;
+  --color-info: #0369a1;    --color-info-bg: #f0f9ff;    --color-info-border: #bae6fd;
+
+  --color-nav: #161b24;
+  --color-nav-fg: #e7eaf0;
+  --color-nav-muted: #8b93a3;
+  --color-nav-hover: #222935;
+  --color-nav-active: #2b3444;
+
+  --color-backdrop: rgb(15 18 24 / 0.45);
+
+  --radius-card: 8px;
+  --radius-control: 5px;
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.07), 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.14);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.07), 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08);
+
+  /* Old names, kept as aliases so pages not yet moved keep working. */
+  --color-parchment: var(--color-ground);
+  --color-card: var(--color-surface);
+  --color-linen: var(--color-surface-3);
+  --color-tan: var(--color-line);
+  --color-ink: var(--color-fg);
+  --color-ash: var(--color-muted);
+  --color-ember: var(--color-primary);
+  --color-ember-soft: var(--color-primary-border);
+  --color-taupe: var(--color-accent);
+  --color-sage: var(--color-success);
+  --color-sky: var(--color-info);
+  --color-amber: var(--color-warning);
+}
+
+:root {
+  --heading-weight: 700;
+  --heading-tracking: -0.02em;
+  --body-size: 13.5px;
+}
+
+/* Hearth: the warm original. Light only; same tokens, warm values. */
+:root[data-theme='hearth'] {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Fraunces', ui-serif, Georgia, 'Times New Roman', serif;
 
-  --color-parchment: #f3eee2;
-  --color-linen: #e9e1d1;
-  --color-card: #faf7f0;
-  --color-ink: #2b2823;
-  --color-ash: #7d756a;
-  --color-tan: #ddd3c2;
+  --color-ground: #f3eee2;
+  --color-surface: #faf7f0;
+  --color-surface-2: #f5f0e6;
+  --color-surface-3: #e9e1d1;
+  --color-line: #ddd3c2;
+  --color-line-strong: #c9bca6;
+  --color-fg: #2b2823;
+  --color-muted: #7d756a;
+  --color-faint: #a39a8c;
 
-  --color-ember: #b5542f;
-  --color-ember-soft: #d98a68;
-  --color-taupe: #8a7c6a;
-  --color-sage: #7a8b6f;
-  --color-sky: #6b7e8c;
-  --color-amber: #a07535;
-  --color-danger: #c0392b;
+  --color-primary: #b5542f;
+  --color-primary-hover: #9c4626;
+  --color-primary-light: #f6e6dd;
+  --color-primary-border: #d98a68;
+  --color-on-primary: #ffffff;
 
-  --radius: 0.375rem;
-}
+  --color-success: #5f7155; --color-success-bg: #eef1ea; --color-success-border: #cfd8c8;
+  --color-danger: #c0392b;  --color-danger-bg: #f9e9e7;  --color-danger-border: #ecc1bb;
+  --color-warning: #a07535; --color-warning-bg: #f7efe1; --color-warning-border: #e6d3ae;
+  --color-accent: #8a7c6a;  --color-accent-bg: #f1eee9;  --color-accent-border: #d9d1c4;
+  --color-info: #6b7e8c;    --color-info-bg: #ebeff2;    --color-info-border: #c9d3db;
 
-/*
- * Slate: the household's alternative theme (household.theme, set by an admin;
- * applied as data-theme on <html> by web/src/lib/theme.ts). Cool grey ground,
- * white cards with fine borders and soft shadows, blue primary, system sans
- * throughout. It redefines the same tokens, so every bg-card / text-ink /
- * bg-ember utility follows without touching components. Hearth is :root.
- */
-:root[data-theme='slate'] {
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', ui-sans-serif, sans-serif;
-  --font-serif: var(--font-sans);
+  --color-nav: #2b2823;
+  --color-nav-fg: #f3eee2;
+  --color-nav-muted: #a39a8c;
+  --color-nav-hover: rgb(255 255 255 / 0.08);
+  --color-nav-active: #b5542f;
 
-  --color-parchment: #f0f2f5;
-  --color-linen: #eef1f5;
-  --color-card: #ffffff;
-  --color-ink: #1a1d23;
-  --color-ash: #6b7380;
-  --color-tan: #e2e6ea;
+  --color-backdrop: rgb(43 40 35 / 0.5);
 
-  --color-ember: #2563eb;
-  --color-ember-soft: #93b4f5;
-  --color-taupe: #7c3aed;
-  --color-sage: #16a34a;
-  --color-sky: #0369a1;
-  --color-amber: #d97706;
-  --color-danger: #dc2626;
-
-  --radius-xl: 0.5rem;
-  --radius-2xl: 0.625rem;
-}
-
-/* Tailwind inlines shadow values into the utilities (they do not read a theme
-   variable), so Slate's softer, cooler shadows override the utilities' own
-   --tw-shadow instead. */
-:root[data-theme='slate'] .shadow-sm {
-  --tw-shadow: 0 1px 3px var(--tw-shadow-color, rgb(0 0 0 / 0.07)), 0 1px 2px var(--tw-shadow-color, rgb(0 0 0 / 0.05));
-}
-:root[data-theme='slate'] .shadow,
-:root[data-theme='slate'] .shadow-md {
-  --tw-shadow: 0 4px 12px var(--tw-shadow-color, rgb(0 0 0 / 0.08));
-}
-
-:root[data-theme='slate'] h1,
-:root[data-theme='slate'] h2,
-:root[data-theme='slate'] h3,
-:root[data-theme='slate'] h4 {
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  --heading-weight: 600;
+  --heading-tracking: -0.01em;
+  --body-size: 15px;
 }
 
 /* Odd/even rows for lists and tables: put `zebra` on the <ul>/<tbody> and
-   every second row takes a light linen ground. Its selector outranks a row's
-   own bg-card/bg-white, so rows keep their classes. */
+   every second row takes a light ground. Its selector outranks a row's
+   own bg-surface, so rows keep their classes. */
 @utility zebra {
   & > :nth-child(even) {
-    background-color: color-mix(in srgb, var(--color-linen) 60%, var(--color-card));
+    background-color: color-mix(in srgb, var(--color-surface-3) 60%, var(--color-surface));
   }
 }
 
 * {
   box-sizing: border-box;
-  border-color: var(--color-tan);
+  border-color: var(--color-line);
 }
 
 body {
   margin: 0;
-  background-color: var(--color-parchment);
-  color: var(--color-ink);
+  background-color: var(--color-ground);
+  color: var(--color-fg);
   font-family: var(--font-sans);
+  font-size: var(--body-size);
+  line-height: 1.5;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, h4 {
   font-family: var(--font-serif);
-  letter-spacing: -0.01em;
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
 }
+
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
 /*
  * Hearth wall: a very slow, sub-pixel-scale drift of the whole surface so a

@@ -46,9 +46,43 @@ function lockScroll(): () => void {
 // Open dialogs, oldest first; Escape closes only the last (topmost) one.
 const openStack: symbol[] = [];
 
+const FOCUSABLE =
+  'a[href], area[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), iframe, [contenteditable=""], [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
+
+function focusableIn(panel: HTMLElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (el) => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true',
+  );
+}
+
+interface DialogLabelContext {
+  titleId: string;
+  descriptionId: string;
+  setTitleMounted: (mounted: boolean) => void;
+  setDescriptionMounted: (mounted: boolean) => void;
+}
+
+const DialogLabelCtx = React.createContext<DialogLabelContext | null>(null);
+
 function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   const onOpenChangeRef = React.useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
+
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const openerRef = React.useRef<Element | null>(null);
+  const titleId = React.useId();
+  const descriptionId = React.useId();
+  const [titleMounted, setTitleMounted] = React.useState(false);
+  const [descriptionMounted, setDescriptionMounted] = React.useState(false);
+  const labelCtx = React.useMemo(
+    () => ({ titleId, descriptionId, setTitleMounted, setDescriptionMounted }),
+    [titleId, descriptionId],
+  );
+
+  // Remember what had focus before the dialog (and any autoFocus child, which
+  // focuses during commit, before effects) took it.
+  if (!open) openerRef.current = null;
+  else if (openerRef.current === null) openerRef.current = document.activeElement;
 
   React.useEffect(() => {
     if (!open) return;
@@ -59,14 +93,38 @@ function Dialog({ open, onOpenChange, children, className }: DialogProps) {
     if (!open) return;
     const id = Symbol('dialog');
     openStack.push(id);
+    const opener = openerRef.current;
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) {
+      (focusableIn(panel)[0] ?? panel).focus();
+    }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && openStack[openStack.length - 1] === id) onOpenChangeRef.current(false);
+      if (openStack[openStack.length - 1] !== id) return;
+      if (e.key === 'Escape') {
+        onOpenChangeRef.current(false);
+        return;
+      }
+      if (e.key !== 'Tab' || !panel) return;
+      const items = focusableIn(panel);
+      if (items.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (!panel.contains(active) || (!e.shiftKey && active === last) || (e.shiftKey && (active === first || active === panel))) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       const i = openStack.indexOf(id);
       if (i !== -1) openStack.splice(i, 1);
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
     };
   }, [open]);
 
@@ -75,7 +133,17 @@ function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-backdrop" onClick={() => onOpenChange(false)} />
-      <div role="dialog" aria-modal="true" className={cn('relative z-50 w-full max-w-lg', className)}>{children}</div>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleMounted ? titleId : undefined}
+        aria-describedby={descriptionMounted ? descriptionId : undefined}
+        tabIndex={-1}
+        className={cn('relative z-50 w-full max-w-lg outline-none', className)}
+      >
+        <DialogLabelCtx.Provider value={labelCtx}>{children}</DialogLabelCtx.Provider>
+      </div>
     </div>
   );
 }
@@ -103,12 +171,24 @@ function DialogHeader({ className, ...props }: DialogHeaderProps) {
   return <div className={cn('flex flex-col space-y-1.5 mb-4', className)} {...props} />;
 }
 
-function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn('text-base font-bold text-fg', className)} {...props} />;
+function DialogTitle({ className, id, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+  const ctx = React.useContext(DialogLabelCtx);
+  const setMounted = ctx?.setTitleMounted;
+  React.useLayoutEffect(() => {
+    setMounted?.(true);
+    return () => setMounted?.(false);
+  }, [setMounted]);
+  return <h2 id={id ?? ctx?.titleId} className={cn('text-base font-bold text-fg', className)} {...props} />;
 }
 
-function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-[13px] text-muted', className)} {...props} />;
+function DialogDescription({ className, id, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  const ctx = React.useContext(DialogLabelCtx);
+  const setMounted = ctx?.setDescriptionMounted;
+  React.useLayoutEffect(() => {
+    setMounted?.(true);
+    return () => setMounted?.(false);
+  }, [setMounted]);
+  return <p id={id ?? ctx?.descriptionId} className={cn('text-[13px] text-muted', className)} {...props} />;
 }
 
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

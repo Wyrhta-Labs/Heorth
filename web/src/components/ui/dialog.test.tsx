@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Dialog, DialogClose, DialogContent, SCROLL_ROOT_ATTR } from './dialog';
+import { useState } from 'react';
+import userEvent from '@testing-library/user-event';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, SCROLL_ROOT_ATTR } from './dialog';
 
 function Page({ open }: { open: boolean }) {
   return (
@@ -84,5 +86,118 @@ describe('Dialog accessibility', () => {
   it('gives the close button an accessible name', () => {
     render(<DialogClose />);
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+});
+
+function WithTrigger({ autoFocusSecond = false }: { autoFocusSecond?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>open</button>
+      <button>behind</button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogTitle>Title</DialogTitle>
+          <button>first</button>
+          <input aria-label="second" autoFocus={autoFocusSecond} />
+          <button>last</button>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+describe('Dialog focus management', () => {
+  it('moves focus to the first focusable element on open', async () => {
+    const user = userEvent.setup();
+    render(<WithTrigger />);
+    await user.click(screen.getByText('open'));
+    expect(screen.getByText('first')).toHaveFocus();
+  });
+
+  it('respects an autoFocused child', async () => {
+    const user = userEvent.setup();
+    render(<WithTrigger autoFocusSecond />);
+    await user.click(screen.getByText('open'));
+    expect(screen.getByLabelText('second')).toHaveFocus();
+  });
+
+  it('focuses the panel when nothing inside is focusable', () => {
+    render(<Dialog open onOpenChange={() => {}}><DialogContent>plain</DialogContent></Dialog>);
+    expect(screen.getByRole('dialog')).toHaveFocus();
+  });
+
+  it('wraps Tab from last to first and Shift+Tab from first to last', async () => {
+    const user = userEvent.setup();
+    render(<WithTrigger />);
+    await user.click(screen.getByText('open'));
+    screen.getByText('last').focus();
+    await user.tab();
+    expect(screen.getByText('first')).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByText('last')).toHaveFocus();
+  });
+
+  it('does not steal focus on re-render while open', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Dialog open onOpenChange={() => {}}><DialogContent><button>a</button><button>b</button></DialogContent></Dialog>);
+    screen.getByText('b').focus();
+    rerender(<Dialog open onOpenChange={() => {}}><DialogContent><button>a</button><button>b</button></DialogContent></Dialog>);
+    expect(screen.getByText('b')).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByText('a')).toHaveFocus();
+  });
+
+  it('restores focus to the opener on close', async () => {
+    const user = userEvent.setup();
+    render(<WithTrigger />);
+    await user.click(screen.getByText('open'));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText('open')).toHaveFocus();
+  });
+
+  it('traps only in the topmost of stacked dialogs and restores into the lower one', async () => {
+    const user = userEvent.setup();
+    function Two() {
+      const [inner, setInner] = useState(false);
+      return (
+        <Dialog open onOpenChange={() => {}}>
+          <DialogContent>
+            <button onClick={() => setInner(true)}>open inner</button>
+            <Dialog open={inner} onOpenChange={setInner}>
+              <DialogContent><button>i1</button><button>i2</button></DialogContent>
+            </Dialog>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    render(<Two />);
+    await user.click(screen.getByText('open inner'));
+    expect(screen.getByText('i1')).toHaveFocus();
+    await user.tab();
+    await user.tab();
+    expect(screen.getByText('i1')).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.getByText('open inner')).toHaveFocus();
+  });
+});
+
+describe('Dialog labelling', () => {
+  it('links the panel to its title and description', () => {
+    render(
+      <Dialog open onOpenChange={() => {}}>
+        <DialogContent><DialogTitle>Hello</DialogTitle><DialogDescription>Details</DialogDescription></DialogContent>
+      </Dialog>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Hello' })).toHaveAccessibleDescription('Details');
+    expect(screen.getByRole('dialog').getAttribute('aria-labelledby')).toBe(screen.getByText('Hello').id);
+  });
+
+  it('omits aria-labelledby/describedby without a title or description', () => {
+    render(<Dialog open onOpenChange={() => {}}><DialogContent>x</DialogContent></Dialog>);
+    const d = screen.getByRole('dialog');
+    expect(d).not.toHaveAttribute('aria-labelledby');
+    expect(d).not.toHaveAttribute('aria-describedby');
   });
 });

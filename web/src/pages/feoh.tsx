@@ -94,7 +94,7 @@ export default function FeohPage() {
               <SectionTitle icon={Inbox} tone="amber">
                 {t('feoh.import.title')}
                 {status && status.pendingCount > 0 && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">{t('feoh.import.pending', { count: status.pendingCount })}</span>
+                  <span className="ml-2 text-sm font-normal text-muted">{t('feoh.import.pending', { count: status.pendingCount })}</span>
                 )}
               </SectionTitle>
               {status?.enabled && (
@@ -104,9 +104,9 @@ export default function FeohPage() {
               )}
             </CardHeader>
             <CardContent className="space-y-6">
-              <p className="text-sm text-gray-500">{t('feoh.import.intro')}</p>
-              {status && !status.enabled && <p className="text-sm text-gray-500">{t('feoh.import.disabled')}</p>}
-              {status?.feed?.lastError && <p className="text-sm text-amber-700">{t('feoh.import.lastError', { reason: status.feed.lastError })}</p>}
+              <p className="text-sm text-muted">{t('feoh.import.intro')}</p>
+              {status && !status.enabled && <p className="text-sm text-muted">{t('feoh.import.disabled')}</p>}
+              {status?.feed?.lastError && <p className="text-sm text-warning">{t('feoh.import.lastError', { reason: status.feed.lastError })}</p>}
               {status && <ImportInbox householdCurrency={status.currency} />}
               <ImportRules />
               <ImportAccounts />

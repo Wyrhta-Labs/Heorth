@@ -156,7 +156,7 @@ export default function WeorcPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{t('weorc.title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('weorc.subtitle')}</p>
+          <p className="text-sm text-muted">{t('weorc.subtitle')}</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-1" /> {t('weorc.newRoutine')}
@@ -255,7 +255,7 @@ function RoutineCard({ routine, expanded, onToggleHistory, onEdit, onDeactivate,
           <p className="font-medium">{routine.name} — {t('weorc.nextDue', { date: formatDate(routine.nextDueOn) })}</p>
           {!routine.active && <span className="text-xs text-ash">{t('weorc.inactive')}</span>}
         </div>
-        {routine.notes && <p className="text-xs text-muted-foreground">{routine.notes}</p>}
+        {routine.notes && <p className="text-xs text-muted">{routine.notes}</p>}
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onEdit}>{t('weorc.edit')}</Button>
           {routine.active && (
@@ -265,9 +265,9 @@ function RoutineCard({ routine, expanded, onToggleHistory, onEdit, onDeactivate,
         </div>
         {expanded && (
           <ul className="zebra space-y-1 pt-2">
-            {history.length === 0 && <li className="text-xs text-muted-foreground">—</li>}
+            {history.length === 0 && <li className="text-xs text-muted">—</li>}
             {history.map((occ) => (
-              <li key={occ.id} className="rounded px-2 py-0.5 text-xs text-muted-foreground">
+              <li key={occ.id} className="rounded px-2 py-0.5 text-xs text-muted">
                 {occ.status === 'completed'
                   ? t('weorc.completedOn', { date: formatDate(occ.completedAt) })
                   : t('weorc.skipped')}

@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-ember rounded-xl mb-4">
-            <Flame className="h-6 w-6 text-white" />
+            <Flame className="h-6 w-6 text-on-primary" />
           </div>
           <h1 className="text-3xl font-serif text-ink">Heorth</h1>
           <p className="text-sm text-ash mt-1">{t('login.signInToHome')}</p>
@@ -54,7 +54,7 @@ export default function LoginPage() {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t('login.passwordPlaceholder')} />
             </div>
             {error && (
-              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{error}</div>
+              <div className="text-sm text-danger bg-danger-bg border border-danger-border rounded-md p-3">{error}</div>
             )}
             <Button type="submit" className="w-full" disabled={isLoading || !email || !password}>
               {isLoading ? t('login.signingIn') : t('login.signIn')}

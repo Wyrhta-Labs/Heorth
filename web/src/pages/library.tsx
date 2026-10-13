@@ -59,7 +59,7 @@ export default function LibraryPage() {
       <select
         value={value}
         onChange={(e) => set(e.target.value)}
-        className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember"
+        className="h-9 rounded-md border border-line-strong bg-surface px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember"
       >
         <option value="">{allLabel}</option>
         {opts.map((o) => <option key={o} value={o}>{labelOf(o)}</option>)}

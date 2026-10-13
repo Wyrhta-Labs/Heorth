@@ -228,7 +228,7 @@ function HearthInner() {
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`rounded-lg px-5 py-2 text-lg ${view === v ? 'bg-ember text-white' : 'text-ash'}`}
+                  className={`rounded-lg px-5 py-2 text-lg ${view === v ? 'bg-ember text-on-primary' : 'text-ash'}`}
                 >
                   {t(v === 'week' ? 'hearth.view.week' : 'hearth.view.month')}
                 </button>

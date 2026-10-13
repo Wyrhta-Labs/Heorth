@@ -177,7 +177,7 @@ export default function EthelPage() {
               onClick={() => setStatus(s)}
               className={cn(
                 'px-3 py-1 rounded-full text-sm font-medium transition-colors',
-                status === s ? 'bg-ember text-white' : 'bg-linen text-ink hover:bg-tan',
+                status === s ? 'bg-ember text-on-primary' : 'bg-linen text-ink hover:bg-tan',
               )}
             >
               {filterLabel(s)}
@@ -226,7 +226,7 @@ export default function EthelPage() {
           <button
             type="button"
             onClick={() => setServesPlaceId(null)}
-            className="rounded-full bg-ember px-3 py-1 text-sm font-medium text-white"
+            className="rounded-full bg-ember px-3 py-1 text-sm font-medium text-on-primary"
           >
             {t('ethel.places.servingThis')}: {placePath(places, servesPlaceId)} ×
           </button>
@@ -234,19 +234,19 @@ export default function EthelPage() {
       </div>
 
       {assets.length === 0 ? (
-        <p className="text-muted-foreground py-8 text-center">{t('ethel.empty')}</p>
+        <p className="text-muted py-8 text-center">{t('ethel.empty')}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {assets.map((asset) => (
             <Card key={asset.id} className={cn('cursor-pointer', toneCard('sage', shadeFor(asset.category)))} onClick={() => setSelected(asset)}>
               <CardContent className="p-4 space-y-1">
                 <p className="font-medium">{asset.name}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted">
                   {[asset.category, asset.placeId ? placePath(places, asset.placeId) : null].filter(Boolean).join(' · ') || '—'}
                 </p>
                 {(() => {
                   const line = lifecycleLine(asset, t, formatDate, formatMoney);
-                  return line ? <p className="text-xs text-muted-foreground">{line}</p> : null;
+                  return line ? <p className="text-xs text-muted">{line}</p> : null;
                 })()}
               </CardContent>
             </Card>

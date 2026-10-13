@@ -78,14 +78,14 @@ export default function ProfilePage() {
       {isMaintenanceAdmin ? (
         <Card>
           <CardHeader className="flex flex-row items-start gap-3">
-            <ShieldAlert className="h-6 w-6 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
+            <ShieldAlert className="h-6 w-6 text-muted shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <CardTitle className="text-base">{t('connections.maintenanceAdmin.title')}</CardTitle>
               <CardDescription>{t('connections.maintenanceAdmin.description')}</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-700">{t('connections.maintenanceAdmin.hint')}</p>
+            <p className="text-sm text-fg">{t('connections.maintenanceAdmin.hint')}</p>
           </CardContent>
         </Card>
       ) : (

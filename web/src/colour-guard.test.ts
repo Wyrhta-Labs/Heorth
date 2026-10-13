@@ -17,18 +17,6 @@ const ALLOW: Record<string, { classes?: string[]; hex?: true; why: string }> = {
   'components/hearth/event-chip.tsx': { classes: ['text-white'], why: 'data: text on a member colour' },
 };
 
-/** Files not swept yet. Shrinks to empty in Tasks 12-13, then goes away. */
-const PENDING_SWEEP = new Set<string>([
-  'pages/calendar.tsx',
-  'pages/ethel.tsx',
-  'pages/feoh.tsx',
-  'pages/hearth.tsx',
-  'pages/library.tsx',
-  'pages/login.tsx',
-  'pages/profile.tsx',
-  'pages/tasks.tsx',
-]);
-
 const SRC = resolve(__dirname);
 
 function files(dir: string): string[] {
@@ -44,7 +32,6 @@ describe('colour guard', () => {
     const offenders: string[] = [];
     for (const path of files(SRC)) {
       const rel = relative(SRC, path).replaceAll('\\', '/');
-      if (PENDING_SWEEP.has(rel)) continue;
       const text = readFileSync(path, 'utf8');
       const allow = ALLOW[rel];
       const classes = [...text.matchAll(PALETTE)].map((m) => m[0]).filter((c) => !allow?.classes?.includes(c));
@@ -52,15 +39,5 @@ describe('colour guard', () => {
       for (const hit of [...classes, ...hexes]) offenders.push(`${rel}: ${hit}`);
     }
     expect(offenders).toEqual([]);
-  });
-
-  it('PENDING_SWEEP lists only files that still need it', () => {
-    // Non-global copies: .test() on a /g regex keeps lastIndex state between calls.
-    const palette = new RegExp(PALETTE.source);
-    const hex = new RegExp(HEX.source);
-    for (const rel of PENDING_SWEEP) {
-      const text = readFileSync(join(SRC, rel), 'utf8');
-      expect(palette.test(text) || hex.test(text), `${rel} is clean - remove it from PENDING_SWEEP`).toBe(true);
-    }
   });
 });

@@ -63,7 +63,7 @@ export default function CalendarPage() {
         <div className="inline-flex rounded-lg border border-tan bg-card p-0.5">
           {(['week', 'month'] as const).map((v) => (
             <button key={v} onClick={() => setView(v)}
-              className={`rounded-md px-3 py-1 text-sm capitalize ${view === v ? 'bg-ember text-white' : 'text-ash'}`}>
+              className={`rounded-md px-3 py-1 text-sm capitalize ${view === v ? 'bg-ember text-on-primary' : 'text-ash'}`}>
               {v === 'week' ? t('calendar.view.week') : t('calendar.view.month')}
             </button>
           ))}

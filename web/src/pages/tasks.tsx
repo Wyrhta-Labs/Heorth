@@ -93,33 +93,33 @@ export default function TasksPage() {
       </div>
 
       {tasks.length === 0 && (
-        <p className="text-muted-foreground">{t('tasks.noOpenTasksHint')}</p>
+        <p className="text-muted">{t('tasks.noOpenTasksHint')}</p>
       )}
 
       {(['overdue', 'soon', 'someday'] as Bucket[]).map((b) =>
         buckets[b].length > 0 ? (
           <section key={b} className="space-y-2">
-            <h2 className={`text-sm font-semibold uppercase tracking-wide ${b === 'overdue' ? 'text-red-600' : 'text-muted-foreground'}`}>
+            <h2 className={`text-sm font-semibold uppercase tracking-wide ${b === 'overdue' ? 'text-danger' : 'text-muted'}`}>
               {BUCKET_LABELS[b]}
             </h2>
             <ul className="zebra space-y-1">
               {buckets[b].map((task) => (
-                <li key={task.id} className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+                <li key={task.id} className="flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-2">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 accent-ember"
+                    className="h-4 w-4 rounded border-line-strong accent-ember"
                     checked={false}
                     onChange={() => void onToggle(task)}
                     aria-label={t('tasks.completeAria', { title: task.title })}
                   />
                   <span className="flex-1 text-sm">{task.title}</span>
                   {task.dueAt && (
-                    <span className={`text-xs ${b === 'overdue' ? 'text-red-600' : 'text-muted-foreground'}`}>
+                    <span className={`text-xs ${b === 'overdue' ? 'text-danger' : 'text-muted'}`}>
                       {formatDate(task.dueAt)}
                     </span>
                   )}
                   {task.listName && (
-                    <span className="text-xs rounded bg-gray-100 px-2 py-0.5 text-gray-600">{task.listName}</span>
+                    <span className="text-xs rounded bg-surface-3 px-2 py-0.5 text-muted">{task.listName}</span>
                   )}
                 </li>
               ))}
@@ -188,12 +188,12 @@ function ListSettings() {
       </CardHeader>
       <CardContent className="space-y-4">
         {listsQuery.isError && (
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-danger">
             {t('tasks.listsLoadError')}
           </p>
         )}
         {!listsQuery.isError && lists.length === 0 && (
-          <p className="text-sm text-muted-foreground">{t('tasks.noListsFound')}</p>
+          <p className="text-sm text-muted">{t('tasks.noListsFound')}</p>
         )}
         {Object.entries(byProvider).map(([provider, providerLists]) => (
           <div key={provider} className="space-y-2">
@@ -203,7 +203,7 @@ function ListSettings() {
                 <label className="flex flex-1 items-center gap-3">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 accent-ember"
+                    className="h-4 w-4 rounded border-line-strong accent-ember"
                     checked={l.enabled}
                     aria-label={l.name}
                     onChange={(e) => void toggle(l.provider, l.id, e.target.checked)}
@@ -211,7 +211,7 @@ function ListSettings() {
                   {l.name}
                 </label>
                 {canDesignate && l.enabled && (
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-1 text-xs text-muted">
                     <input
                       type="radio"
                       name={`household-list-${provider}`}
@@ -226,7 +226,7 @@ function ListSettings() {
             ))}
           </div>
         ))}
-        <p className="pt-1 text-xs text-muted-foreground">
+        <p className="pt-1 text-xs text-muted">
           {t('tasks.syncHint')}
         </p>
       </CardContent>

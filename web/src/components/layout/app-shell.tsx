@@ -6,6 +6,7 @@ import TopBar from './top-bar';
 import MobileNav from './mobile-nav';
 import { ToastProvider } from '@/components/ui/toast';
 import { SCROLL_ROOT_ATTR } from '@/components/ui/dialog';
+import { useNavCounts } from '@/hooks/use-nav-counts';
 import type { NavLabelKey } from './sidebar';
 
 type PageTitleKey = NavLabelKey | 'nav.homeTitle';
@@ -44,6 +45,7 @@ export default function AppShell() {
   const titleKey = titleKeyFor(pathname);
   const title = titleKey ? t(titleKey) : 'Heorth';
   const mainRef = useRef<HTMLElement>(null);
+  const counts = useNavCounts();
 
   // <main> is the page's scroller (the shell is viewport-high), so the
   // router's window scroll restoration does not reach it: start each page at the top.
@@ -54,7 +56,7 @@ export default function AppShell() {
   return (
     <ToastProvider>
       <div className="flex h-dvh overflow-hidden bg-ground">
-        <Sidebar />
+        <Sidebar counts={counts} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopBar title={title} />
           <main
@@ -65,7 +67,7 @@ export default function AppShell() {
             <Outlet />
           </main>
         </div>
-        <MobileNav />
+        <MobileNav counts={counts} />
       </div>
     </ToastProvider>
   );

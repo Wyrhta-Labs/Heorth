@@ -6,6 +6,7 @@ import AppShell from './app-shell';
 vi.mock('@/hooks/use-features', () => ({ useFeatures: () => ({ data: { data: { kithledgerUrl: null } } }) }));
 vi.mock('@/hooks/use-household', () => ({ useWhoami: () => ({ data: undefined }) }));
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ logout: vi.fn() }) }));
+vi.mock('@/hooks/use-nav-counts', () => ({ useNavCounts: () => ({ tasks: 2, shopping: 0, weorc: undefined, feoh: 1 }) }));
 
 function renderShell() {
   const root = createRootRoute({ component: AppShell });
@@ -24,6 +25,12 @@ describe('AppShell', () => {
     vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it('passes the nav counts to the sidebar', async () => {
+    renderShell();
+    await screen.findByRole('main');
+    expect(document.querySelectorAll('aside [data-nav-badge]')).toHaveLength(2);
+  });
 
   it('scrolls inside <main>, marked as the scroll root, and resets it on navigation', async () => {
     const router = renderShell();

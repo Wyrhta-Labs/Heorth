@@ -74,6 +74,9 @@ describe('useNavCounts', () => {
 });
 
 describe('useNavCounts across household midnight', () => {
+  // Real setTimeout still runs (only Date/setInterval are faked); wait inside act() so the
+  // resulting state updates are flushed without an act() warning.
+  const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 50)); });
   afterEach(() => { vi.useRealTimers(); });
 
   it('rolls the Weorc due_to and the task count over without a reload', async () => {
@@ -85,14 +88,17 @@ describe('useNavCounts across household midnight', () => {
     api.getImportStatus.mockResolvedValue({ data: { pendingCount: 0 } });
 
     const { result } = renderHook(() => useNavCounts(), { wrapper: wrapper() });
-    await vi.waitFor(() => expect(result.current.tasks).toBe(0));
+    // The faked setInterval keeps RTL's waitFor from polling: let the queries settle inside act().
+    await settle();
+    expect(result.current.tasks).toBe(0);
     expect(api.listOccurrences).toHaveBeenLastCalledWith({ status: 'due', due_to: '2026-10-13' });
 
     await act(async () => {
       vi.setSystemTime(new Date('2026-10-13T11:05:00Z')); // 00:05 on 14 Oct in Auckland
       await vi.advanceTimersByTimeAsync(31_000);
     });
-    await vi.waitFor(() => expect(api.listOccurrences).toHaveBeenLastCalledWith({ status: 'due', due_to: '2026-10-14' }));
-    await vi.waitFor(() => expect(result.current.tasks).toBe(1));
+    await settle();
+    expect(api.listOccurrences).toHaveBeenLastCalledWith({ status: 'due', due_to: '2026-10-14' });
+    expect(result.current.tasks).toBe(1);
   });
 });

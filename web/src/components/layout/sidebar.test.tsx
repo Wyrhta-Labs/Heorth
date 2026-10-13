@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, act } from '@testing-library/react';
 import { createRootRoute, createRoute, createRouter, createMemoryHistory, RouterProvider, Outlet } from '@tanstack/react-router';
 import Sidebar, { type NavCounts } from './sidebar';
 
@@ -77,7 +77,7 @@ describe('Sidebar', () => {
     await screen.findByText('Calendar');
     expect(activeLabel()).toBe('Calendar');
 
-    await router.navigate({ to: '/ethel' });
+    await act(() => router.navigate({ to: '/ethel' }));
     await waitFor(() => expect(activeLabel()).toBe('Ethel'));
   });
 

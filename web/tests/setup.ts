@@ -9,7 +9,11 @@ import '@testing-library/jest-dom/vitest';
 // launched with --no-experimental-webstorage. Force a real in-memory Storage
 // via defineProperty (which DOES replace the descriptor) so any code/tests
 // using localStorage work the same as they would in a real browser tab.
-if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.setItem !== 'function') {
+// Reading Node's accessor is what prints the warning, so inspect the descriptor
+// first and only read the value when it is a plain data property.
+const lsDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+const lsIsNodeAccessor = !!lsDescriptor && typeof lsDescriptor.get === 'function';
+if (lsIsNodeAccessor || typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.setItem !== 'function') {
   const store = new Map<string, string>();
   const memoryStorage: Storage = {
     getItem: (key: string) => (store.has(key) ? store.get(key)! : null),

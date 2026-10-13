@@ -140,11 +140,15 @@ describe('RoutineForm — the anchor-date default is the same shape: a DEFAULT, 
     expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-09-01');
   });
 
-  it('never touches an EXISTING routine\'s stored anchorDate, whatever `today` does', () => {
+  it('never touches an EXISTING routine\'s stored anchorDate, whatever `today` does', async () => {
+    getAsset.mockResolvedValue({ data: boilerDetail });
     const { rerenderWithToday } = renderForm(existingRoutine, [boiler], undefined);
     expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-01-01');
 
     rerenderWithToday(existingRoutine, [boiler], '2026-08-25');
+    // Let the asset detail query settle inside the test so its update is not left dangling.
+    await waitFor(() => expect(getAsset).toHaveBeenCalled());
+    await screen.findByLabelText(/anchor date/i);
     expect(screen.getByLabelText(/anchor date/i)).toHaveValue('2026-01-01');
   });
 });

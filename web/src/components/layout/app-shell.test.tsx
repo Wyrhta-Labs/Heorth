@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import { createRootRoute, createRoute, createRouter, createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import AppShell from './app-shell';
 
@@ -34,7 +34,7 @@ describe('AppShell', () => {
     expect(main).toHaveAttribute('data-scroll-root');
     expect(main).toHaveClass('overflow-y-auto', 'min-h-0');
     main.scrollTop = 400;
-    await router.navigate({ to: '/calendar' });
+    await act(() => router.navigate({ to: '/calendar' }));
     await screen.findByText('page /calendar');
     await waitFor(() => expect(main.scrollTop).toBe(0));
   });

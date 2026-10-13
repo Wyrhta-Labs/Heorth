@@ -75,7 +75,7 @@ export default function ConnectionsPanel({ readOnly = false }: Props) {
         <CardHeader className="pb-3"><CardTitle className="text-base">{t('settings.connectionsPanel.title')}</CardTitle></CardHeader>
         <CardContent>
           {connections.length === 0 ? (
-            <p className="text-muted-foreground">{t('settings.connectionsPanel.noConnections')}</p>
+            <p className="text-muted">{t('settings.connectionsPanel.noConnections')}</p>
           ) : (
             <Table>
               <TableHeader>
@@ -122,7 +122,7 @@ export default function ConnectionsPanel({ readOnly = false }: Props) {
               {feeds.map((f) => {
                 const failing = f.consecutiveFailures > 0;
                 return (
-                  <TableRow key={f.feedKey} className={failing ? 'bg-red-50' : undefined}>
+                  <TableRow key={f.feedKey} className={failing ? 'bg-danger-bg' : undefined}>
                     <TableCell>{f.feedKey}</TableCell>
                     <TableCell>
                       <Badge variant={failing ? 'destructive' : 'success'}>

@@ -25,7 +25,7 @@ export default function RecipeOverlay({ recipe, onClose }: Props) {
         <button
           onClick={onClose}
           aria-label={t('hearth.recipe.close')}
-          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-ember text-white"
+          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-ember text-on-primary"
         >
           <X className="h-8 w-8" />
         </button>

@@ -100,9 +100,9 @@ export default function PreviewDialog({ link, onClose }: Props) {
           <DialogClose onClose={onClose} />
         </DialogHeader>
         <div className="space-y-3 text-sm">
-          {missing && <p className="text-muted-foreground">{t('gewrit.missing')}</p>}
-          {preview.status === 'loading' && <p className="text-muted-foreground">{t('gewrit.preview.loading')}</p>}
-          {preview.status === 'failed' && <p className="text-red-700">{preview.message}</p>}
+          {missing && <p className="text-muted">{t('gewrit.missing')}</p>}
+          {preview.status === 'loading' && <p className="text-muted">{t('gewrit.preview.loading')}</p>}
+          {preview.status === 'failed' && <p className="text-danger">{preview.message}</p>}
           {preview.status === 'ready' && preview.kind === 'pdf' && (
             // No sandbox attribute: Chrome's and Firefox's built-in PDF viewers
             // refuse to render in a sandboxed frame, and a PDF is not HTML in

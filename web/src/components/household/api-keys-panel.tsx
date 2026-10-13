@@ -78,7 +78,7 @@ export default function ApiKeysPanel({ readOnly = false }: Props) {
                 <TableCell className="text-sm text-ash">{k.lastUsedAt ? formatDate(k.lastUsedAt) : t('settings.apiKeys.never')}</TableCell>
                 <TableCell>
                   {!readOnly && (
-                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleRevoke(k.id, k.name)} disabled={revoke.isPending}>
+                    <Button variant="ghost" size="icon" className="text-danger" onClick={() => handleRevoke(k.id, k.name)} disabled={revoke.isPending}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   )}

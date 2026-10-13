@@ -62,7 +62,7 @@ export default function MemberForm({ member, onSubmit, onCancel, isLoading }: Pr
           </select>
         </div>
       )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>{t('settings.form.cancel')}</Button>
         <Button type="submit" disabled={isLoading}>{isLoading ? t('settings.form.saving') : member ? t('settings.form.update') : t('settings.form.addMember')}</Button>

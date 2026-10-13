@@ -38,19 +38,19 @@ export default function DocumentsPanel({ element }: { element: GewritElement }) 
         <Button type="button" size="sm" variant="outline" onClick={() => setLinkOpen(true)}>{t('gewrit.link')}</Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        {list.isError && <p role="alert" className="text-xs text-amber-700">{describe(list.error)}</p>}
+        {list.isError && <p role="alert" className="text-xs text-warning">{describe(list.error)}</p>}
         {list.data?.meta.stale && (
-          <p role="status" className="text-xs text-amber-700">
+          <p role="status" className="text-xs text-warning">
             {list.data.meta.staleReason === 'auth' ? t('gewrit.errors.PROVIDER_AUTH') : t('gewrit.stale')}
           </p>
         )}
-        {list.isSuccess && links.length === 0 && <p className="text-muted-foreground">{t('gewrit.empty')}</p>}
+        {list.isSuccess && links.length === 0 && <p className="text-muted">{t('gewrit.empty')}</p>}
         {LINK_ROLES.map((role) => {
           const group = links.filter((l) => l.role === role);
           if (group.length === 0) return null;
           return (
             <div key={role} className="space-y-1">
-              <p className="text-xs font-medium uppercase text-muted-foreground">{t(`gewrit.roles.${role}`)}</p>
+              <p className="text-xs font-medium uppercase text-muted">{t(`gewrit.roles.${role}`)}</p>
               <ul className="zebra space-y-1">
                 {group.map((l) => (
                   <li key={l.id} className="rounded px-2 py-1">
@@ -60,7 +60,7 @@ export default function DocumentsPanel({ element }: { element: GewritElement }) 
                       className={cn('w-full text-left', l.document.status === 'missing' && 'opacity-50')}
                     >
                       <span className="font-medium">{l.document.title}</span>
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block text-xs text-muted">
                         {l.document.status === 'missing'
                           ? t('gewrit.missing')
                           : [l.document.documentType, l.document.correspondent, l.document.createdOn && formatDate(l.document.createdOn)].filter(Boolean).join(' · ')}

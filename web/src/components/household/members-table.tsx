@@ -49,7 +49,7 @@ export default function MembersTable({ members, canManage, onEdit, onRole, onDel
               {canManage && (
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => onEdit(m)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="text-red-500" onClick={() => onDelete(m)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="text-danger" onClick={() => onDelete(m)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               )}
             </TableCell>

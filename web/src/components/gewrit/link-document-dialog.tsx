@@ -70,10 +70,10 @@ export default function LinkDocumentDialog({ element, open, onClose }: Props) {
             <Label htmlFor="gewrit-search">{t('gewrit.dialog.search')}</Label>
             <Input id="gewrit-search" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
             {query.trim().length > 0 && query.trim().length < 2 && (
-              <p className="text-xs text-muted-foreground">{t('gewrit.dialog.searchHint')}</p>
+              <p className="text-xs text-muted">{t('gewrit.dialog.searchHint')}</p>
             )}
-            {search.isError && <p className="text-xs text-red-700">{describe(search.error)}</p>}
-            {search.isSuccess && hits.length === 0 && <p className="text-xs text-muted-foreground">{t('gewrit.dialog.noHits')}</p>}
+            {search.isError && <p className="text-xs text-danger">{describe(search.error)}</p>}
+            {search.isSuccess && hits.length === 0 && <p className="text-xs text-muted">{t('gewrit.dialog.noHits')}</p>}
             {hits.length > 0 && (
               <ul className="max-h-48 overflow-y-auto rounded border divide-y">
                 {hits.map((h) => (
@@ -85,7 +85,7 @@ export default function LinkDocumentDialog({ element, open, onClose }: Props) {
                       className="w-full px-2 py-1 text-left hover:bg-muted aria-pressed:bg-muted"
                     >
                       <span className="font-medium">{h.title}</span>
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block text-xs text-muted">
                         {[h.documentType, h.correspondent, h.createdOn].filter(Boolean).join(' · ')}
                       </span>
                     </button>
@@ -98,7 +98,7 @@ export default function LinkDocumentDialog({ element, open, onClose }: Props) {
           <div className="space-y-1">
             <Label htmlFor="gewrit-paste">{t('gewrit.dialog.paste')}</Label>
             <Input id="gewrit-paste" value={paste} onChange={(e) => setPaste(e.target.value)} autoComplete="off" />
-            {pasteInvalid && <p className="text-xs text-red-700">{t('gewrit.dialog.pasteInvalid')}</p>}
+            {pasteInvalid && <p className="text-xs text-danger">{t('gewrit.dialog.pasteInvalid')}</p>}
           </div>
           <div className="flex gap-2">
             <div className="space-y-1">

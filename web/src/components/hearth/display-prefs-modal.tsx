@@ -79,7 +79,7 @@ export default function DisplayPrefsModal({ prefs, showKithRow, onChange, onClos
             ref={closeRef}
             onClick={onClose}
             aria-label={t('hearth.display.close')}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ember text-white"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ember text-on-primary"
           >
             <X className="h-6 w-6" />
           </button>
@@ -92,10 +92,10 @@ export default function DisplayPrefsModal({ prefs, showKithRow, onChange, onClos
                 <button
                   onClick={() => onChange({ [row.key]: !on })}
                   aria-pressed={on}
-                  className={`flex w-full items-center justify-between gap-4 rounded-xl border border-tan px-5 py-4 text-lg ${on ? 'bg-ember text-white' : 'bg-parchment text-ash'}`}
+                  className={`flex w-full items-center justify-between gap-4 rounded-xl border border-tan px-5 py-4 text-lg ${on ? 'bg-ember text-on-primary' : 'bg-parchment text-ash'}`}
                 >
                   <span>{row.label}</span>
-                  <span aria-hidden className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${on ? 'bg-white/90' : 'bg-tan'}`}>
+                  <span aria-hidden className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${on ? 'bg-on-primary/90' : 'bg-tan'}`}>
                     <span className={`absolute top-1 h-5 w-5 rounded-full transition-all ${on ? 'right-1 bg-ember' : 'left-1 bg-card'}`} />
                   </span>
                 </button>

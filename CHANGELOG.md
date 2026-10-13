@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Web: **Slate is the default theme** and takes the new look: a grouped navy
+  sidebar (Day, Household, System) that folds to an icon rail below 1100px,
+  with count badges for tasks due, shopping left, Weorc due and Feoh imports;
+  a compact top bar and a navy bottom bar on phones; restyled buttons, cards,
+  chips, forms, tables and dialogs. Slate's dark mode follows the device
+  (`prefers-color-scheme`). Hearth stays selectable in the household settings,
+  light only.
 - Web: the day strip is a rolling seven days from today instead of the
   calendar week, so a Sunday still looks ahead.
 

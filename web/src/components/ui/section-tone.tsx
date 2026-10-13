@@ -11,11 +11,11 @@ export type Tone = 'ember' | 'sky' | 'amber' | 'sage' | 'taupe';
 /** A faint, flat wash of the accent over the card colour — for small cards
  *  that sit side by side (the start page, Today). */
 const tint: Record<Tone, string> = {
-  ember: 'bg-[color-mix(in_srgb,var(--color-ember)_6%,var(--color-card))] border-ember/20',
-  sky: 'bg-[color-mix(in_srgb,var(--color-sky)_7%,var(--color-card))] border-sky/20',
-  amber: 'bg-[color-mix(in_srgb,var(--color-amber)_7%,var(--color-card))] border-amber/20',
-  sage: 'bg-[color-mix(in_srgb,var(--color-sage)_8%,var(--color-card))] border-sage/25',
-  taupe: 'bg-[color-mix(in_srgb,var(--color-taupe)_7%,var(--color-card))] border-taupe/20',
+  ember: 'bg-[color-mix(in_srgb,var(--color-primary)_6%,var(--color-surface))] border-primary/20',
+  sky: 'bg-[color-mix(in_srgb,var(--color-info)_7%,var(--color-surface))] border-info/20',
+  amber: 'bg-[color-mix(in_srgb,var(--color-warning)_7%,var(--color-surface))] border-warning/20',
+  sage: 'bg-[color-mix(in_srgb,var(--color-success)_8%,var(--color-surface))] border-success/25',
+  taupe: 'bg-[color-mix(in_srgb,var(--color-accent)_7%,var(--color-surface))] border-accent/20',
 };
 
 /** Shades of one accent, from barely there (1) to clearly tinted (4) — for
@@ -24,43 +24,44 @@ const tint: Record<Tone, string> = {
 export type Shade = 1 | 2 | 3 | 4;
 const shades: Record<Tone, readonly [string, string, string, string]> = {
   ember: [
-    'bg-[color-mix(in_srgb,var(--color-ember)_5%,var(--color-card))] border-ember/20',
-    'bg-[color-mix(in_srgb,var(--color-ember)_9%,var(--color-card))] border-ember/20',
-    'bg-[color-mix(in_srgb,var(--color-ember)_13%,var(--color-card))] border-ember/20',
-    'bg-[color-mix(in_srgb,var(--color-ember)_17%,var(--color-card))] border-ember/20',
+    'bg-[color-mix(in_srgb,var(--color-primary)_5%,var(--color-surface))] border-primary/20',
+    'bg-[color-mix(in_srgb,var(--color-primary)_9%,var(--color-surface))] border-primary/20',
+    'bg-[color-mix(in_srgb,var(--color-primary)_13%,var(--color-surface))] border-primary/20',
+    'bg-[color-mix(in_srgb,var(--color-primary)_17%,var(--color-surface))] border-primary/20',
   ],
   sky: [
-    'bg-[color-mix(in_srgb,var(--color-sky)_5%,var(--color-card))] border-sky/20',
-    'bg-[color-mix(in_srgb,var(--color-sky)_9%,var(--color-card))] border-sky/20',
-    'bg-[color-mix(in_srgb,var(--color-sky)_13%,var(--color-card))] border-sky/20',
-    'bg-[color-mix(in_srgb,var(--color-sky)_17%,var(--color-card))] border-sky/20',
+    'bg-[color-mix(in_srgb,var(--color-info)_5%,var(--color-surface))] border-info/20',
+    'bg-[color-mix(in_srgb,var(--color-info)_9%,var(--color-surface))] border-info/20',
+    'bg-[color-mix(in_srgb,var(--color-info)_13%,var(--color-surface))] border-info/20',
+    'bg-[color-mix(in_srgb,var(--color-info)_17%,var(--color-surface))] border-info/20',
   ],
   amber: [
-    'bg-[color-mix(in_srgb,var(--color-amber)_5%,var(--color-card))] border-amber/20',
-    'bg-[color-mix(in_srgb,var(--color-amber)_9%,var(--color-card))] border-amber/20',
-    'bg-[color-mix(in_srgb,var(--color-amber)_13%,var(--color-card))] border-amber/20',
-    'bg-[color-mix(in_srgb,var(--color-amber)_17%,var(--color-card))] border-amber/20',
+    'bg-[color-mix(in_srgb,var(--color-warning)_5%,var(--color-surface))] border-warning/20',
+    'bg-[color-mix(in_srgb,var(--color-warning)_9%,var(--color-surface))] border-warning/20',
+    'bg-[color-mix(in_srgb,var(--color-warning)_13%,var(--color-surface))] border-warning/20',
+    'bg-[color-mix(in_srgb,var(--color-warning)_17%,var(--color-surface))] border-warning/20',
   ],
   sage: [
-    'bg-[color-mix(in_srgb,var(--color-sage)_5%,var(--color-card))] border-sage/25',
-    'bg-[color-mix(in_srgb,var(--color-sage)_9%,var(--color-card))] border-sage/25',
-    'bg-[color-mix(in_srgb,var(--color-sage)_13%,var(--color-card))] border-sage/25',
-    'bg-[color-mix(in_srgb,var(--color-sage)_17%,var(--color-card))] border-sage/25',
+    'bg-[color-mix(in_srgb,var(--color-success)_5%,var(--color-surface))] border-success/25',
+    'bg-[color-mix(in_srgb,var(--color-success)_9%,var(--color-surface))] border-success/25',
+    'bg-[color-mix(in_srgb,var(--color-success)_13%,var(--color-surface))] border-success/25',
+    'bg-[color-mix(in_srgb,var(--color-success)_17%,var(--color-surface))] border-success/25',
   ],
   taupe: [
-    'bg-[color-mix(in_srgb,var(--color-taupe)_5%,var(--color-card))] border-taupe/20',
-    'bg-[color-mix(in_srgb,var(--color-taupe)_9%,var(--color-card))] border-taupe/20',
-    'bg-[color-mix(in_srgb,var(--color-taupe)_13%,var(--color-card))] border-taupe/20',
-    'bg-[color-mix(in_srgb,var(--color-taupe)_17%,var(--color-card))] border-taupe/20',
+    'bg-[color-mix(in_srgb,var(--color-accent)_5%,var(--color-surface))] border-accent/20',
+    'bg-[color-mix(in_srgb,var(--color-accent)_9%,var(--color-surface))] border-accent/20',
+    'bg-[color-mix(in_srgb,var(--color-accent)_13%,var(--color-surface))] border-accent/20',
+    'bg-[color-mix(in_srgb,var(--color-accent)_17%,var(--color-surface))] border-accent/20',
   ],
 };
 
-const iconColor: Record<Tone, string> = {
-  ember: 'text-ember',
-  sky: 'text-sky',
-  amber: 'text-amber',
-  sage: 'text-sage',
-  taupe: 'text-taupe',
+/** The 24px icon square of a section header: the tone's light ground, its colour. */
+const iconSquare: Record<Tone, string> = {
+  ember: 'bg-primary-light text-primary',
+  sky: 'bg-info-bg text-info',
+  amber: 'bg-warning-bg text-warning',
+  sage: 'bg-success-bg text-success',
+  taupe: 'bg-accent-bg text-accent',
 };
 
 /** A stable shade for a free-text key (an asset category): the same key
@@ -77,7 +78,7 @@ export function toneCard(tone: Tone, shade?: Shade): string {
   return shade ? shades[tone][shade - 1] : tint[tone];
 }
 
-/** A card headline led by an icon in the section's accent. */
+/** A card headline led by its icon in a small tinted square (the mockup's .card-ic). */
 export function SectionTitle({ icon: Icon, tone, className, children }: {
   icon: LucideIcon;
   tone: Tone;
@@ -85,14 +86,17 @@ export function SectionTitle({ icon: Icon, tone, className, children }: {
   children: ReactNode;
 }) {
   return (
-    <CardTitle className={cn('text-base flex items-center gap-2', className)}>
-      <Icon className={cn('h-4 w-4 shrink-0', iconColor[tone])} aria-hidden="true" />
+    <CardTitle className={cn('flex items-center gap-2', className)}>
+      <span data-slot="section-icon" className={cn('flex size-6 shrink-0 items-center justify-center rounded-md', iconSquare[tone])}>
+        <Icon className="size-3.5" aria-hidden="true" />
+      </span>
       {children}
     </CardTitle>
   );
 }
 
-/** A headed card in one accent: icon headline, tinted (or shaded) ground. */
+/** A headed card in one accent: icon headline, tinted (or shaded) ground. On a
+ *  toned card the header strip takes the tint instead of surface-2. */
 export function SectionCard({ title, icon, tone, shade, children }: {
   title: string;
   icon: LucideIcon;
@@ -102,7 +106,7 @@ export function SectionCard({ title, icon, tone, shade, children }: {
 }) {
   return (
     <Card className={toneCard(tone, shade)}>
-      <CardHeader className="pb-3"><SectionTitle icon={icon} tone={tone}>{title}</SectionTitle></CardHeader>
+      <CardHeader className="bg-transparent"><SectionTitle icon={icon} tone={tone}>{title}</SectionTitle></CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
   );

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { createRootRoute, createRoute, createRouter, createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import AppShell from './app-shell';
@@ -20,12 +20,6 @@ function renderShell() {
 }
 
 describe('AppShell', () => {
-  // The router scrolls the window to the top on navigation; jsdom does not implement it.
-  beforeEach(() => {
-    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
-  });
-  afterEach(() => vi.restoreAllMocks());
-
   it('passes the nav counts to the sidebar', async () => {
     renderShell();
     await screen.findByRole('main');

@@ -25,6 +25,10 @@ if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localSto
   }
 }
 
+// jsdom does not implement window.scrollTo and prints "Not implemented" for every
+// call; the router scrolls to the top on navigation, so stub it for all tests.
+window.scrollTo = (() => {}) as typeof window.scrollTo;
+
 import { afterEach } from 'vitest';
 import i18n from '../src/i18n';
 

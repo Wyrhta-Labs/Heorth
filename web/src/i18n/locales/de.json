@@ -405,7 +405,9 @@
     "signOut": "Abmelden",
     "ethel": "Ethel",
     "weorc": "Weorc",
-    "kithledger": "KithLedger"
+    "kithledger": "KithLedger",
+    "group": { "day": "Tag", "household": "Haushalt", "system": "System" },
+    "countLabel": "{{count}} offen"
   },
   "pwa": {
     "updateReady": "Eine neue Version von Heorth ist bereit.",

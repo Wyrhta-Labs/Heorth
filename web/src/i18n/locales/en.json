@@ -405,7 +405,9 @@
     "signOut": "Sign out",
     "ethel": "Ethel",
     "weorc": "Weorc",
-    "kithledger": "KithLedger"
+    "kithledger": "KithLedger",
+    "group": { "day": "Day", "household": "Household", "system": "System" },
+    "countLabel": "{{count}} open"
   },
   "pwa": {
     "updateReady": "A new version of Heorth is ready.",

@@ -41,7 +41,7 @@ export default function UpdateBanner() {
   if (!available || isHearth) return null;
 
   return (
-    <div className="flex items-center justify-center gap-3 bg-ink text-parchment text-sm px-4 py-2">
+    <div className="flex items-center justify-center gap-3 bg-nav text-nav-fg text-sm px-4 py-2">
       <span>{t('pwa.updateReady')}</span>
       <button
         onClick={() => applyServiceWorkerUpdate()}

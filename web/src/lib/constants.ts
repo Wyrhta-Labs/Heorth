@@ -48,6 +48,10 @@ export const QUERY_KEYS = {
   gewrit: ['gewrit'] as const,
   gewritElement: (key: string) => ['gewrit', 'element', key] as const,
   gewritSearch: (q: string) => ['gewrit', 'search', q] as const,
+  /** The nav's Weorc badge. Under ['weorc','routines'] on purpose: every
+   *  Weorc mutation invalidates that prefix, so completing a chore anywhere
+   *  refreshes the badge too. */
+  weorcNavDue: (today: string) => ['weorc', 'routines', 'navDue', today] as const,
 } as const;
 
 /** Member avatar palette (ember / taupe / sage / sky) — hex per the brand guide. */

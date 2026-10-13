@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was paged to, but only for 30 minutes after the last paging, so an
   always-on wall returns to today.
 - **Household theme**: a second UI theme, `slate` (cool grey ground, white
-  cards, blue primary, system sans), next to the warm original `hearth`, which
-  stays the default. Household-wide and admin-only like timezone and locale:
+  cards, blue primary, system sans), which is the default, next to the warm
+  original `hearth`, which stays selectable (light only). Household-wide and admin-only like timezone and locale:
   `GET /api/v1/household` returns `theme`, `PATCH` accepts it (validated
   against the new `themes` list in `GET /api/v1/household/options`).
   Migration `0030_household_appearance` adds a single-row

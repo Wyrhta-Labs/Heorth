@@ -28,7 +28,7 @@ export default function OccurrenceList(
   const { t } = useTranslation();
 
   if (entries.length === 0) {
-    return <p className="py-2 text-sm text-muted-foreground">{emptyMessage}</p>;
+    return <p className="py-2 text-sm text-muted">{emptyMessage}</p>;
   }
 
   return (
@@ -45,7 +45,7 @@ export default function OccurrenceList(
         >
           <div>
             <p className="text-sm font-medium">{routine.name}</p>
-            <p className="text-xs text-muted-foreground">{formatDate(occurrence.dueOn)}</p>
+            <p className="text-xs text-muted">{formatDate(occurrence.dueOn)}</p>
             {showProjectionProblem && occurrence.projectionError && (
               <p className="text-xs text-ash">{t('weorc.projectionProblem')}</p>
             )}

@@ -63,10 +63,10 @@ export function CalendarSyncSettings({ canDesignate }: CalendarSyncSettingsProps
       </CardHeader>
       <CardContent className="space-y-4">
         {calendarsQuery.isError && (
-          <p className="text-sm text-red-600">{t('calendarSync.loadError')}</p>
+          <p className="text-sm text-danger">{t('calendarSync.loadError')}</p>
         )}
         {!calendarsQuery.isError && calendars.length === 0 && (
-          <p className="text-sm text-muted-foreground">{t('calendarSync.noneFound')}</p>
+          <p className="text-sm text-muted">{t('calendarSync.noneFound')}</p>
         )}
         {Object.entries(byProvider).map(([provider, providerCalendars]) => (
           <div key={provider} className="space-y-2">
@@ -76,7 +76,7 @@ export function CalendarSyncSettings({ canDesignate }: CalendarSyncSettingsProps
                 <label className="flex flex-1 items-center gap-3">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 accent-ember"
+                    className="h-4 w-4 rounded border-line-strong accent-ember"
                     checked={c.enabled}
                     aria-label={c.name}
                     onChange={(e) => void toggle(c.provider, c.id, e.target.checked)}
@@ -84,7 +84,7 @@ export function CalendarSyncSettings({ canDesignate }: CalendarSyncSettingsProps
                   {c.name}
                 </label>
                 {canDesignate && c.enabled && (
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-1 text-xs text-muted">
                     <input
                       type="radio"
                       name={`household-calendar-${provider}`}
@@ -99,7 +99,7 @@ export function CalendarSyncSettings({ canDesignate }: CalendarSyncSettingsProps
             ))}
           </div>
         ))}
-        <p className="pt-1 text-xs text-muted-foreground">
+        <p className="pt-1 text-xs text-muted">
           {t('calendarSync.hint')}
         </p>
       </CardContent>

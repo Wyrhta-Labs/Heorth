@@ -109,6 +109,39 @@
   --body-size: 15px;
 }
 
+/* Slate dark: follows the device. Hearth has no dark palette. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='hearth']) {
+    --color-ground: #0f1217;
+    --color-surface: #171b22;
+    --color-surface-2: #1c2129;
+    --color-surface-3: #232933;
+    --color-line: #2a303b;
+    --color-line-strong: #3b4250;
+    --color-fg: #e6e8ec;
+    --color-muted: #9aa3b2;
+    --color-faint: #6f7886;
+    --color-primary: #5b8def;
+    --color-primary-hover: #7aa3f3;
+    --color-primary-light: #16223a;
+    --color-primary-border: #2a4474;
+    --color-on-primary: #0b1020;
+    --color-success: #4cc27a; --color-success-bg: #10261a; --color-success-border: #1f5a35;
+    --color-danger: #f07171;  --color-danger-bg: #2a1515;  --color-danger-border: #5c2626;
+    --color-warning: #f0ac45; --color-warning-bg: #2a1f0c; --color-warning-border: #5c4415;
+    --color-accent: #a78bfa;  --color-accent-bg: #211a36;  --color-accent-border: #3d2f66;
+    --color-info: #5cb8ec;    --color-info-bg: #0e2130;    --color-info-border: #1d4560;
+    --color-nav: #0b0e13;
+    --color-nav-fg: #e7eaf0;
+    --color-nav-muted: #7d8595;
+    --color-nav-hover: #161b23;
+    --color-nav-active: #1f2632;
+    --color-backdrop: rgb(0 0 0 / 0.6);
+    --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
 /* Odd/even rows for lists and tables: put `zebra` on the <ul>/<tbody> and
    every second row takes a light ground. Its selector outranks a row's
    own bg-surface, so rows keep their classes. */

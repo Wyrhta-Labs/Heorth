@@ -37,6 +37,13 @@ describe('index.css tokens', () => {
     expect(theme).toContain('--color-ink: var(--color-fg)');
   });
 
+  it('Slate follows a dark device; Hearth stays light', () => {
+    const dark = block("@media (prefers-color-scheme: dark) {");
+    expect(dark).toContain(":root:not([data-theme='hearth'])");
+    for (const t of TOKENS) expect(dark, t).toContain(`--color-${t}:`);
+    expect(dark).toContain('color-scheme: dark');
+  });
+
   it('never changes the root font size', () => {
     expect(css).not.toMatch(/html\s*\{[^}]*font-size/);
   });

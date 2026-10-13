@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { ApiError } from '@/api/client';
@@ -70,5 +70,29 @@ describe('useNavCounts', () => {
     await waitFor(() => expect(api.getImportStatus).toHaveBeenCalled());
     expect(result.current.feoh).toBeUndefined();
     expect(toast).not.toHaveBeenCalled();
+  });
+});
+
+describe('useNavCounts across household midnight', () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('rolls the Weorc due_to and the task count over without a reload', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    vi.setSystemTime(new Date('2026-10-13T10:00:00Z')); // 23:00 on 13 Oct in Auckland
+    api.listTasks.mockResolvedValue({ data: [task('2026-10-14T10:30:00Z')], meta: { total: 1 } }); // 23:30 on 14 Oct
+    api.listShoppingItems.mockResolvedValue({ data: [], meta: { total: 0 } });
+    api.listOccurrences.mockResolvedValue({ data: [], meta: { total: 5 } });
+    api.getImportStatus.mockResolvedValue({ data: { pendingCount: 0 } });
+
+    const { result } = renderHook(() => useNavCounts(), { wrapper: wrapper() });
+    await vi.waitFor(() => expect(result.current.tasks).toBe(0));
+    expect(api.listOccurrences).toHaveBeenLastCalledWith({ status: 'due', due_to: '2026-10-13' });
+
+    await act(async () => {
+      vi.setSystemTime(new Date('2026-10-13T11:05:00Z')); // 00:05 on 14 Oct in Auckland
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    await vi.waitFor(() => expect(api.listOccurrences).toHaveBeenLastCalledWith({ status: 'due', due_to: '2026-10-14' }));
+    await vi.waitFor(() => expect(result.current.tasks).toBe(1));
   });
 });

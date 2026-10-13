@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import { todayInTimeZone } from '@/lib/format';
@@ -19,11 +20,31 @@ export function countDueTasks(list: Task[], timeZone: string, now: Date = new Da
   return list.filter((t) => t.dueAt != null && todayInTimeZone(timeZone, new Date(t.dueAt)) <= today).length;
 }
 
+/** How often the household date is re-read. A tick (not a timeout to midnight)
+ *  stays correct across DST shifts and zone changes. */
+const DATE_TICK_MS = 30_000;
+
+/** The household's current date, re-read on a timer so a shell left open
+ *  across midnight rolls over (the Weorc key and the task comparison depend on it). */
+function useHouseholdToday(timeZone: string): string {
+  const [, setTick] = useState(0);
+  const last = useRef('');
+  const today = todayInTimeZone(timeZone);
+  last.current = today;
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (todayInTimeZone(timeZone) !== last.current) setTick((n) => n + 1);
+    }, DATE_TICK_MS);
+    return () => clearInterval(id);
+  }, [timeZone]);
+  return today;
+}
+
 /** The four nav counts. Same query keys and functions as the pages, so the
  *  cache is shared and the pages' invalidations refresh the badges. */
 export function useNavCounts(): NavCounts {
   const timeZone = useHousehold().data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const today = todayInTimeZone(timeZone);
+  const today = useHouseholdToday(timeZone);
   const openTasks = { status: 'open' } as const;
 
   const tasksQ = useQuery({ queryKey: [...QUERY_KEYS.tasks, openTasks], queryFn: () => tasks.listTasks(openTasks), ...BADGE_QUERY });
@@ -36,7 +57,7 @@ export function useNavCounts(): NavCounts {
   const feohQ = useQuery({ queryKey: QUERY_KEYS.importStatus, queryFn: () => feohImport.getImportStatus(), ...BADGE_QUERY });
 
   return {
-    tasks: tasksQ.data ? countDueTasks(tasksQ.data.data, timeZone) : undefined,
+    tasks: tasksQ.data ? countDueTasks(tasksQ.data.data, timeZone, new Date()) : undefined,
     shopping: shoppingQ.data ? shoppingQ.data.data.filter((i) => !i.checked).length : undefined,
     weorc: weorcQ.data?.meta.total,
     feoh: feohQ.data?.data.pendingCount,

@@ -77,7 +77,7 @@ export default function TransactionForm({ accounts, envelopes, onSubmit, onCance
         <Label htmlFor="memo">{t('feoh.form.memo')}</Label>
         <Input id="memo" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder={t('feoh.form.memoPlaceholder')} />
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>{t('feoh.form.cancel')}</Button>
         <Button type="submit" disabled={isLoading}>{isLoading ? t('feoh.form.saving') : t('feoh.form.record')}</Button>

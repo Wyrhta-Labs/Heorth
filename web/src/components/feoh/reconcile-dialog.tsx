@@ -118,7 +118,7 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
               <Label htmlFor="reconcile-memo">{t('feoh.form.memo')}</Label>
               <Input id="reconcile-memo" value={memo} onChange={(e) => setMemo(e.target.value)} />
             </div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-danger">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={close}>{t('feoh.form.cancel')}</Button>
               <Button type="submit" disabled={reconcile.isPending || !envelopeId}>

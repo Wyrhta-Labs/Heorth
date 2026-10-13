@@ -111,7 +111,7 @@ export default function DecommissionDialog({ asset, onClose }: Props) {
                   ))}
                 </select>
               </div>
-              {error && <p className="text-xs text-red-600">{error}</p>}
+              {error && <p className="text-xs text-danger">{error}</p>}
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
                 <Button type="submit" disabled={decommission.isPending}>

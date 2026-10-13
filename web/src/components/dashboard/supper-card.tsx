@@ -31,7 +31,7 @@ export default function SupperCard() {
         {recipe && (
           <div className="mt-3 flex flex-wrap gap-2">
             {recipe.ingredients.slice(0, 6).map((ing, i) => (
-              <span key={i} className="rounded-full bg-white/10 px-2.5 py-1 text-xs">{ing.name}</span>
+              <span key={i} className="rounded-full bg-ground/10 px-2.5 py-1 text-xs">{ing.name}</span>
             ))}
           </div>
         )}

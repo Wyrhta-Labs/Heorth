@@ -125,8 +125,8 @@ export default function VehicleDetails({ assetId, vehicle, onRemoved }: Props) {
           {/* The field is documentation, not a reminder: nothing schedules from
               it. Saying so in the UI is the point — a member who reads it as a
               reminder will be wrong. */}
-          <p className="text-xs text-muted-foreground">{t('ethel.details.intervalHelp')}</p>
-          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+          <p className="text-xs text-muted">{t('ethel.details.intervalHelp')}</p>
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <div className="flex justify-between">
             <Button type="button" variant="outline" size="sm" onClick={handleRemove} disabled={!vehicle || remove.isPending}>
               {t('ethel.details.remove')}

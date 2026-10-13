@@ -66,7 +66,7 @@ function InboxRow({ row, householdCurrency, mappedAccountId }: { row: ImportedTr
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="font-medium">{row.payee}</div>
-          <div className="text-xs text-gray-500">{formatDate(row.date)}{row.memo ? ` · ${row.memo}` : ''}</div>
+          <div className="text-xs text-muted">{formatDate(row.date)}{row.memo ? ` · ${row.memo}` : ''}</div>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline">{t(`feoh.import.inbox.${row.direction}`)}</Badge>
@@ -74,10 +74,10 @@ function InboxRow({ row, householdCurrency, mappedAccountId }: { row: ImportedTr
         </div>
       </div>
       {foreign && (
-        <p className="text-sm text-amber-700">{t('feoh.import.inbox.foreignCurrency', { currency: row.currency, household: householdCurrency })}</p>
+        <p className="text-sm text-warning">{t('feoh.import.inbox.foreignCurrency', { currency: row.currency, household: householdCurrency })}</p>
       )}
       {!foreign && unmapped && (
-        <p className="text-sm text-amber-700">{t('feoh.import.inbox.unmapped', { source: row.sourceAccountId })}</p>
+        <p className="text-sm text-warning">{t('feoh.import.inbox.unmapped', { source: row.sourceAccountId })}</p>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
         <div className="space-y-1">
@@ -116,7 +116,7 @@ export default function ImportInbox({ householdCurrency }: Props) {
     <div className="space-y-3">
       <h4 className="font-medium">{t('feoh.import.inbox.title')}</h4>
       {rows.length === 0 ? (
-        <p className="text-sm text-gray-500">{t('feoh.import.inbox.empty')}</p>
+        <p className="text-sm text-muted">{t('feoh.import.inbox.empty')}</p>
       ) : (
         <ul className="zebra space-y-2">
           {rows.map((row) => (

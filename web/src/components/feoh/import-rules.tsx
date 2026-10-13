@@ -36,9 +36,9 @@ export default function ImportRules() {
   return (
     <div className="space-y-3">
       <h4 className="font-medium">{t('feoh.import.rules.title')}</h4>
-      <p className="text-sm text-gray-500">{t('feoh.import.rules.intro')}</p>
+      <p className="text-sm text-muted">{t('feoh.import.rules.intro')}</p>
       {rules.length === 0 ? (
-        <p className="text-sm text-gray-500">{t('feoh.import.rules.empty')}</p>
+        <p className="text-sm text-muted">{t('feoh.import.rules.empty')}</p>
       ) : (
         <ul className="zebra divide-y divide-tan">
           {rules.map((r) => (
@@ -46,7 +46,7 @@ export default function ImportRules() {
               <div className="flex items-baseline gap-3">
                 <span className="font-mono text-sm">{r.pattern}</span>
                 <span className="text-sm">→ {envelopeName.get(r.envelopeId) ?? r.envelopeId}</span>
-                <span className="text-xs text-gray-500">{t('feoh.import.rules.priority')} {r.priority}</span>
+                <span className="text-xs text-muted">{t('feoh.import.rules.priority')} {r.priority}</span>
               </div>
               <div className="flex gap-2">
                 <Button

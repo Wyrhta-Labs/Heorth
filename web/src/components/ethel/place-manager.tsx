@@ -113,7 +113,7 @@ export default function PlaceManager({ open, onClose, onShowServing }: Props) {
 
         <div className="space-y-4 text-sm">
           {rows.length === 0 ? (
-            <p className="text-muted-foreground">{t('ethel.places.empty')}</p>
+            <p className="text-muted">{t('ethel.places.empty')}</p>
           ) : (
             <ul className="space-y-2">
               {rows.map(({ place, depth }) => (

@@ -18,7 +18,7 @@ export default function EnvelopeCard({ envelope }: { envelope: EnvelopeSummary }
       <CardContent className="p-4">
         <div className="flex items-baseline justify-between">
           <h4 className="font-serif text-lg text-ink">{envelope.name}</h4>
-          <span className={`text-sm ${over ? 'text-red-600' : 'text-ash'}`}>
+          <span className={`text-sm ${over ? 'text-danger' : 'text-ash'}`}>
             {formatMoney(envelope.spent)} / {formatMoney(envelope.budget)}
           </span>
         </div>

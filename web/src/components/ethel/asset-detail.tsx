@@ -108,13 +108,13 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
             <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">
+                  <p className="text-muted">
                     {[asset.category, asset.manufacturer, asset.model].filter(Boolean).join(' · ') || '—'}
                   </p>
                   {asset.placeId && <p>{t('ethel.places.place')}: {placePath(places, asset.placeId)}</p>}
                   {asset.locationNote && <p>{t('ethel.fields.locationNote')}: {asset.locationNote}</p>}
                   {asset.serialNumber && <p>{t('ethel.fields.serialNumber')}: {asset.serialNumber}</p>}
-                  {asset.notes && <p className="text-muted-foreground">{asset.notes}</p>}
+                  {asset.notes && <p className="text-muted">{asset.notes}</p>}
                   {lifecycle && <p className="font-medium">{lifecycle}</p>}
                 </div>
 
@@ -156,12 +156,12 @@ export default function AssetDetail({ asset, places = [], onClose }: Props) {
                         <span>{totals.perYear === null ? '—' : formatMoney(totals.perYear)}</span>
                       </div>
                     </>
-                  ) : <p className="text-muted-foreground">{t('common.loading')}</p>}
+                  ) : <p className="text-muted">{t('common.loading')}</p>}
 
                   {links.length > 0 && (
                     <ul className="pt-2 space-y-1">
                       {links.map((link) => (
-                        <li key={link.id} className="flex justify-between text-xs text-muted-foreground">
+                        <li key={link.id} className="flex justify-between text-xs text-muted">
                           <span className="rounded-full bg-linen px-2 py-0.5">{t(`ethel.tco.kind.${link.kind}`)}</span>
                           <span>{link.transaction.payee} · {formatMoney(link.transaction.amount)}</span>
                         </li>

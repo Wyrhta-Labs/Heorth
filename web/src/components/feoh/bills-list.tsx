@@ -26,7 +26,7 @@ export default function BillsList({ bills, onRemove }: Props) {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm">{formatMoney(b.amount)}</span>
-                  <Button variant="ghost" size="icon" onClick={() => onRemove(b.id)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => onRemove(b.id)}><Trash2 className="h-3.5 w-3.5 text-danger" /></Button>
                 </div>
               </div>
               <OccurrenceStrip billId={b.id} />

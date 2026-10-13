@@ -101,7 +101,7 @@ export default function FacilityDetails({ assetId, facility, places = [], onRemo
             </div>
           </div>
           {/* Documentation, not a reminder: nothing schedules from it. */}
-          <p className="text-xs text-muted-foreground">{t('ethel.details.intervalHelp')}</p>
+          <p className="text-xs text-muted">{t('ethel.details.intervalHelp')}</p>
 
           <div className="space-y-1">
             <Label htmlFor="facility-serves">{t('ethel.facility.serves')}</Label>
@@ -126,7 +126,7 @@ export default function FacilityDetails({ assetId, facility, places = [], onRemo
             </select>
           </div>
 
-          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <div className="flex justify-between">
             <Button type="button" variant="outline" size="sm" onClick={handleRemove} disabled={!facility || remove.isPending}>
               {t('ethel.details.remove')}

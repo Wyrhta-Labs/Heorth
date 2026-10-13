@@ -106,18 +106,18 @@ export default function EventForm({ event, initialDate, onSubmit, onCancel, isLo
       <div className="space-y-1">
         <Label htmlFor="title">{t('calendar.form.title')}</Label>
         <Input id="title" {...register('title')} placeholder={t('calendar.form.titlePlaceholder')} />
-        {errors.title && <p className="text-xs text-red-600">{errors.title.message}</p>}
+        {errors.title && <p className="text-xs text-danger">{errors.title.message}</p>}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label htmlFor="startAt">{t('calendar.form.start')}</Label>
           <Input id="startAt" type="datetime-local" {...register('startAt')} />
-          {errors.startAt && <p className="text-xs text-red-600">{errors.startAt.message}</p>}
+          {errors.startAt && <p className="text-xs text-danger">{errors.startAt.message}</p>}
         </div>
         <div className="space-y-1">
           <Label htmlFor="endAt">{t('calendar.form.end')}</Label>
           <Input id="endAt" type="datetime-local" {...register('endAt')} />
-          {errors.endAt && <p className="text-xs text-red-600">{errors.endAt.message}</p>}
+          {errors.endAt && <p className="text-xs text-danger">{errors.endAt.message}</p>}
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm">

@@ -35,9 +35,9 @@ export default function ImportAccounts() {
   return (
     <div className="space-y-3">
       <h4 className="font-medium">{t('feoh.import.accounts.title')}</h4>
-      <p className="text-sm text-gray-500">{t('feoh.import.accounts.intro')}</p>
+      <p className="text-sm text-muted">{t('feoh.import.accounts.intro')}</p>
       {mappings.length === 0 ? (
-        <p className="text-sm text-gray-500">{t('feoh.import.accounts.empty')}</p>
+        <p className="text-sm text-muted">{t('feoh.import.accounts.empty')}</p>
       ) : (
         <ul className="zebra divide-y divide-tan">
           {mappings.map((m) => (

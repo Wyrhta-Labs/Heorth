@@ -42,4 +42,13 @@ describe('AppShell', () => {
     await screen.findByText('page /calendar');
     await waitFor(() => expect(main.scrollTop).toBe(0));
   });
+
+  it('keeps room for the bottom bar and the safe area until md, where the bar goes', async () => {
+    renderShell();
+    const main = await screen.findByRole('main');
+    expect(main).toHaveClass('pb-[calc(5rem+env(safe-area-inset-bottom,0px))]', 'md:pb-6');
+    // A padding shorthand below md (sm:p-5) would reset the bottom padding
+    // between 640px and 767px, where the bottom bar still covers the page.
+    expect(main.className).not.toMatch(/(^|\s)sm:p-\d/);
+  });
 });

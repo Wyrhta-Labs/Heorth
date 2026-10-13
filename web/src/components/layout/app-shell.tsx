@@ -63,7 +63,7 @@ export default function AppShell() {
           <main
             ref={mainRef}
             {...{ [SCROLL_ROOT_ATTR]: '' }}
-            className="min-h-0 flex-1 overflow-y-auto p-3 pb-20 sm:p-5 md:pb-6"
+            className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:px-5 sm:pt-5 md:pb-6"
           >
             <Outlet />
           </main>

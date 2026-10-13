@@ -15,6 +15,14 @@ describe('titleKeyFor', () => {
     expect(titleKeyFor('/household/connections')).toBe('nav.household');
   });
 
+  it('gives every sidebar destination a title, so the top bar never falls back to the app name', () => {
+    // /hearth is the wall display: it renders outside the shell, with no top bar.
+    for (const item of navItems.filter((i) => !i.external && i.to !== '/hearth')) {
+      const path = item.activePrefix ?? item.to;
+      expect(titleKeyFor(path), path).toBeDefined();
+    }
+  });
+
   it('returns undefined for an unknown path', () => {
     expect(titleKeyFor('/nope')).toBeUndefined();
   });

@@ -14,6 +14,7 @@ type PageTitleKey = NavLabelKey | 'nav.homeTitle';
 const PAGE_TITLES: Record<string, PageTitleKey> = {
   '/': 'nav.homeTitle',
   '/calendar': 'nav.calendar',
+  '/tasks': 'nav.tasks',
   '/meals': 'nav.meals',
   '/feoh': 'nav.feoh',
   '/ethel': 'nav.ethel',

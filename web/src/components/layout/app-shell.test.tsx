@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { createRootRoute, createRoute, createRouter, createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import AppShell from './app-shell';
 
 vi.mock('@/hooks/use-features', () => ({ useFeatures: () => ({ data: { data: { kithledgerUrl: null } } }) }));
 vi.mock('@/hooks/use-household', () => ({ useWhoami: () => ({ data: undefined }) }));
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ logout: vi.fn() }) }));
-vi.mock('@/hooks/use-nav-counts', () => ({ useNavCounts: () => ({ tasks: 2, shopping: 0, weorc: undefined, feoh: 1 }) }));
+vi.mock('@/hooks/use-nav-counts', () => ({ useNavCounts: () => ({ tasks: 2, shopping: 3, weorc: undefined, feoh: 1 }) }));
 
 function renderShell() {
   const root = createRootRoute({ component: AppShell });
@@ -29,7 +29,9 @@ describe('AppShell', () => {
   it('passes the nav counts to the sidebar', async () => {
     renderShell();
     await screen.findByRole('main');
-    expect(document.querySelectorAll('aside [data-nav-badge]')).toHaveLength(2);
+    expect(document.querySelectorAll('aside [data-nav-badge]')).toHaveLength(3);
+    // The bottom bar (MobileNav) gets them too: its Shopping tab shows the count.
+    expect(within(document.querySelector('nav.fixed') as HTMLElement).getByLabelText('3 open')).toBeInTheDocument();
   });
 
   it('scrolls inside <main>, marked as the scroll root, and resets it on navigation', async () => {

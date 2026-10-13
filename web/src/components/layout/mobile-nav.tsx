@@ -5,7 +5,7 @@ import { Sun, ShoppingCart, PlusCircle, Menu, LogOut } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { useFeatures } from '@/hooks/use-features';
-import { GROUP_KEYS, NavBadge, navGroups, navItemsForFeatures, type NavCounts } from './sidebar';
+import { GROUP_KEYS, NavBadge, isNavItemActive, navGroups, navItemsForFeatures, type NavCounts } from './sidebar';
 import { cn } from '@/lib/utils';
 
 const TABS = [
@@ -37,6 +37,7 @@ export default function MobileNav({ counts = {} }: { counts?: NavCounts }) {
             <Link
               key={to}
               to={to}
+              aria-current={active ? 'page' : undefined}
               className={cn(
                 'relative flex flex-1 flex-col items-center gap-px py-1.5 text-[10px] font-medium',
                 active ? 'text-nav-fg' : 'text-nav-muted',
@@ -76,6 +77,7 @@ export default function MobileNav({ counts = {} }: { counts?: NavCounts }) {
                 </div>
                 {items.map((item) => {
                   const { to, labelKey, icon: Icon, external } = item;
+                  const active = !external && isNavItemActive(item, pathname);
                   const badge = <NavBadge count={item.count ? counts[item.count] : undefined} className="ml-auto" />;
                   return external ? (
                     <a
@@ -94,6 +96,7 @@ export default function MobileNav({ counts = {} }: { counts?: NavCounts }) {
                     <Link
                       key={to}
                       to={to}
+                      aria-current={active ? 'page' : undefined}
                       onClick={() => setMoreOpen(false)}
                       className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[13.5px] font-medium text-fg hover:bg-surface-2"
                     >

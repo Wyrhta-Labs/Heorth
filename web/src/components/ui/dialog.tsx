@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 interface DialogProps {
@@ -42,10 +43,31 @@ function lockScroll(): () => void {
   };
 }
 
+// Open dialogs, oldest first; Escape closes only the last (topmost) one.
+const openStack: symbol[] = [];
+
 function Dialog({ open, onOpenChange, children, className }: DialogProps) {
+  const onOpenChangeRef = React.useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+
   React.useEffect(() => {
     if (!open) return;
     return lockScroll();
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const id = Symbol('dialog');
+    openStack.push(id);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && openStack[openStack.length - 1] === id) onOpenChangeRef.current(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      const i = openStack.indexOf(id);
+      if (i !== -1) openStack.splice(i, 1);
+    };
   }, [open]);
 
   if (!open) return null;
@@ -53,7 +75,7 @@ function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-backdrop" onClick={() => onOpenChange(false)} />
-      <div className={cn('relative z-50 w-full max-w-lg', className)}>{children}</div>
+      <div role="dialog" aria-modal="true" className={cn('relative z-50 w-full max-w-lg', className)}>{children}</div>
     </div>
   );
 }
@@ -98,9 +120,11 @@ interface DialogCloseProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 function DialogClose({ onClose, className, ...props }: DialogCloseProps) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={onClose}
+      aria-label={t('common.close')}
       className={cn('absolute right-4 top-4 rounded-sm text-faint hover:text-fg', className)}
       {...props}
     >

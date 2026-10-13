@@ -59,4 +59,27 @@ describe('MobileNav "More" sheet', () => {
     renderAt('/', { shopping: 4 });
     expect(await screen.findByLabelText('4 open')).toBeInTheDocument();
   });
+
+  it('marks the active bottom-bar tab with aria-current', async () => {
+    renderAt('/today');
+    expect(await screen.findByRole('link', { name: /today/i })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: /shopping/i })).not.toHaveAttribute('aria-current');
+  });
+
+  it('marks the active More-sheet link with aria-current', async () => {
+    renderAt('/calendar');
+    await openMore();
+    const links = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/calendar');
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute('aria-current', 'page');
+    const other = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/weorc');
+    expect(other[0]).not.toHaveAttribute('aria-current');
+  });
+
+  it('marks a More-sheet link active across its activePrefix, as the sidebar does', async () => {
+    renderAt('/household/settings');
+    await openMore();
+    const link = screen.getAllByRole('link').find((l) => l.getAttribute('href') === '/household/members');
+    expect(link).toHaveAttribute('aria-current', 'page');
+  });
 });

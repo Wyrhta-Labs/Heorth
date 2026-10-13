@@ -63,7 +63,15 @@ declared, so each one yields utilities (`bg-surface-2`, `text-muted`,
 | Nav | `nav-bg`, `nav-fg`, `nav-muted`, `nav-hover`, `nav-active` |
 | Overlay | `backdrop` |
 | Shape | `radius` (8px), `radius-sm` (5px), `shadow-sm`, `shadow` |
-| Type | `font-sans`, `font-serif`, `font-mono`, base size 13.5px |
+| Type | `font-sans`, `font-serif`, `font-mono` |
+
+**Density.** The mockup sets `body { font-size: 13.5px }`, which reaches only
+inherited, unclassed copy. Heorth's root font size stays 16px: lowering it would
+shrink Tailwind's whole `rem` scale — spacing, radii and dimensions too — by
+about 16%. Instead `body` gets 13.5px for inherited copy, and the primitives
+(§2) and shell (§3) set the mockup's pixel sizes explicitly. Page-level
+`text-sm` / `text-xs` utilities are retuned where the visual pass shows they
+read too large, not by a global change.
 
 The existing names (`parchment`, `linen`, `card`, `ink`, `ash`, `tan`, `ember`,
 `ember-soft`, `taupe`, `sage`, `sky`, `amber`) are used in several hundred
@@ -98,6 +106,10 @@ today's `index.css` go away: shadows and heading weight become token-driven.
   migration (`npm run db:generate -- --name appearance_default_slate`).
 - `web/src/lib/theme.ts`: `DEFAULT_THEME = 'slate'`.
 - `web/index.html`: `theme-color` meta starts at Slate's primary.
+- `web/public/manifest.webmanifest`: `theme_color` becomes Slate's light
+  primary. A manifest cannot follow device dark mode, so an installed PWA's
+  splash and chrome stay static at that colour; the `<meta>` tags below take
+  over once the page is running.
 
 **A household whose row already says `hearth` keeps it** until an admin switches
 in the household settings. The migration changes the column default only. A
@@ -112,18 +124,26 @@ light/dark, so `index.html` carries two metas with `media` attributes and
 
 ## 2. Primitives
 
-All in `web/src/components/ui/`. Each keeps its export names and props; variant
-names change where stated, and call sites are updated in the same commit.
+All in `web/src/components/ui/`. Each keeps its export names, props **and
+existing variant names**: the variants are restyled, not renamed, so the
+visual hierarchy call sites rely on survives and no call site has to change.
+New variants are added alongside.
 
 - **`button.tsx`** — base: `radius-sm`, 1.5px transparent border, weight 600,
-  13px, gap 6px, disabled at 45% opacity. Variants: `primary` (default),
-  `ghost` (strong border, muted text), `danger`, `warning`, `success`, `link`.
-  `danger` and `warning` are the mockup's tinted style (status background,
-  status border, status text); `success` is solid. Sizes: `default`, `sm`,
-  `icon`. The old names map as `default` → `primary`, `destructive` → `danger`,
-  `outline` and `secondary` → `ghost`; today's borderless `ghost` uses (icon
-  buttons in rows) take `ghost` with `size="icon"`. `lg` is dropped if unused,
-  kept otherwise.
+  13px, gap 6px, disabled at 45% opacity. Existing variants, restyled:
+
+  | Variant | Uses (non-test) | Mockup style |
+  |---|---:|---|
+  | `default` | — | `.btn-primary`: solid primary |
+  | `outline` | 48 | `.btn-ghost`: strong border, muted text, `surface-2` on hover |
+  | `secondary` | 4 | filled `surface-3`, text colour, no border |
+  | `ghost` | 12 | borderless, muted text, `surface-2` on hover |
+  | `destructive` | 5 | `.btn-danger`: tinted danger ground, border and text |
+  | `link` | — | `.btn-link` |
+
+  Added: `warning` (`.btn-warning`, tinted) and `success` (`.btn-success`,
+  solid). Sizes `default`, `sm`, `lg`, `icon` stay, retuned to the mockup's
+  padding (`sm` = `.btn.sm`).
 - **`card.tsx`** — `surface` ground, `border`, `radius`, `shadow-sm`.
   `CardHeader` becomes the mockup's strip: `surface-2` ground, bottom border,
   10px/16px padding, row layout. `CardTitle` is 13px bold. `CardContent` is
@@ -135,9 +155,11 @@ names change where stated, and call sites are updated in the same commit.
   to replace them with. The header strip takes the tint instead of `surface-2`
   on a toned card.
 - **`badge.tsx`** — the mockup's chip: pill, 11px, weight 600, 1px border.
-  Variants `neutral` (default), `ok`, `warn`, `bad`, `info`, `accent`,
-  `primary`. Old names map as `secondary`/`outline` → `neutral`, `success` →
-  `ok`, `warning` → `warn`, `destructive` → `bad`, `default` → `primary`.
+  Existing variants restyled: `default` → `.chip.pri`, `secondary` → filled
+  neutral (`surface-3` ground, no visible border), `outline` → `.chip`
+  (bordered `surface-2`), `success` → `.chip.ok`, `warning` → `.chip.warn`,
+  `destructive` → `.chip.bad`. Added: `info` (`.chip.info`) and `accent`
+  (`.chip.acc`).
 - **`input.tsx`, `textarea.tsx`** — `border-strong`, 6px radius, `surface`
   ground, focus ring in `primary`.
 - **`table.tsx`** — header cells 10px uppercase on `surface-2` with a 1.5px
@@ -183,7 +205,9 @@ unless the same concept has a different glyph in the mockup (`Settings2` →
 - **Rail:** below 1100px the sidebar is 64px, labels and group headings hidden,
   icons centred, badge pinned to the icon's corner, each item carrying its
   label as `title`. Below `md` (768px) the sidebar is hidden and the bottom bar
-  takes over, as today.
+  takes over, as today. This is a **deliberate deviation**: the mockup switches
+  at 860px; Heorth keeps its existing `md` breakpoint so page layouts that
+  already key off `md` do not shift.
 
 New i18n keys in `en.json` and `de.json`: `nav.group.day`,
 `nav.group.household`, `nav.group.system`, and an accessible badge label
@@ -206,35 +230,70 @@ badge. The More sheet lists the grouped items with their badges.
 `bg` ground. The shell becomes a fixed-height grid (sidebar | main) with the
 main column scrolling, so the sidebar and top bar stay put — the mockup's
 behaviour, and what the rail needs. `/hearth` is outside the shell and
-unaffected.
+unaffected (verified: `app.tsx:63-74`).
+
+Mechanics: the shell root is `h-dvh` (not today's `min-h-screen`) with
+`overflow-hidden`; the main column is `flex flex-col min-h-0`, and `<main>` is
+`flex-1 min-h-0 overflow-y-auto`. That moves the scroll owner from the window
+to `<main>`, which has two consequences the work must handle:
+
+- `dialog.tsx` locks scrolling on `body`; it must lock the shell's `<main>`
+  too, or the page scrolls under an open dialog.
+- Scroll position on navigation: `<main>` is reset to the top on route change
+  (the router's window scroll restoration no longer reaches it). No current
+  page uses `position: sticky` or reads window scroll, so nothing else moves.
 
 ### Count badges (`web/src/hooks/use-nav-counts.ts`)
 
 One hook returning `{ tasks, shopping, weorc, feoh }`, each a number or
-`undefined` while unknown. It composes existing queries so the cache is shared
-with the pages that show the same data:
+`undefined` while unknown. It runs its own `useQuery` calls **with the same
+query keys and query functions** the pages use, so the cache is shared with
+those pages, and sets a 5-minute `staleTime` on them (the existing hooks do not
+take query options, and are not changed for this):
 
-| Badge | Source | Count |
+| Badge | Query key / function | Count |
 |---|---|---|
-| Tasks | `useTasks({ status: 'open' })` — the query the start page's due-work card already runs | tasks with `dueAt` on or before the household's today |
-| Shopping | `useShoppingList()` | unchecked items |
-| Weorc | `useOccurrences({ status: 'due', due_to: <today> })` | `meta.total`, or the row count if the endpoint is unpaginated |
-| Feoh | `useImportStatus()` | `data.pendingCount` |
+| Tasks | the `useTasks({ status: 'open' })` key, `tasks.listTasks({ status: 'open' })` | open tasks whose `dueAt`, read as a date in the household's time zone, is on or before the household's today |
+| Shopping | `QUERY_KEYS.shoppingList`, `meals.listShoppingItems()` | items with `checked === false` |
+| Weorc | the Weorc page's occurrences key, `weorc.listOccurrences({ status: 'due', due_to: <today> })` (`api/weorc.ts`, **not** Feoh's `useOccurrences`) | `meta.total` |
+| Feoh | `QUERY_KEYS.importStatus`, `feohImport.getImportStatus()` | `data.pendingCount` |
 
-- "Today" is the household's local date, computed the way the start page's
-  due-work card computes it — not from `toISOString()`.
-- A query that errors or 404s (a module whose routes are not mounted) yields
-  `undefined` and no badge. It must not raise a toast or an error state: a
-  badge is decoration on the nav, not the page's content.
-- Counts refresh through the pages' own invalidations, plus a 5-minute
-  `staleTime` so navigating does not refetch four lists each time.
+- **Today** is `todayInTimeZone(household.timezone)` (`lib/format.ts`), the
+  client counterpart of the server's `householdToday()`, as the Weorc page and
+  the start page's due-work card use it. The Tasks count compares each
+  `dueAt`'s date **in that zone** (`todayInTimeZone(tz, new Date(dueAt))`)
+  against it — it does not pass a `due_to` date to the server, because the tasks
+  endpoint reads `due_to` as an instant and a bare date would mean midnight UTC.
+  Tasks without `dueAt` do not count.
+- All four endpoints are always mounted and readable by every authenticated
+  member (Feoh and Weorc are always-on modules; ingestion status answers even
+  with import disabled, then with `pendingCount: 0`). So the failure cases are
+  ordinary errors and offline. **Non-401 errors are swallowed**: the count is
+  `undefined`, no badge, no toast, no error state, `retry: false`. A **401**
+  keeps the client's existing global behaviour (logout and redirect to login) —
+  the shell is no new path to that.
+- **Offline:** the queries fail and the badges disappear; the Shopping badge
+  does not read the offline shopping store.
+- **Load:** the shell adds four requests on first mount (alongside its existing
+  whoami/features/household requests); after that, the 5-minute `staleTime`
+  and the pages' own invalidations keep them current without refetching on
+  every navigation.
 - The login page and `/hearth` do not mount the shell and run none of this.
 
 ## 4. Colour sweep
 
-140 hard-coded Tailwind colour classes in 48 non-test files (`bg-white`,
-`text-gray-900`, `bg-red-600`, `bg-yellow-100`, …) and 9 hex literals move onto
-tokens. Dark mode is unusable until they do. Mapping:
+Hard-coded Tailwind palette classes (`bg-white`, `text-gray-900`,
+`bg-red-600`, `bg-yellow-100`, …) and presentation hex literals move onto
+tokens. Dark mode is unusable until they do. The inventory is whatever this
+pattern finds in non-test `web/src/**/*.{ts,tsx}` — the same pattern the guard
+test uses, so the guard's first run *is* the work list:
+
+```
+(bg|text|border|ring|divide|from|to|fill|stroke|placeholder|outline|accent|shadow)-(white|black|(gray|slate|zinc|neutral|stone|red|green|blue|yellow|orange|amber|emerald|indigo|purple|pink|rose|teal|cyan|lime|violet|sky|fuchsia)-[0-9]{2,3})
+```
+
+On 2026-10-13 it finds 140 matches in 48 files (a looser scan finds up to 164
+in 52; the plan records the guard's own output as the baseline). Mapping:
 
 | Hard-coded | Token |
 |---|---|
@@ -252,23 +311,40 @@ tokens. Dark mode is unusable until they do. Mapping:
 | `black/NN` overlay | `backdrop` |
 | `text-white` on a solid colour | `on-primary` |
 
-Hex literals that are **data** stay: member avatar colours, the browser-chrome
-colours in `theme.ts`, and any colour a user picked.
+Hex literals fall into three kinds, and only the last is swept:
 
-A guard keeps it done: a Vitest test that scans `web/src/**/*.{ts,tsx}`
-(tests excluded) for the hard-coded palette pattern and fails on a match
-outside an explicit allowlist.
+- **Theme values** — `lib/theme.ts`'s browser-chrome colours: they must be
+  literal, a `<meta>` cannot read a CSS variable.
+- **Data** — member avatar colours (`lib/constants.ts`), the wall display's
+  per-member and per-calendar colours (`lib/hearth.ts`), and any colour a user
+  picked.
+- **Presentation** — a hex used to paint UI chrome. These become tokens.
+
+A guard keeps it done: a Vitest test that scans non-test
+`web/src/**/*.{ts,tsx}` with the pattern above and fails on any match outside
+an allowlist. The allowlist is explicit per file and per reason (the theme and
+data files above); a new entry needs a comment saying which kind it is.
 
 ## 5. Phases
 
-Each phase leaves the app working and is committed on its own.
+Each phase is committed on its own and leaves the build and the tests green.
+They are **not** each a visual release: dark Slate is unusable until the sweep
+is done. So the phases land on `feat/slate-mockup-look` and merge to `main`
+together, after the visual pass. One implementation plan covers all six.
 
-1. **Foundation** — tokens, aliases, the three blocks, default theme and
-   migration, theme-color metas.
-2. **Primitives** — the `ui/` components and their call-site renames.
-3. **Shell** — sidebar groups and rail, top bar, bottom bar, app shell, i18n.
+The **dark block is written in phase 1 but switched on in phase 5**, once the
+sweep is through — until then the media query is absent, so every intermediate
+commit renders light Slate correctly.
+
+1. **Foundation** — tokens, aliases, the Slate-light and Hearth blocks, the
+   (inactive) Slate-dark block, default theme and migration, manifest and
+   theme-color metas.
+2. **Primitives** — the `ui/` components restyled, new variants added.
+3. **Shell** — sidebar groups and rail, top bar, bottom bar, app shell with
+   its scroll mechanics and dialog scroll lock, i18n.
 4. **Badges** — `useNavCounts` and its wiring.
-5. **Sweep** — pages and feature components, with the guard test last.
+5. **Sweep** — pages and feature components, the guard test, then dark switched
+   on.
 6. **Visual pass** — every page, Slate light and Slate dark, in the dev stack;
    fixes land here.
 
@@ -281,11 +357,14 @@ Each phase leaves the app working and is committed on its own.
 - **Sidebar:** grouping (every item in exactly one group, KithLedger appended
   to System only when configured), active state, badge shown at >0 and absent
   at 0 and at `undefined`, accessible badge label.
-- **`useNavCounts`:** each count from mocked query data; an errored query
-  yields `undefined` without throwing; the Tasks count respects the household
-  date boundary.
-- **Primitives:** existing tests updated for renamed variants; `Button` and
-  `Badge` render each variant.
+- **`useNavCounts`:** each count from mocked query data; a 500 yields
+  `undefined` with no toast; a 401 still reaches the client's logout path; the
+  Tasks count puts a task due at 23:30 household time on today and one due at
+  00:30 the next household day on tomorrow, with the household zone differing
+  from UTC; the Weorc count reads `meta.total` from the Weorc endpoint.
+- **Shell:** opening a dialog locks the `<main>` scroller; navigating resets
+  `<main>` to the top.
+- **Primitives:** `Button` and `Badge` render every variant, old and new.
 - **Guard:** the hard-coded-colour scan.
 - **Existing suites** stay green; assertions on class names that changed are
   updated, assertions on behaviour are not.
@@ -305,6 +384,6 @@ Each phase leaves the app working and is committed on its own.
 - **The wall display in dark.** `/hearth` uses tokens throughout and will turn
   dark on a kiosk whose OS is dark. That is the intended behaviour; the pass
   confirms it is legible at wall distance.
-- **Variant renames** touch many call sites. TypeScript catches every one —
-  `cva` variants are typed — so a missed site is a compile error, not a silent
-  fallback.
+- **Restyled variants change many screens at once** (48 `outline` buttons
+  alone). Names stay, so nothing breaks at compile time; the visual pass is
+  where a button whose new style reads wrong in context gets caught.

@@ -1,17 +1,19 @@
+import { parseISO } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { useFormatters } from '@/hooks/use-formatters';
 import { MEAL_SLOTS } from '@/lib/constants';
 import type { MealPlanEntry, MealSlot } from '@/lib/types';
 
 interface Props {
+  /** The week's seven household dates (`YYYY-MM-DD`), Monday first. */
+  days: string[];
   entries: MealPlanEntry[];
   onAssign: (date: string, slot: MealSlot) => void;
 }
 
-export default function WeekPlanner({ entries, onAssign }: Props) {
+export default function WeekPlanner({ days, entries, onAssign }: Props) {
   const { t } = useTranslation();
-  const { weekDays, dayLabel } = useFormatters();
-  const days = weekDays();
+  const { dayLabel } = useFormatters();
   const cell = (iso: string, slot: MealSlot) => entries.find((e) => e.date === iso && e.slot === slot);
 
   return (
@@ -20,8 +22,8 @@ export default function WeekPlanner({ entries, onAssign }: Props) {
         <thead>
           <tr>
             <th></th>
-            {days.map((d) => {
-              const { dow, dom, iso } = dayLabel(d);
+            {days.map((iso) => {
+              const { dow, dom } = dayLabel(parseISO(iso));
               return <th key={iso} className="text-center text-xs text-ash font-medium">{dow} {dom}</th>;
             })}
           </tr>
@@ -30,8 +32,7 @@ export default function WeekPlanner({ entries, onAssign }: Props) {
           {MEAL_SLOTS.map((s) => (
             <tr key={s.value}>
               <td className="text-xs uppercase text-ash pr-2 whitespace-nowrap">{t(s.labelKey)}</td>
-              {days.map((d) => {
-                const iso = dayLabel(d).iso;
+              {days.map((iso) => {
                 const entry = cell(iso, s.value);
                 // The entry carries its recipe; the recipe list is paged and would miss it.
                 const label = entry ? (entry.recipe?.title ?? entry.freeText ?? '—') : null;

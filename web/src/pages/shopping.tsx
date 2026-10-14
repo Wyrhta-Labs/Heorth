@@ -1,8 +1,9 @@
-import { startOfWeek, endOfWeek, format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import ShoppingList from '@/components/meals/shopping-list';
 import OfflineBanner from '@/components/pwa/offline-banner';
 import { useOfflineShoppingList } from '@/hooks/use-offline-shopping-list';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
+import { weekOfIso } from '@/lib/format';
 
 /**
  * Phone-first shopping list: one-handed, big check-offs, and — the killer
@@ -11,8 +12,10 @@ import { useOfflineShoppingList } from '@/hooks/use-offline-shopping-list';
  */
 export default function ShoppingPage() {
   const { t } = useTranslation();
-  const from = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-  const to = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+  // Generation covers the HOUSEHOLD's week; offline, /household fails and
+  // the browser's week stands in.
+  const { zone, ready } = useHouseholdZone();
+  const week = weekOfIso(useHouseholdToday(zone));
   const { items, isOffline, dataAsOf, pendingCount, toggle, add, remove, generate } = useOfflineShoppingList();
 
   return (
@@ -24,7 +27,8 @@ export default function ShoppingPage() {
         onToggle={toggle}
         onAdd={add}
         onRemove={remove}
-        onGenerate={() => generate(from, to)}
+        onGenerate={() => generate(week[0]!, week[6]!)}
+        generateDisabled={!ready}
       />
     </div>
   );

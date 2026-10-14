@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { startOfWeek, addDays, format, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
@@ -15,7 +15,7 @@ import { retryOf } from '@/lib/query-error';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import { monthGrid } from '@/lib/calendar-grid';
-import { dayWindowInTimeZone } from '@/lib/format';
+import { dayWindowInTimeZone, weekOfIso } from '@/lib/format';
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/use-calendar';
 import type { Event, EventOccurrence } from '@/lib/types';
 
@@ -35,8 +35,7 @@ export default function CalendarPage() {
   const { zone: timeZone, ready } = useHouseholdZone();
   const todayIso = useHouseholdToday(timeZone);
   const today = parseISO(todayIso); // local-midnight carrier of the household date
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const weekDays = Array.from({ length: 7 }, (_, i) => format(addDays(weekStart, i), 'yyyy-MM-dd'));
+  const weekDays = weekOfIso(todayIso);
   const grid = monthGrid(today.getFullYear(), today.getMonth()).flat();
   // The whole visible range, leading/trailing month days included.
   const { from, to } = view === 'week'

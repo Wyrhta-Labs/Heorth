@@ -20,6 +20,9 @@ vi.mock('@/hooks/use-meals', () => ({
   useUpdateShoppingItem: () => mutation,
   useRemoveShoppingItem: () => mutation,
 }));
+vi.mock('@/hooks/use-household', () => ({
+  useHousehold: () => ({ data: { data: { timezone: 'Europe/Berlin' } }, isError: false }),
+}));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 import MealsPage from './meals';

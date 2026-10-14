@@ -144,6 +144,12 @@ export function addDaysIso(iso: string, days: number): string {
   return format(addDays(parseISO(iso), days), 'yyyy-MM-dd');
 }
 
+/** The seven dates (`YYYY-MM-DD`) of the Monday-first week containing date `iso` — pure date arithmetic. */
+export function weekOfIso(iso: string): string[] {
+  const first = startOfWeek(parseISO(iso), { weekStartsOn: 1 });
+  return Array.from({ length: 7 }, (_, i) => format(addDays(first, i), 'yyyy-MM-dd'));
+}
+
 /**
  * The inclusive instant window (ISO-8601, UTC) covering household days
  * `fromDay` through `toDay`: `fromDay`'s midnight in `timeZone` up to the

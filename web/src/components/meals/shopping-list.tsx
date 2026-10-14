@@ -16,9 +16,11 @@ interface Props {
   onAdd: (name: string) => void;
   onRemove: (id: string) => void;
   onGenerate: () => void;
+  /** Generation needs the household's week; off until it is known. */
+  generateDisabled?: boolean;
 }
 
-export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGenerate }: Props) {
+export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGenerate, generateDisabled }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const sorted = sortItems(items);
@@ -28,7 +30,7 @@ export default function ShoppingList({ items, onToggle, onAdd, onRemove, onGener
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm text-ash">{t('shopping.toBuy', { count: items.filter((i) => !i.checked).length })}</span>
-        <Button variant="outline" size="sm" onClick={onGenerate}>{t('shopping.generateFromWeek')}</Button>
+        <Button variant="outline" size="sm" onClick={onGenerate} disabled={generateDisabled}>{t('shopping.generateFromWeek')}</Button>
       </div>
       <ul className="zebra space-y-1.5">
         {sorted.map((item) => (

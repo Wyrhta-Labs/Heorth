@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Plus, ShoppingCart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { startOfWeek, endOfWeek, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SectionCard } from '@/components/ui/section-tone';
@@ -14,6 +13,8 @@ import WeekPlanner from '@/components/meals/week-planner';
 import ShoppingList from '@/components/meals/shopping-list';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
+import { weekOfIso } from '@/lib/format';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import {
   useRecipes, useCreateRecipe, useUpdateRecipe, useWeekPlan, useUpsertPlanEntry,
   useShoppingList, useGenerateShoppingList, useAddShoppingItem, useUpdateShoppingItem, useRemoveShoppingItem,
@@ -23,12 +24,17 @@ import type { Recipe, MealSlot } from '@/lib/types';
 export default function MealsPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const from = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-  const to = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+  // The planner's week is the HOUSEHOLD's (its dates are what the server
+  // stores), not the browser's. Nothing is fetched or planned until the
+  // household's zone is known; if /household fails, the browser's stands in.
+  const { zone, ready } = useHouseholdZone();
+  const week = weekOfIso(useHouseholdToday(zone));
+  const from = week[0]!;
+  const to = week[6]!;
 
   const recipesQuery = useRecipes();
   const recipes = recipesQuery.data?.data ?? [];
-  const planQuery = useWeekPlan(from, to);
+  const planQuery = useWeekPlan(from, to, { enabled: ready });
   const entries = planQuery.data?.data ?? [];
   const listQuery = useShoppingList();
   const items = listQuery.data?.data ?? [];
@@ -72,7 +78,9 @@ export default function MealsPage() {
 
       <TabsContent value="planner">
         <Card><CardContent className="p-4">
-          <WeekPlanner entries={entries} onAssign={(date, slot) => setAssign({ date, slot })} />
+          {ready
+            ? <WeekPlanner days={week} entries={entries} onAssign={(date, slot) => setAssign({ date, slot })} />
+            : <div className="text-sm text-ash" aria-busy="true">{t('common.loading')}</div>}
         </CardContent></Card>
       </TabsContent>
 
@@ -91,6 +99,7 @@ export default function MealsPage() {
             onAdd={(name) => addItem.mutate({ name })}
             onRemove={(id) => removeItem.mutate(id)}
             onGenerate={() => generate.mutate({ from, to }, { onSuccess: () => toast(t('meals.listGenerated'), 'success') })}
+            generateDisabled={!ready}
           />
         </SectionCard>
       </TabsContent>

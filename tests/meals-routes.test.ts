@@ -121,6 +121,33 @@ describe('recipe search (q)', () => {
     expect((await get(adult, '?q=%20%20')).body.meta.total).toBe(5);
   });
 
+  it('matches a literal backslash in the title and in the term', async () => {
+    const adult = await seed();
+    await app.request('/api/v1/recipes', {
+      method: 'POST', headers: authHeaders(adult.jwt),
+      body: JSON.stringify({ title: 'Back\\slash stew', servings: 2, ingredients: [], steps: [], tags: [] }),
+    });
+    expect((await get(adult, `?q=${encodeURIComponent('\\')}`)).body.data.map((r) => r.title)).toEqual(['Back\\slash stew']);
+    expect((await get(adult, `?q=${encodeURIComponent('k\\s')}`)).body.data.map((r) => r.title)).toEqual(['Back\\slash stew']);
+  });
+
+  it('pages recipes with equal titles without repeating or skipping any', async () => {
+    const { adult } = await seedTestHousehold();
+    for (let i = 0; i < 5; i++) {
+      await app.request('/api/v1/recipes', {
+        method: 'POST', headers: authHeaders(adult.jwt),
+        body: JSON.stringify({ title: 'Same', servings: 2, ingredients: [], steps: [], tags: [] }),
+      });
+    }
+    const ids: string[] = [];
+    for (let offset = 0; offset < 5; offset++) {
+      const res = await app.request(`/api/v1/recipes?limit=1&offset=${offset}`, { headers: authHeaders(adult.jwt) });
+      ids.push(...(await res.json() as { data: Array<{ id: string }> }).data.map((r) => r.id));
+    }
+    expect(new Set(ids).size).toBe(5);
+    expect(ids).toEqual([...ids].sort());
+  });
+
   it('rejects an over-long term', async () => {
     const adult = await seed();
     expect((await get(adult, `?q=${'a'.repeat(101)}`)).status).toBe(400);

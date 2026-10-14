@@ -28,16 +28,17 @@ export default function RecipePicker({ onPick }: Props) {
     <div className="space-y-2">
       <Input type="search" value={term} onChange={(e) => setTerm(e.target.value)}
         placeholder={t('meals.searchRecipes')} aria-label={t('meals.searchRecipes')} />
-      <div className="space-y-2 max-h-96 overflow-y-auto">
+      {/* While a new search loads, the previous results stay (no flicker) but are dimmed and disabled. */}
+      <div className="space-y-2 max-h-96 overflow-y-auto" aria-busy={query.isPlaceholderData}>
         {recipes.map((r) => (
-          <button key={r.id} onClick={() => onPick(r.id)}
-            className="block w-full rounded-lg border border-tan px-3 py-2 text-left text-sm hover:border-ember">{r.title}</button>
+          <button key={r.id} onClick={() => onPick(r.id)} disabled={query.isPlaceholderData}
+            className="block w-full rounded-lg border border-tan px-3 py-2 text-left text-sm hover:border-ember disabled:opacity-50 disabled:hover:border-tan">{r.title}</button>
         ))}
         {query.data && recipes.length === 0 && (
           <div className="py-2 text-center text-sm text-ash">{debounced.trim() ? t('meals.noRecipeMatches') : t('meals.noRecipesYet')}</div>
         )}
         {query.hasNextPage && (
-          <Button variant="outline" className="w-full" onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage}>
+          <Button variant="outline" className="w-full" onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage || query.isPlaceholderData}>
             {t('meals.loadMore')}
           </Button>
         )}

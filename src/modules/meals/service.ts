@@ -1,6 +1,6 @@
 import { db } from '../../db/index.js';
 import { recipes, mealPlanEntries, shoppingListItems, type Recipe, type ShoppingListItem } from './schema.js';
-import { eq, and, gte, lte, sql, isNotNull, inArray, ilike } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNotNull, inArray } from 'drizzle-orm';
 import type { CreateRecipeInput, UpdateRecipeInput, UpsertPlanEntryInput, AddShoppingItemInput, UpdateShoppingItemInput } from './validators.js';
 import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 
@@ -10,13 +10,15 @@ export async function listRecipes(q: { limit?: number; offset?: number; tag?: st
   const conditions = [];
   if (q.tag) conditions.push(sql`${q.tag} = ANY(${recipes.tags})`);
   if (q.q) {
-    // Escape LIKE wildcards (Postgres' default ESCAPE is backslash) so a literal
-    // "%" or "_" in the term is not a wildcard.
+    // Escape LIKE wildcards so a literal "%", "_" or backslash in the term is not
+    // a wildcard; the ESCAPE clause is spelled out rather than left to Postgres'
+    // default (drizzle's ilike() emits none). String.raw keeps the single backslash.
     const escaped = q.q.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-    conditions.push(ilike(recipes.title, `%${escaped}%`));
+    conditions.push(sql`${recipes.title} ILIKE ${`%${escaped}%`} ESCAPE ${sql.raw(String.raw`'\'`)}`);
   }
   const where = conditions.length ? and(...conditions) : undefined;
-  const rows = await db.select().from(recipes).where(where).orderBy(recipes.title).limit(limit).offset(offset);
+  // id breaks title ties so equal titles keep one order across paged requests.
+  const rows = await db.select().from(recipes).where(where).orderBy(recipes.title, recipes.id).limit(limit).offset(offset);
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(recipes).where(where);
   return { rows, total: count, limit, offset };
 }

@@ -54,6 +54,17 @@ describe('RecipeLibrary paging', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument());
   });
 
+  it('shows a recipe once even if the server repeats it across a page boundary', async () => {
+    const user = userEvent.setup();
+    listRecipes.mockImplementation(async (p: { limit: number; offset: number }) => (
+      p.offset === 0 ? serverPage(p.limit, 0) : { data: [ALL[19]!, ...ALL.slice(20)], meta: { total: ALL.length } }
+    ));
+    renderHarness();
+    await user.click(await screen.findByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('Recipe 25')).toBeInTheDocument();
+    expect(screen.getAllByText('Recipe 20')).toHaveLength(1);
+  });
+
   it('shows no "Load more" when everything fits on the first page', () => {
     render(<RecipeLibrary recipes={ALL.slice(0, 3)} onSelect={() => {}} hasMore={false} onLoadMore={() => {}} />);
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();

@@ -21,7 +21,13 @@ export function useRecipePages(term = '') {
       const loaded = all.reduce((n, p) => n + p.data.length, 0);
       return last.data.length > 0 && loaded < last.meta.total ? loaded : undefined;
     },
-    select: (d) => ({ recipes: d.pages.flatMap((p) => p.data), total: d.pages[d.pages.length - 1]?.meta.total ?? 0 }),
+    // The server orders by (title, id), but a recipe created between two page
+    // requests can still shift the window: dedupe by id so keys stay unique.
+    select: (d) => {
+      const seen = new Set<string>();
+      const recipes = d.pages.flatMap((p) => p.data).filter((r) => !seen.has(r.id) && !!seen.add(r.id));
+      return { recipes, total: d.pages[d.pages.length - 1]?.meta.total ?? 0 };
+    },
     placeholderData: keepPreviousData,
   });
 }

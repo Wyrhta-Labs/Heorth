@@ -67,6 +67,27 @@ describe('RecipePicker', () => {
     expect(await screen.findByText(/no recipes match/i)).toBeInTheDocument();
   });
 
+  it('does not let the previous search results be picked while a new search is loading', async () => {
+    const user = userEvent.setup();
+    let release!: (v: ListResponse<Recipe>) => void;
+    listRecipes.mockImplementation((p: { q?: string }) => (
+      p.q === 'zucc'
+        ? new Promise<ListResponse<Recipe>>((res) => { release = res; })
+        : Promise.resolve({ data: filler, meta: { total: 20 } })
+    ));
+    const onPick = renderPicker();
+    const stale = await screen.findByRole('button', { name: 'A recipe 00' });
+
+    await user.type(screen.getByRole('searchbox', { name: /search recipes/i }), 'zucc');
+    await waitFor(() => expect(listRecipes).toHaveBeenCalledWith({ q: 'zucc', limit: 20, offset: 0 }));
+    expect(stale).toBeDisabled();
+    await user.click(stale);
+    expect(onPick).not.toHaveBeenCalled();
+
+    release({ data: zucchini, meta: { total: 2 } });
+    expect(await screen.findByRole('button', { name: 'Zucchini bake' })).toBeEnabled();
+  });
+
   it('still offers the leftovers entry', async () => {
     const user = userEvent.setup();
     const onPick = renderPicker();

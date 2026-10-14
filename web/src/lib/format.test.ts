@@ -1,6 +1,6 @@
 // web/src/lib/format.test.ts
 import { describe, it, expect } from 'vitest';
-import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso, startOfDayInTimeZone, formatClock } from './format';
+import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso, startOfDayInTimeZone, formatClock, instantFromWallClock, wallClockInput } from './format';
 import { startOfDay, endOfDay, parseISO } from 'date-fns';
 import { de, enGB, enUS } from 'date-fns/locale';
 
@@ -97,5 +97,29 @@ describe('household-zone helpers', () => {
   it('formatClock: the zone wall-clock time of an instant', () => {
     expect(formatClock(new Date('2026-07-26T13:05:00Z'), 'Pacific/Auckland')).toBe('01:05');
     expect(formatClock(new Date('2026-07-26T13:05:00Z'), 'America/Los_Angeles')).toBe('06:05');
+  });
+});
+
+describe('instantFromWallClock across DST gaps and folds', () => {
+  it('starts a day whose midnight is skipped at its first instant (America/Santiago)', () => {
+    // Chile springs forward at 00:00 on Sun 6 Sep 2026: the day begins at 01:00 (-03), 04:00Z.
+    expect(startOfDayInTimeZone('2026-09-06', 'America/Santiago').toISOString()).toBe('2026-09-06T04:00:00.000Z');
+    expect(instantFromWallClock('2026-09-06T00:30', 'America/Santiago').toISOString()).toBe('2026-09-06T04:00:00.000Z');
+    // The day before is unaffected and ends right where the next one starts.
+    expect(startOfDayInTimeZone('2026-09-05', 'America/Santiago').toISOString()).toBe('2026-09-05T04:00:00.000Z');
+  });
+
+  it('moves a skipped wall time forward to the first valid instant (Berlin spring gap)', () => {
+    // 02:00 → 03:00 on 29 Mar 2026: 02:30 does not exist; 03:00 CEST is 01:00Z.
+    expect(instantFromWallClock('2026-03-29T02:30', 'Europe/Berlin').toISOString()).toBe('2026-03-29T01:00:00.000Z');
+    expect(instantFromWallClock('2026-03-29T03:30', 'Europe/Berlin').toISOString()).toBe('2026-03-29T01:30:00.000Z');
+  });
+
+  it('resolves a repeated wall time to the earlier instant, so the first one round-trips (Berlin autumn fold)', () => {
+    // 03:00 → 02:00 on 25 Oct 2026: 02:30 happens at 00:30Z (CEST) and 01:30Z (CET).
+    const first = new Date('2026-10-25T00:30:00Z');
+    expect(wallClockInput(first, 'Europe/Berlin')).toBe('2026-10-25T02:30');
+    expect(instantFromWallClock(wallClockInput(first, 'Europe/Berlin'), 'Europe/Berlin').toISOString()).toBe(first.toISOString());
+    expect(instantFromWallClock('2026-10-25T03:30', 'Europe/Berlin').toISOString()).toBe('2026-10-25T02:30:00.000Z');
   });
 });

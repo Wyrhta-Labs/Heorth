@@ -104,17 +104,39 @@ export function startOfDayInTimeZone(iso: string, timeZone: string): Date {
 
 /**
  * The instant at which `timeZone`'s wall clock reads `local`
- * (`YYYY-MM-DDTHH:mm`, a `datetime-local` value). Two passes so a time on the
- * far side of a DST change lands on its own offset; a time inside a gap
- * resolves to an instant next to it.
+ * (`YYYY-MM-DDTHH:mm`, a `datetime-local` value).
+ *
+ * Around a DST change a wall time can be ambiguous or missing:
+ * - **fold** (clocks go back, the time happens twice): the EARLIER instant.
+ *   That is the first time the wall reads it, the convention of RFC 5545 and
+ *   of Temporal's default `'compatible'` disambiguation, and what
+ *   `wallClockInput` of that first instant must round-trip to.
+ * - **gap** (clocks jump forward, the time never happens): the FIRST VALID
+ *   instant after it, i.e. the transition itself. So a day whose midnight is
+ *   skipped (America/Santiago in September) starts at its first real instant.
+ *
+ * Candidates come from the offsets a day either side, each checked against
+ * the zone's actual wall fields; transitions closer than that are not handled.
  */
 export function instantFromWallClock(local: string, timeZone: string): Date {
   const [datePart, timePart = '00:00'] = local.split('T');
   const [y, m, d] = datePart!.split('-').map(Number);
   const [h, mi] = timePart.split(':').map(Number);
-  const asUtc = Date.UTC(y!, m! - 1, d!, h ?? 0, mi ?? 0);
-  const first = asUtc - zoneOffsetMs(asUtc, timeZone);
-  return new Date(asUtc - zoneOffsetMs(first, timeZone));
+  const wall = Date.UTC(y!, m! - 1, d!, h ?? 0, mi ?? 0);
+  const DAY = 86_400_000;
+  const before = zoneOffsetMs(wall - DAY, timeZone);
+  const after = zoneOffsetMs(wall + DAY, timeZone);
+  const valid = [wall - before, wall - after].filter((t) => t + zoneOffsetMs(t, timeZone) === wall);
+  if (valid.length > 0) return new Date(Math.min(...valid));
+  // Gap: the transition lies between the two candidates; find its first
+  // instant (offsets change on whole seconds).
+  let lo = wall - after; // still on the old offset
+  let hi = wall - before; // already on the new one
+  while (hi - lo > 1000) {
+    const mid = lo + Math.floor((hi - lo) / 2000) * 1000;
+    if (zoneOffsetMs(mid, timeZone) === after) hi = mid; else lo = mid;
+  }
+  return new Date(hi);
 }
 
 /** `ref` as a `datetime-local` value (`YYYY-MM-DDTHH:mm`) on `timeZone`'s wall clock. */

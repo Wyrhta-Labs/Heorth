@@ -9,7 +9,7 @@ const mutation = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
 
 // One of the meals queries fails; the others are fine.
 vi.mock('@/hooks/use-meals', () => ({
-  useRecipes: () => erroredQuery,
+  useRecipePages: () => erroredQuery,
   useWeekPlan: () => okQuery,
   useShoppingList: () => okQuery,
   useCreateRecipe: () => mutation,

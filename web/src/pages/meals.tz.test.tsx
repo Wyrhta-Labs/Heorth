@@ -10,7 +10,7 @@ const mutation = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
 const generate = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
 const useWeekPlanSpy = vi.fn((_from: string, _to: string, _o?: unknown) => ok);
 vi.mock('@/hooks/use-meals', () => ({
-  useRecipes: () => ok,
+  useRecipePages: () => ({ ...ok, data: { recipes: [], total: 0 }, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn() }),
   useWeekPlan: (...a: Parameters<typeof useWeekPlanSpy>) => useWeekPlanSpy(...a),
   useShoppingList: () => ok,
   useCreateRecipe: () => mutation,

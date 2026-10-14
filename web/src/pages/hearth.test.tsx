@@ -21,7 +21,6 @@ const useWeekPlanMock = vi.fn((): PlanQueryStub => emptyQuery);
 vi.mock('@/hooks/use-meals', () => ({
   useWeekPlan: () => useWeekPlanMock(),
   // The recipe list is paged (first 20 by title): the wall must not need it.
-  useRecipes: () => emptyQuery,
   useUpsertPlanEntry: () => ({ mutateAsync: vi.fn() }),
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));

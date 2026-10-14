@@ -1,9 +1,29 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import * as api from '@/api/meals';
 
-export function useRecipes(params: { tag?: string } = {}) {
-  return useQuery({ queryKey: [...QUERY_KEYS.recipes, params], queryFn: () => api.listRecipes(params) });
+export const RECIPE_PAGE_SIZE = 20;
+
+/**
+ * The recipe list, one server page at a time (sorted by title), optionally
+ * narrowed by a title search. `data.recipes` is every page loaded so far and
+ * `hasNextPage` says whether the server has more. The key sits under
+ * QUERY_KEYS.recipes, so recipe mutations invalidate the library and the
+ * picker alike.
+ */
+export function useRecipePages(term = '') {
+  const q = term.trim();
+  return useInfiniteQuery({
+    queryKey: [...QUERY_KEYS.recipes, 'paged', q],
+    queryFn: ({ pageParam }) => api.listRecipes({ q: q || undefined, limit: RECIPE_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.data.length, 0);
+      return last.data.length > 0 && loaded < last.meta.total ? loaded : undefined;
+    },
+    select: (d) => ({ recipes: d.pages.flatMap((p) => p.data), total: d.pages[d.pages.length - 1]?.meta.total ?? 0 }),
+    placeholderData: keepPreviousData,
+  });
 }
 export function useCreateRecipe() {
   const qc = useQueryClient();

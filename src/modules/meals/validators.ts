@@ -15,6 +15,11 @@ export const createRecipeSchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 
+/** `q` is a case-insensitive title search; a blank term means "no filter". */
+export const recipeSearchSchema = z.object({
+  q: z.string().trim().max(100).optional(),
+});
+
 export const updateRecipeSchema = createRecipeSchema.partial();
 
 export const upsertPlanEntrySchema = z.object({

@@ -12,7 +12,7 @@ export interface PlanEntryInput {
 }
 export interface ShoppingItemInput { name: string; qty?: number | null; unit?: string | null; }
 
-export function listRecipes(params: { tag?: string; limit?: number; offset?: number } = {}): Promise<ListResponse<Recipe>> {
+export function listRecipes(params: { tag?: string; q?: string; limit?: number; offset?: number } = {}): Promise<ListResponse<Recipe>> {
   return apiGet(`/recipes${qs(params)}`);
 }
 export function getRecipe(id: string): Promise<SingleResponse<Recipe>> {

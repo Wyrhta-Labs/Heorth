@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import RecipeLibrary from '@/components/meals/recipe-library';
+import RecipePicker from '@/components/meals/recipe-picker';
 import RecipeForm from '@/components/meals/recipe-form';
 import WeekPlanner from '@/components/meals/week-planner';
 import ShoppingList from '@/components/meals/shopping-list';
@@ -16,7 +17,7 @@ import { retryOf } from '@/lib/query-error';
 import { weekOfIso } from '@/lib/format';
 import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import {
-  useRecipes, useCreateRecipe, useUpdateRecipe, useWeekPlan, useUpsertPlanEntry,
+  useRecipePages, useCreateRecipe, useUpdateRecipe, useWeekPlan, useUpsertPlanEntry,
   useShoppingList, useGenerateShoppingList, useAddShoppingItem, useUpdateShoppingItem, useRemoveShoppingItem,
 } from '@/hooks/use-meals';
 import type { Recipe, MealSlot } from '@/lib/types';
@@ -32,8 +33,8 @@ export default function MealsPage() {
   const from = week[0]!;
   const to = week[6]!;
 
-  const recipesQuery = useRecipes();
-  const recipes = recipesQuery.data?.data ?? [];
+  const recipesQuery = useRecipePages();
+  const recipes = recipesQuery.data?.recipes ?? [];
   const planQuery = useWeekPlan(from, to, { enabled: ready });
   const entries = planQuery.data?.data ?? [];
   const listQuery = useShoppingList();
@@ -88,7 +89,9 @@ export default function MealsPage() {
         <div className="flex justify-end mb-4">
           <Button onClick={() => { setEditing(null); setRecipeOpen(true); }}><Plus className="h-4 w-4" /> {t('meals.newRecipe')}</Button>
         </div>
-        <RecipeLibrary recipes={recipes} onSelect={(r) => { setEditing(r); setRecipeOpen(true); }} />
+        <RecipeLibrary recipes={recipes} onSelect={(r) => { setEditing(r); setRecipeOpen(true); }}
+          hasMore={!!recipesQuery.hasNextPage} loadingMore={recipesQuery.isFetchingNextPage}
+          onLoadMore={() => recipesQuery.fetchNextPage()} />
       </TabsContent>
 
       <TabsContent value="shopping">
@@ -121,16 +124,7 @@ export default function MealsPage() {
             <DialogTitle>{t('meals.planMeal')}</DialogTitle>
             <DialogClose onClose={() => setAssign(null)} />
           </DialogHeader>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {recipes.map((r) => (
-              <button key={r.id} onClick={() => assignRecipe(r.id)}
-                className="block w-full rounded-lg border border-tan px-3 py-2 text-left text-sm hover:border-ember">{r.title}</button>
-            ))}
-            <button onClick={() => assignRecipe(null, t('meals.leftovers'))}
-              className="block w-full rounded-lg border border-dashed border-tan px-3 py-2 text-left text-sm text-ash hover:border-ember">
-              {t('meals.leftoversFreeText')}
-            </button>
-          </div>
+          <RecipePicker onPick={assignRecipe} />
         </DialogContent>
       </Dialog>
     </Tabs>

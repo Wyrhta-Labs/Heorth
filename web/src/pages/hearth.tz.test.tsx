@@ -23,7 +23,6 @@ vi.mock('@/hooks/use-tasks', () => ({
 const useWeekPlanSpy = vi.fn((_from: string, _to: string, _o?: unknown) => stub([]));
 vi.mock('@/hooks/use-meals', () => ({
   useWeekPlan: (...a: Parameters<typeof useWeekPlanSpy>) => useWeekPlanSpy(...a),
-  useRecipes: () => stub([]),
   useUpsertPlanEntry: () => ({ mutateAsync: vi.fn() }),
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));

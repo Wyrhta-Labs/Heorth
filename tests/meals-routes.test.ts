@@ -72,6 +72,61 @@ describe('meals routes', () => {
   });
 });
 
+describe('recipe search (q)', () => {
+  const seed = async () => {
+    const { adult } = await seedTestHousehold();
+    for (const title of ['Zucchini bake', 'Tomato soup', 'Chili con carne', '100% oat bars', 'Zucchini fritters']) {
+      await app.request('/api/v1/recipes', {
+        method: 'POST', headers: authHeaders(adult.jwt),
+        body: JSON.stringify({ title, servings: 2, ingredients: [], steps: [], tags: [] }),
+      });
+    }
+    return adult;
+  };
+  type Page = { data: Array<{ title: string }>; meta: { total: number; limit: number; offset: number } };
+  const get = async (adult: Awaited<ReturnType<typeof seed>>, query: string) => {
+    const res = await app.request(`/api/v1/recipes${query}`, { headers: authHeaders(adult.jwt) });
+    return { status: res.status, body: await res.json() as Page };
+  };
+
+  it('matches a title substring, case-insensitively, sorted by title', async () => {
+    const adult = await seed();
+    const { body } = await get(adult, '?q=ZUCC');
+    expect(body.data.map((r) => r.title)).toEqual(['Zucchini bake', 'Zucchini fritters']);
+    expect(body.meta.total).toBe(2);
+    expect((await get(adult, '?q=bake')).body.data.map((r) => r.title)).toEqual(['Zucchini bake']);
+  });
+
+  it('returns an empty page for no match', async () => {
+    const adult = await seed();
+    const { status, body } = await get(adult, '?q=pancake');
+    expect(status).toBe(200);
+    expect(body.data).toEqual([]);
+    expect(body.meta.total).toBe(0);
+  });
+
+  it('pages within the matches and reports the match total', async () => {
+    const adult = await seed();
+    const first = (await get(adult, '?q=zucchini&limit=1')).body;
+    expect(first.data.map((r) => r.title)).toEqual(['Zucchini bake']);
+    expect(first.meta.total).toBe(2);
+    const second = (await get(adult, '?q=zucchini&limit=1&offset=1')).body;
+    expect(second.data.map((r) => r.title)).toEqual(['Zucchini fritters']);
+  });
+
+  it('treats LIKE wildcards in the term literally and ignores a blank term', async () => {
+    const adult = await seed();
+    expect((await get(adult, `?q=${encodeURIComponent('%')}`)).body.data.map((r) => r.title)).toEqual(['100% oat bars']);
+    expect((await get(adult, `?q=${encodeURIComponent('_')}`)).body.data).toEqual([]);
+    expect((await get(adult, '?q=%20%20')).body.meta.total).toBe(5);
+  });
+
+  it('rejects an over-long term', async () => {
+    const adult = await seed();
+    expect((await get(adult, `?q=${'a'.repeat(101)}`)).status).toBe(400);
+  });
+});
+
 describe('maintenance admin quarantine', () => {
   it('refuses a recipe created by the admin', async () => {
     const { admin } = await seedTestHousehold();

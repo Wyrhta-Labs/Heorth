@@ -2,18 +2,21 @@ import { Hono } from 'hono';
 import { ok, err } from '@wyrhta/core/http';
 import { requireAuth } from '../../wiring.js';
 import * as service from './service.js';
-import { createRecipeSchema, updateRecipeSchema, upsertPlanEntrySchema, planQuerySchema, addShoppingItemSchema, updateShoppingItemSchema, generateQuerySchema } from './validators.js';
+import { createRecipeSchema, recipeSearchSchema, updateRecipeSchema, upsertPlanEntrySchema, planQuerySchema, addShoppingItemSchema, updateShoppingItemSchema, generateQuerySchema } from './validators.js';
 
 export const recipesRouter = new Hono();
 recipesRouter.use('*', requireAuth);
 
 recipesRouter.get('/', async (c) => {
+  const search = recipeSearchSchema.safeParse({ q: c.req.query('q') });
+  if (!search.success) return err(c, 'VALIDATION_ERROR', 'Invalid query parameters', 400);
   const limit = c.req.query('limit');
   const offset = c.req.query('offset');
   const { rows, total, limit: l, offset: o } = await service.listRecipes({
     limit: limit ? Number(limit) : undefined,
     offset: offset ? Number(offset) : undefined,
     tag: c.req.query('tag'),
+    q: search.data.q,
   });
   return ok(c, rows, { total, limit: l, offset: o });
 });

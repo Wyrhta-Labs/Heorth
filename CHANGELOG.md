@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `GET /api/v1/recipes` takes `q`, a case-insensitive title search (LIKE
+  wildcards are literal, max 100 characters, blank = no filter) that combines
+  with `tag` and the paging; `meta.total` counts the matches.
+- Web: the Recipes tab has a "Load more" button and the "Plan a meal" picker
+  searches recipes on the server (with "Load more"), so recipes beyond the
+  first 20 can be browsed and planned.
+
 - Web: UI state is remembered per browser (localStorage, `heorth:ui:*`):
   the week/month view on Calendar and on the Hearth wall, the Ethel filters
   (status, place, include contents, facilities) and the Library filters

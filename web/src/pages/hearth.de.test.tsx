@@ -12,7 +12,6 @@ vi.mock('@/hooks/use-tasks', () => ({
 }));
 vi.mock('@/hooks/use-meals', () => ({
   useWeekPlan: () => emptyQuery,
-  useRecipes: () => emptyQuery,
   useUpsertPlanEntry: () => ({ mutateAsync: vi.fn() }),
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));

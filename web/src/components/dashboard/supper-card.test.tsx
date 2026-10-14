@@ -16,7 +16,6 @@ let plan: MealPlanEntry[] = [];
 vi.mock('@/hooks/use-meals', () => ({
   useWeekPlan: () => query(plan),
   // Paged list (first 20 by title): the card must not depend on it.
-  useRecipes: () => query([]),
 }));
 
 vi.mock('@/hooks/use-household', () => ({ useHousehold: () => ({ data: { data: { timezone: 'UTC' } }, isError: false }) }));

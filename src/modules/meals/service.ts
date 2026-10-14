@@ -1,13 +1,21 @@
 import { db } from '../../db/index.js';
 import { recipes, mealPlanEntries, shoppingListItems, type Recipe, type ShoppingListItem } from './schema.js';
-import { eq, and, gte, lte, sql, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNotNull, inArray, ilike } from 'drizzle-orm';
 import type { CreateRecipeInput, UpdateRecipeInput, UpsertPlanEntryInput, AddShoppingItemInput, UpdateShoppingItemInput } from './validators.js';
 import { assertNotMaintenanceAdmin } from '../../household/maintenance-admin.js';
 
-export async function listRecipes(q: { limit?: number; offset?: number; tag?: string }) {
+export async function listRecipes(q: { limit?: number; offset?: number; tag?: string; q?: string }) {
   const limit = Math.min(100, Math.max(1, q.limit ?? 20));
   const offset = Math.max(0, q.offset ?? 0);
-  const where = q.tag ? sql`${q.tag} = ANY(${recipes.tags})` : undefined;
+  const conditions = [];
+  if (q.tag) conditions.push(sql`${q.tag} = ANY(${recipes.tags})`);
+  if (q.q) {
+    // Escape LIKE wildcards (Postgres' default ESCAPE is backslash) so a literal
+    // "%" or "_" in the term is not a wildcard.
+    const escaped = q.q.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    conditions.push(ilike(recipes.title, `%${escaped}%`));
+  }
+  const where = conditions.length ? and(...conditions) : undefined;
   const rows = await db.select().from(recipes).where(where).orderBy(recipes.title).limit(limit).offset(offset);
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(recipes).where(where);
   return { rows, total: count, limit, offset };

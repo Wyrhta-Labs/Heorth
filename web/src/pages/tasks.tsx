@@ -13,6 +13,7 @@ import {
   useTasks, useAvailableLists, useAllowlist, useCompleteTask, useCreateTask, useSetAllowlist, useSetHouseholdList,
 } from '@/hooks/use-tasks';
 import { useWhoami } from '@/hooks/use-household';
+import { useHouseholdZone } from '@/hooks/use-household-zone';
 import { PROVIDERS } from '@/lib/providers';
 import type { AvailableTaskList, Task } from '@/lib/types';
 
@@ -28,6 +29,7 @@ function bucketOf(t: Task, now: number): Bucket {
 export default function TasksPage() {
   const { t } = useTranslation();
   const { formatDate } = useFormatters();
+  const { zone } = useHouseholdZone(); // due dates are the household's
   const BUCKET_LABELS: Record<Bucket, string> = {
     overdue: t('tasks.bucket.overdue'),
     soon: t('tasks.bucket.soon'),
@@ -115,7 +117,7 @@ export default function TasksPage() {
                   <span className="flex-1 text-sm">{task.title}</span>
                   {task.dueAt && (
                     <span className={`text-xs ${b === 'overdue' ? 'text-danger' : 'text-muted'}`}>
-                      {formatDate(task.dueAt)}
+                      {formatDate(task.dueAt, zone)}
                     </span>
                   )}
                   {task.listName && (

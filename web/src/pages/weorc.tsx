@@ -10,6 +10,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useFormatters } from '@/hooks/use-formatters';
 import { useHousehold } from '@/hooks/use-household';
+import { useHouseholdZone } from '@/hooks/use-household-zone';
 import { todayInTimeZone } from '@/lib/format';
 import * as api from '@/api/weorc';
 import type { RoutineInput } from '@/api/weorc';
@@ -229,10 +230,11 @@ interface RoutineCardProps {
   onToggleHistory: () => void;
   onEdit: () => void;
   onDeactivate: () => void;
-  formatDate: (d: string | null | undefined) => string;
+  formatDate: (d: string | null | undefined, timeZone?: string) => string;
 }
 
 function RoutineCard({ routine, expanded, onToggleHistory, onEdit, onDeactivate, formatDate }: RoutineCardProps) {
+  const { zone } = useHouseholdZone(); // the household date it was completed on
   const { t } = useTranslation();
   const historyQuery = useQuery({
     queryKey: ['weorc', 'routineHistory', routine.id],
@@ -269,7 +271,7 @@ function RoutineCard({ routine, expanded, onToggleHistory, onEdit, onDeactivate,
             {history.map((occ) => (
               <li key={occ.id} className="rounded px-2 py-0.5 text-xs text-muted">
                 {occ.status === 'completed'
-                  ? t('weorc.completedOn', { date: formatDate(occ.completedAt) })
+                  ? t('weorc.completedOn', { date: formatDate(occ.completedAt, zone) })
                   : t('weorc.skipped')}
               </li>
             ))}

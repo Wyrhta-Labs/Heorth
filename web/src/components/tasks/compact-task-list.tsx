@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useFormatters } from '@/hooks/use-formatters';
+import { useHouseholdZone } from '@/hooks/use-household-zone';
 import type { Task } from '@/lib/types';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 export default function CompactTaskList({ tasks, limit = 5, onToggle }: Props) {
   const { t } = useTranslation();
   const { formatDate } = useFormatters();
+  const { zone } = useHouseholdZone(); // due dates are the household's
   const sorted = [...tasks].sort((a, b) => {
     if (!a.dueAt && !b.dueAt) return 0;
     if (!a.dueAt) return 1;
@@ -39,7 +41,7 @@ export default function CompactTaskList({ tasks, limit = 5, onToggle }: Props) {
             aria-label={t('tasks.completeAria', { title: task.title })}
           />
           <span className="flex-1 text-sm text-ink truncate">{task.title}</span>
-          {task.dueAt && <span className="text-xs text-ash shrink-0">{formatDate(task.dueAt)}</span>}
+          {task.dueAt && <span className="text-xs text-ash shrink-0">{formatDate(task.dueAt, zone)}</span>}
         </li>
       ))}
       {tasks.length > limit && (

@@ -15,9 +15,20 @@ export function progressPercent(spent: number, budget: number): number {
   return Math.max(0, Math.min(100, Math.round((spent / budget) * 100)));
 }
 
-export function formatDate(dateStr: string | null | undefined, locale: Locale = enUS): string {
+/**
+ * A date for display. A plain `YYYY-MM-DD` is shown as is; an instant (with a
+ * time part) is shown as the date it falls on in `timeZone` when given — the
+ * household's — else in the browser's zone.
+ */
+export function formatDate(dateStr: string | null | undefined, locale: Locale = enUS, timeZone?: string): string {
   if (!dateStr) return '—';
-  try { return format(parseISO(dateStr), 'PP', { locale }); } catch { return dateStr; }
+  try {
+    if (timeZone && dateStr.includes('T')) {
+      const d = new Date(dateStr);
+      if (!Number.isNaN(d.getTime())) return format(parseISO(todayInTimeZone(timeZone, d)), 'PP', { locale });
+    }
+    return format(parseISO(dateStr), 'PP', { locale });
+  } catch { return dateStr; }
 }
 
 /** Clock time of an instant — in `timeZone` when given (the household's), else the browser's. */

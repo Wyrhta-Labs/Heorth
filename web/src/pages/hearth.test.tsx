@@ -76,6 +76,24 @@ describe('HearthPage view + paging', () => {
     expect(screen.getByText('Sun')).toBeInTheDocument();
   });
 
+  it('week columns run Mon-Sun and match the fetched window and range label (en)', () => {
+    const { container } = render(<HearthPage />);
+    const cols = [...container.querySelectorAll('[data-hearth-day]')].map((e) => e.getAttribute('data-hearth-day'));
+    expect(cols[0]).toBe('2026-07-20');
+    expect(cols[6]).toBe('2026-07-26');
+    const [params] = useTasksSpy.mock.calls[0];
+    expect(new Date(params.due_from).getTime()).toBe(new Date(`${cols[0]}T00:00:00`).getTime());
+    expect(new Date(params.due_to).getTime()).toBe(new Date(`${cols[6]}T23:59:59.999`).getTime());
+    expect(screen.getByText(/Jul 20.*Jul 26/)).toBeInTheDocument();
+  });
+
+  it('month grid starts on Monday, like the fetched range (en)', () => {
+    const { container } = render(<HearthPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Month' }));
+    const first = container.querySelector('[data-hearth-month-day]')!.getAttribute('data-hearth-month-day');
+    expect(first).toBe('2026-06-29'); // Mon before Wed Jul 1
+  });
+
   it('reveals a "back to today" control once paged off the current week', () => {
     render(<HearthPage />);
     expect(screen.queryByLabelText('Back to today')).toBeNull();

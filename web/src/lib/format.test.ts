@@ -27,18 +27,19 @@ describe('progressPercent', () => {
 
 describe('weekDays / dayLabel', () => {
   const ref = new Date('2026-07-15T12:00:00Z'); // a Wednesday
-  it('follows the locale week start (enUS: Sunday)', () => {
-    const days = weekDays(ref, enUS);
+  it('is Monday-first in every locale, like the hearth/calendar/meals ranges (enUS too)', () => {
+    const days = weekDays(ref);
     expect(days.length).toBe(7);
-    expect(dayLabel(days[0]!, enUS).dow).toBe('Sun');
-    expect(dayLabel(days[6]!, enUS).dow).toBe('Sat');
+    expect(dayLabel(days[0]!, enUS).dow).toBe('Mon');
+    expect(dayLabel(days[6]!, enUS).dow).toBe('Sun');
+    expect(dayLabel(days[0]!, enUS).iso).toBe('2026-07-13');
   });
   it('is Monday-first for de and enGB', () => {
-    expect(dayLabel(weekDays(ref, de)[0]!, de).dow).toBe('Mo.');
-    expect(dayLabel(weekDays(ref, enGB)[0]!, enGB).dow).toBe('Mon');
+    expect(dayLabel(weekDays(ref)[0]!, de).dow).toBe('Mo.');
+    expect(dayLabel(weekDays(ref)[0]!, enGB).dow).toBe('Mon');
   });
   it('defaults to enUS and keeps iso locale-free', () => {
-    expect(dayLabel(weekDays(ref)[0]!).dow).toBe('Sun');
+    expect(dayLabel(weekDays(ref)[0]!).dow).toBe('Mon');
     expect(dayLabel(new Date('2026-07-13T12:00:00'), de).iso).toBe('2026-07-13');
   });
 });

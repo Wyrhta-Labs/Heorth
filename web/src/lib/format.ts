@@ -25,9 +25,13 @@ export function formatTime(dateStr: string | null | undefined, locale: Locale = 
   try { return format(parseISO(dateStr), 'p', { locale }); } catch { return dateStr; }
 }
 
-/** The 7 Date objects of the week containing `ref`, starting on the locale's first weekday. */
-export function weekDays(ref: Date = new Date(), locale: Locale = enUS): Date[] {
-  const first = startOfWeek(ref, { locale });
+/**
+ * The 7 Date objects of the week containing `ref`, Monday first in every
+ * locale — the week every range and fetch window in the app uses
+ * (`weekStartsOn: 1`), so the columns can never drift from the data.
+ */
+export function weekDays(ref: Date = new Date()): Date[] {
+  const first = startOfWeek(ref, { weekStartsOn: 1 });
   return Array.from({ length: 7 }, (_, i) => addDays(first, i));
 }
 

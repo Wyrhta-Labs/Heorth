@@ -29,7 +29,7 @@ interface Props {
 export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, reminders = [], membersById, recipesById, staleByOwner, onAddEvent }: Props) {
   const { t } = useTranslation();
   const { locale } = useFormatters();
-  const grid = monthGrid(year, month0, locale);
+  const grid = monthGrid(year, month0);
   const dowLabels = grid[0]!.map((iso) => format(new Date(iso + 'T00:00:00'), 'EEE', { locale }));
   return (
     <div className="flex min-h-0 flex-1 flex-col">

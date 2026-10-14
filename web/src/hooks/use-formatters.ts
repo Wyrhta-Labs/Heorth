@@ -10,7 +10,7 @@ export function useFormatters() {
     formatMoney: (v: string | number | null | undefined) => fmt.formatMoney(v, locale),
     formatDate: (d: string | null | undefined) => fmt.formatDate(d, locale),
     formatTime: (d: string | null | undefined) => fmt.formatTime(d, locale),
-    weekDays: (ref?: Date) => fmt.weekDays(ref, locale),
+    weekDays: (ref?: Date) => fmt.weekDays(ref),
     nextDays: fmt.nextDays,
     dayLabel: (d: Date) => fmt.dayLabel(d, locale),
   }), [locale]);

@@ -9,7 +9,7 @@ interface Props { year: number; month0: number; occurrences: EventOccurrence[]; 
 export default function MonthView({ year, month0, occurrences, onSelect }: Props) {
   const { t } = useTranslation();
   const { locale } = useFormatters();
-  const grid = monthGrid(year, month0, locale);
+  const grid = monthGrid(year, month0);
   const dowLabels = grid[0]!.map((iso) => format(new Date(iso + 'T00:00:00'), 'EEE', { locale }));
   const byDay = groupByDay(occurrences);
   return (

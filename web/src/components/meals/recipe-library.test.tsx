@@ -65,6 +65,23 @@ describe('RecipeLibrary paging', () => {
     expect(screen.getAllByText('Recipe 20')).toHaveLength(1);
   });
 
+  it('keeps "Load more" while a distinct recipe is unloaded, despite a repeated row', async () => {
+    const user = userEvent.setup();
+    listRecipes.mockImplementation(async (p: { limit: number; offset: number }) => {
+      if (p.offset === 0) return serverPage(p.limit, 0);
+      // An edit shifted the window: page 2 repeats Recipe 20 and ends one short.
+      if (p.offset === 20) return { data: [ALL[19]!, ...ALL.slice(20, 24)], meta: { total: ALL.length } };
+      return { data: [ALL[24]!], meta: { total: ALL.length } };
+    });
+    renderHarness();
+    await user.click(await screen.findByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('Recipe 24')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('Recipe 25')).toBeInTheDocument();
+    expect(listRecipes).toHaveBeenLastCalledWith({ q: undefined, limit: 20, offset: 25 });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument());
+  });
+
   it('shows no "Load more" when everything fits on the first page', () => {
     render(<RecipeLibrary recipes={ALL.slice(0, 3)} onSelect={() => {}} hasMore={false} onLoadMore={() => {}} />);
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();

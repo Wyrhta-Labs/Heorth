@@ -18,8 +18,11 @@ export function useRecipePages(term = '') {
     queryFn: ({ pageParam }) => api.listRecipes({ q: q || undefined, limit: RECIPE_PAGE_SIZE, offset: pageParam }),
     initialPageParam: 0,
     getNextPageParam: (last, all) => {
+      // The next offset is the raw row count; whether more remain is judged by
+      // distinct ids, since a repeated row must not make the end look reached.
       const loaded = all.reduce((n, p) => n + p.data.length, 0);
-      return last.data.length > 0 && loaded < last.meta.total ? loaded : undefined;
+      const distinct = new Set(all.flatMap((p) => p.data.map((r) => r.id))).size;
+      return last.data.length > 0 && distinct < last.meta.total ? loaded : undefined;
     },
     // The server orders by (title, id), but a recipe created between two page
     // requests can still shift the window: dedupe by id so keys stay unique.

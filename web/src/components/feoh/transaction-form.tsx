@@ -18,8 +18,11 @@ interface Props {
 /** A spend: debit the envelope, credit the account — always balanced. */
 export default function TransactionForm({ accounts, envelopes, onSubmit, onCancel, isLoading }: Props) {
   const { t } = useTranslation();
-  // Defaults to the household's today and follows it until the user picks a date.
-  const today = useHouseholdToday(useHouseholdZone().zone);
+  // Defaults to the household's today and follows it until the user picks a
+  // date. The fields are not shown until the household's zone is known, so a
+  // browser-zone default can never be submitted.
+  const { zone, ready } = useHouseholdZone();
+  const today = useHouseholdToday(zone);
   const [picked, setDate] = useState<string | null>(null);
   const date = picked ?? today;
   const [payee, setPayee] = useState('');
@@ -32,6 +35,7 @@ export default function TransactionForm({ accounts, envelopes, onSubmit, onCance
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(amount);
+    if (!ready) return;
     if (!amt || amt <= 0) { setError(t('feoh.form.amountError')); return; }
     if (!envelopeId || !accountId) { setError(t('feoh.form.pickError')); return; }
     setError('');
@@ -43,6 +47,8 @@ export default function TransactionForm({ accounts, envelopes, onSubmit, onCance
       ],
     });
   };
+
+  if (!ready) return <p className="text-sm text-ash" aria-busy="true">{t('common.loading')}</p>;
 
   return (
     <form onSubmit={submit} className="space-y-4">

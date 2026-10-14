@@ -29,7 +29,8 @@ function bucketOf(t: Task, now: number): Bucket {
 export default function TasksPage() {
   const { t } = useTranslation();
   const { formatDate } = useFormatters();
-  const { zone } = useHouseholdZone(); // due dates are the household's
+  // Due dates are the household's: not shown until its zone is known.
+  const { zone, ready } = useHouseholdZone();
   const BUCKET_LABELS: Record<Bucket, string> = {
     overdue: t('tasks.bucket.overdue'),
     soon: t('tasks.bucket.soon'),
@@ -115,7 +116,7 @@ export default function TasksPage() {
                     aria-label={t('tasks.completeAria', { title: task.title })}
                   />
                   <span className="flex-1 text-sm">{task.title}</span>
-                  {task.dueAt && (
+                  {ready && task.dueAt && (
                     <span className={`text-xs ${b === 'overdue' ? 'text-danger' : 'text-muted'}`}>
                       {formatDate(task.dueAt, zone)}
                     </span>

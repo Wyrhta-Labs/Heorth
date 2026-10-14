@@ -9,9 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useFormatters } from '@/hooks/use-formatters';
-import { useHousehold } from '@/hooks/use-household';
-import { useHouseholdZone } from '@/hooks/use-household-zone';
-import { todayInTimeZone } from '@/lib/format';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import * as api from '@/api/weorc';
 import type { RoutineInput } from '@/api/weorc';
 import { listAssets, listPlaces } from '@/api/ethel';
@@ -41,13 +39,11 @@ export default function WeorcPage() {
   // server-local date was a critical finding earlier in this project,
   // precisely because it misclassifies work near midnight) - the Due
   // now/Coming up split must agree with it rather than the browser's own
-  // clock. Falls back to the browser date only until the household query
-  // resolves.
-  const householdQuery = useHousehold();
-  const householdTimeZone = householdQuery.data?.data.timezone;
-  const today = householdTimeZone
-    ? todayInTimeZone(householdTimeZone)
-    : todayInTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  // clock. Nothing is split and no routine can be started until the
+  // household's zone is known; the browser's stands in only if /household
+  // fails.
+  const { zone: householdTimeZone, ready } = useHouseholdZone();
+  const today = useHouseholdToday(householdTimeZone);
 
   // Loaded only while the form is open — the anchor picker's only consumer.
   // Fetched from @/api/ethel directly (not the shared use-ethel hooks) so it
@@ -159,13 +155,16 @@ export default function WeorcPage() {
           <h1 className="text-2xl font-semibold">{t('weorc.title')}</h1>
           <p className="text-sm text-muted">{t('weorc.subtitle')}</p>
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} disabled={!ready}>
           <Plus className="h-4 w-4 mr-1" /> {t('weorc.newRoutine')}
         </Button>
       </div>
 
       {notice && <p className="text-sm text-ember">{notice}</p>}
 
+      {!ready ? (
+        <p className="text-sm text-ash" aria-busy="true">{t('common.loading')}</p>
+      ) : (<>
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide">{t('weorc.dueNow')}</h2>
         <div data-testid="due-now">
@@ -202,6 +201,7 @@ export default function WeorcPage() {
           ))}
         </div>
       </section>
+      </>)}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>

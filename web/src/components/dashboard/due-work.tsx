@@ -27,7 +27,8 @@ export default function DueWork() {
   const { formatDate } = useFormatters();
   const qc = useQueryClient();
 
-  const { zone } = useHouseholdZone();
+  // Chores are split by the household's tomorrow: none are listed until its zone is known.
+  const { zone, ready } = useHouseholdZone();
   const tomorrow = addDaysIso(useHouseholdToday(zone), 1);
 
   const routinesQuery = useQuery({ queryKey: ROUTINES_KEY, queryFn: () => weorc.listRoutines() });
@@ -61,6 +62,8 @@ export default function DueWork() {
         <h3 className="text-xs font-medium uppercase tracking-wide text-ash">{t('dashboard.work.chores')}</h3>
         {choresRetry ? (
           <ErrorState compact message={t('common.loadFailed')} onRetry={choresRetry} />
+        ) : !ready || !routinesQuery.data ? (
+          <p className="text-sm text-ash py-2 text-center" aria-busy="true">{t('common.loading')}</p>
         ) : (
           <>
             <OccurrenceList

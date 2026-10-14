@@ -5,6 +5,10 @@ import i18n from '@/i18n';
 import * as api from '@/api/weorc';
 
 vi.mock('@/api/weorc');
+vi.mock('@/hooks/use-household', () => ({
+  useHousehold: () => ({ data: { data: { timezone: 'UTC' } }, isError: false }),
+  useHouseholdMembers: () => ({ data: { data: [] } }),
+}));
 
 import WeorcPage from './weorc';
 

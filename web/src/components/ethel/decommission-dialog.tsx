@@ -29,8 +29,11 @@ export default function DecommissionDialog({ asset, onClose }: Props) {
   const decommission = useDecommissionAsset();
   const createCost = useCreateItemCost();
   const transactionsQuery = useTransactions({ limit: 20 });
-  // Defaults to the household's today and follows it until the user picks a date.
-  const today = useHouseholdToday(useHouseholdZone().zone);
+  // Defaults to the household's today and follows it until the user picks a
+  // date. The fields are not shown until the household's zone is known, so a
+  // browser-zone default can never be submitted.
+  const { zone, ready } = useHouseholdZone();
+  const today = useHouseholdToday(zone);
   const [picked, setDate] = useState<string | null>(null);
   const date = picked ?? today;
   const [reason, setReason] = useState<DecommissionReason>('broken');
@@ -48,7 +51,7 @@ export default function DecommissionDialog({ asset, onClose }: Props) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!asset) return;
+    if (!asset || !ready) return;
     setError('');
     try {
       await decommission.mutateAsync({
@@ -78,6 +81,7 @@ export default function DecommissionDialog({ asset, onClose }: Props) {
               <DialogTitle>{t('ethel.decommission.action')}</DialogTitle>
               <DialogClose onClose={onClose} />
             </DialogHeader>
+            {!ready ? <p className="text-sm text-ash" aria-busy="true">{t('common.loading')}</p> : (
             <form onSubmit={submit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
@@ -122,6 +126,7 @@ export default function DecommissionDialog({ asset, onClose }: Props) {
                 </Button>
               </div>
             </form>
+            )}
           </>
         )}
       </DialogContent>

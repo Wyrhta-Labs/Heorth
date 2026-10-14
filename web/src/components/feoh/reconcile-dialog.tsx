@@ -25,8 +25,11 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
   const reconcile = useReconcileAccount();
 
   const [counted, setCounted] = useState('');
-  // Defaults to the household's today and follows it until the user picks a date.
-  const today = useHouseholdToday(useHouseholdZone().zone);
+  // Defaults to the household's today and follows it until the user picks a
+  // date. The fields are not shown until the household's zone is known, so a
+  // browser-zone default can never be submitted.
+  const { zone, ready } = useHouseholdZone();
+  const today = useHouseholdToday(zone);
   const [picked, setDate] = useState<string | null>(null);
   const date = picked ?? today;
   const [envelopeId, setEnvelopeId] = useState('');
@@ -63,6 +66,7 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
     // envelopes load, but a household with zero envelopes (or a race before
     // the list loads) could otherwise still submit an empty envelopeId,
     // which the backend rejects as a generic 400 VALIDATION_ERROR.
+    if (!ready) return;
     if (!envelopeId) { setError(t('feoh.accounts.envelopeRequired')); return; }
     try {
       const res = await reconcile.mutateAsync({
@@ -95,6 +99,8 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
             </p>
             <div className="flex justify-end"><Button onClick={close}>{t('feoh.form.cancel')}</Button></div>
           </div>
+        ) : !ready ? (
+          <p className="text-sm text-ash" aria-busy="true">{t('common.loading')}</p>
         ) : (
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1">

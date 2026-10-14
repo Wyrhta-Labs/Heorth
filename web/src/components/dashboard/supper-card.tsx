@@ -18,7 +18,9 @@ export default function SupperCard() {
   const supper = plan?.data.find((e) => e.slot === 'supper');
   // The plan entry carries its recipe; the recipe list is paged and would miss it.
   const recipe = supper?.recipe ?? undefined;
-  const title = recipe?.title ?? supper?.freeText ?? t('today.nothingPlannedYet');
+  // Until the zone and tonight's plan are in, "nothing planned" would be a false empty state.
+  const loaded = ready && plan !== undefined;
+  const title = !loaded ? t('common.loading') : recipe?.title ?? supper?.freeText ?? t('today.nothingPlannedYet');
 
   return (
     <Card className="border-nav-active bg-nav text-nav-fg">

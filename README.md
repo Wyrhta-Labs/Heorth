@@ -1003,13 +1003,16 @@ docker rm -f heorth-test-db
 ```
 
 Port 55499 is arbitrary — pick anything free that is not your development
-cluster's port. To reuse an existing server instead, create a separate database
-on it and point at that:
+cluster's port. In the Wyrhta dev stack, use its disposable test cluster (`db-test`, port 15433;
+never the dev cluster on 15432) and a separate `heorth_test` database on it:
 
 ```bash
-export DATABASE_URL=postgres://heorth:<password>@localhost:15432/heorth_test
+export DATABASE_URL=postgres://heorth:<password>@127.0.0.1:15433/heorth_test
 npm test
 ```
+
+Use `127.0.0.1`, not `localhost`: on Windows `localhost` resolves to `::1` first,
+which WSL's relay answers, and connections time out.
 
 The web suite (`cd web && npm test`) is jsdom-only and needs no database.
 

@@ -1,7 +1,7 @@
 // web/src/lib/format.test.ts
 import { describe, it, expect } from 'vitest';
-import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso, startOfDayInTimeZone, wallClockIn } from './format';
-import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
+import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso, startOfDayInTimeZone, formatClock } from './format';
+import { startOfDay, endOfDay, parseISO } from 'date-fns';
 import { de, enGB, enUS } from 'date-fns/locale';
 
 describe('formatMoney', () => {
@@ -94,10 +94,8 @@ describe('household-zone helpers', () => {
     expect(startOfDayInTimeZone('2026-10-26', 'Europe/Berlin').toISOString()).toBe('2026-10-25T23:00:00.000Z');
   });
 
-  it('wallClockIn: local fields read as the zone wall clock (for display only)', () => {
-    const wall = wallClockIn('Pacific/Auckland', new Date('2026-07-26T13:05:00Z'));
-    expect(format(wall, 'yyyy-MM-dd HH:mm EEEE')).toBe('2026-07-27 01:05 Monday');
-    const la = wallClockIn('America/Los_Angeles', new Date('2026-07-26T13:05:00Z'));
-    expect(format(la, 'yyyy-MM-dd HH:mm')).toBe('2026-07-26 06:05');
+  it('formatClock: the zone wall-clock time of an instant', () => {
+    expect(formatClock(new Date('2026-07-26T13:05:00Z'), 'Pacific/Auckland')).toBe('01:05');
+    expect(formatClock(new Date('2026-07-26T13:05:00Z'), 'America/Los_Angeles')).toBe('06:05');
   });
 });

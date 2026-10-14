@@ -25,7 +25,8 @@ export function formatTime(dateStr: string | null | undefined, locale: Locale = 
   if (!dateStr) return '—';
   try {
     const d = parseISO(dateStr);
-    return format(timeZone ? wallClockIn(timeZone, d) : d, 'p', { locale });
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return timeZone ? formatClock(d, timeZone, locale, 'p') : format(d, 'p', { locale });
   } catch { return dateStr; }
 }
 
@@ -105,14 +106,32 @@ export function startOfDayInTimeZone(iso: string, timeZone: string): Date {
 }
 
 /**
- * A `Date` whose LOCAL fields read as `timeZone`'s wall clock at `ref`, so the
- * date-fns formatters (`EEEE`, `HH:mm`, a locale pattern) print the household's
- * time instead of the browser's. A display carrier only: its own instant is
- * meaningless and must never be sent to the API or compared with real instants.
+ * The clock time of instant `ref` on `timeZone`'s wall clock, formatted from
+ * Intl's zone-aware fields — never via a browser-local Date built from those
+ * fields, which a browser DST gap would shift by an hour. `'HH:mm'` is the
+ * fixed 24-hour form; `'p'` follows the locale's clock like date-fns' `p`
+ * ("8:05 AM" in en-US, "08:05" in en-GB/de).
  */
-export function wallClockIn(timeZone: string, ref: Date = new Date()): Date {
+export function formatClock(ref: Date, timeZone: string, locale: Locale = enUS, pattern: 'HH:mm' | 'p' = 'HH:mm'): string {
   const f = zonedFields(ref, timeZone);
-  return new Date(f.year, f.month - 1, f.day, f.hour, f.minute, f.second, ref.getMilliseconds());
+  const mm = String(f.minute).padStart(2, '0');
+  if (pattern === 'HH:mm' || !uses12HourClock(locale)) return `${String(f.hour).padStart(2, '0')}:${mm}`;
+  const period = cachedFormat(dayPeriodFormats, locale.code ?? 'en-US', () => new Intl.DateTimeFormat(locale.code, { hour: 'numeric', hourCycle: 'h12', timeZone: 'UTC' }))
+    .formatToParts(new Date(Date.UTC(2000, 0, 1, f.hour))).find((p) => p.type === 'dayPeriod')?.value ?? (f.hour < 12 ? 'AM' : 'PM');
+  return `${f.hour % 12 || 12}:${mm} ${period}`;
+}
+
+const dayPeriodFormats = new Map<string, Intl.DateTimeFormat>();
+const hourCycles = new Map<string, boolean>();
+function uses12HourClock(locale: Locale): boolean {
+  const code = locale.code ?? 'en-US';
+  let h12 = hourCycles.get(code);
+  if (h12 === undefined) {
+    const cycle = new Intl.DateTimeFormat(code, { hour: 'numeric' }).resolvedOptions().hourCycle;
+    h12 = cycle === 'h12' || cycle === 'h11';
+    hourCycles.set(code, h12);
+  }
+  return h12;
 }
 
 /**

@@ -28,7 +28,7 @@ import {
   loadHearthDisplayPrefs, saveHearthDisplayPrefs, loadHearthPosition, saveHearthPosition,
 } from '@/lib/hearth-prefs';
 import { usePersistedState } from '@/hooks/use-persisted-state';
-import { startOfDayInTimeZone, todayInTimeZone, wallClockIn } from '@/lib/format';
+import { formatClock, startOfDayInTimeZone, todayInTimeZone } from '@/lib/format';
 import {
   composeDay, computeMealSwap, deriveStaleness, tasksForDay, formatAge,
   type DayComposition, type MealOp,
@@ -88,8 +88,6 @@ function HearthInner() {
   const timeZone = useHousehold().data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const now = new Date(nowMs);
   const todayIso = todayInTimeZone(timeZone, now);
-  // The household's wall clock, for the header and footer text only.
-  const wallNow = wallClockIn(timeZone, now);
 
   // Visible range depends on the mode + paging offset. `base` and the range
   // ends are calendar dates (local-midnight carriers of household dates), so
@@ -234,8 +232,8 @@ function HearthInner() {
       {/* Header */}
       <header className="mb-5 flex items-end justify-between gap-6 max-md:flex-col max-md:items-stretch max-md:gap-3">
         <div>
-          <h1 className="font-serif text-5xl leading-none text-ink max-md:text-4xl">{format(wallNow, 'EEEE', { locale })}</h1>
-          <p className="mt-1 text-xl text-ash max-md:text-base">{format(wallNow, t('hearth.header.datePattern'), { locale })} · {format(wallNow, 'HH:mm')}</p>
+          <h1 className="font-serif text-5xl leading-none text-ink max-md:text-4xl">{format(today, 'EEEE', { locale })}</h1>
+          <p className="mt-1 text-xl text-ash max-md:text-base">{format(today, t('hearth.header.datePattern'), { locale })} · {formatClock(now, timeZone)}</p>
         </div>
         <div className="flex flex-col items-end gap-3 max-md:items-stretch">
           <div className="flex items-center gap-2 max-md:justify-between">
@@ -330,7 +328,7 @@ function HearthInner() {
       {/* Freshness / staleness footer */}
       <footer className="mt-4 flex items-center justify-between gap-6 text-sm text-ash/80 max-md:gap-3">
         <span className="shrink-0">
-          {reconnecting ? t('hearth.footer.reconnecting') : ''}{t('hearth.footer.asOf', { time: format(wallClockIn(timeZone, new Date(updatedAt)), 'HH:mm') })}
+          {reconnecting ? t('hearth.footer.reconnecting') : ''}{t('hearth.footer.asOf', { time: formatClock(new Date(updatedAt), timeZone) })}
         </span>
         {displayPrefs.staleFooter && staleNotes.length > 0 && (
           <span className="truncate text-right">{staleNotes.join('   ·   ')}</span>

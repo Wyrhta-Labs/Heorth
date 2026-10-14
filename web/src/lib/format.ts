@@ -99,10 +99,29 @@ function zoneOffsetMs(ms: number, timeZone: string): number {
  * a DST change still lands on its own offset.
  */
 export function startOfDayInTimeZone(iso: string, timeZone: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  const midnightAsUtc = Date.UTC(y!, m! - 1, d!);
-  const first = midnightAsUtc - zoneOffsetMs(midnightAsUtc, timeZone);
-  return new Date(midnightAsUtc - zoneOffsetMs(first, timeZone));
+  return instantFromWallClock(`${iso}T00:00`, timeZone);
+}
+
+/**
+ * The instant at which `timeZone`'s wall clock reads `local`
+ * (`YYYY-MM-DDTHH:mm`, a `datetime-local` value). Two passes so a time on the
+ * far side of a DST change lands on its own offset; a time inside a gap
+ * resolves to an instant next to it.
+ */
+export function instantFromWallClock(local: string, timeZone: string): Date {
+  const [datePart, timePart = '00:00'] = local.split('T');
+  const [y, m, d] = datePart!.split('-').map(Number);
+  const [h, mi] = timePart.split(':').map(Number);
+  const asUtc = Date.UTC(y!, m! - 1, d!, h ?? 0, mi ?? 0);
+  const first = asUtc - zoneOffsetMs(asUtc, timeZone);
+  return new Date(asUtc - zoneOffsetMs(first, timeZone));
+}
+
+/** `ref` as a `datetime-local` value (`YYYY-MM-DDTHH:mm`) on `timeZone`'s wall clock. */
+export function wallClockInput(ref: Date, timeZone: string): string {
+  const f = zonedFields(ref, timeZone);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${f.year}-${p(f.month)}-${p(f.day)}T${p(f.hour)}:${p(f.minute)}`;
 }
 
 /**

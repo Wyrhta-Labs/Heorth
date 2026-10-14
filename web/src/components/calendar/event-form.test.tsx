@@ -9,6 +9,7 @@ const members = [
   { id: 'm2', email: 'b@t', handle: 'ben', role: 'child', displayName: 'Ben', avatarColor: 'sky', createdAt: '', updatedAt: '' },
 ];
 vi.mock('@/hooks/use-household', () => ({
+  useHousehold: () => ({ data: undefined }), // browser zone stands in
   useHouseholdMembers: () => ({ data: { data: members } }),
 }));
 

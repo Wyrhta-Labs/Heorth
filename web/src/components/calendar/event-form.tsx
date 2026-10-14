@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MemberAvatar } from '@/components/ui/member-avatar';
 import { RECURRENCE_OPTIONS } from '@/lib/constants';
-import { useHouseholdMembers } from '@/hooks/use-household';
+import { useHousehold, useHouseholdMembers } from '@/hooks/use-household';
+import { instantFromWallClock, wallClockInput } from '@/lib/format';
 import type { Event } from '@/lib/types';
 import type { TFunction } from 'i18next';
 
@@ -32,29 +33,26 @@ export interface EventFormValues extends Omit<FormValues, 'recurrence'> {
   recurrence: string | null;
 }
 
-/** datetime-local strings <-> ISO. */
-function toLocalInput(iso?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const off = d.getTimezoneOffset();
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
-}
-export function localToIso(local: string): string {
-  return new Date(local).toISOString();
+// The datetime-local inputs hold the HOUSEHOLD's wall clock, whatever zone
+// the browser runs in: the Hearth wall pre-picks household days, and a time
+// typed here means that time where the household lives.
+
+/** An instant as a datetime-local value on the household clock. */
+function toZonedInput(iso: string | undefined, timeZone: string): string {
+  return iso ? wallClockInput(new Date(iso), timeZone) : '';
 }
 
 /**
- * Default start/end (datetime-local strings) for a new event on a given local
- * day (yyyy-MM-dd): the next full hour when the day is today, otherwise a
- * morning slot; one hour long. Used by callers that pre-pick a date (e.g. the
- * Hearth wall's tap-a-day overlay).
+ * Default start/end (datetime-local strings) for a new event on a given
+ * household day (yyyy-MM-dd): the next full household hour when the day is
+ * the household's today, otherwise a morning slot; one hour long. Used by
+ * callers that pre-pick a date (e.g. the Hearth wall's tap-a-day overlay).
  */
-function dateDefaults(date?: string): { start: string; end: string } {
+function dateDefaults(date: string | undefined, timeZone: string): { start: string; end: string } {
   if (!date) return { start: '', end: '' };
-  const now = new Date();
+  const [today, time] = wallClockInput(new Date(), timeZone).split('T');
   const pad = (n: number) => String(n).padStart(2, '0');
-  const todayLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const startHour = date === todayLocal ? Math.min(now.getHours() + 1, 22) : 9;
+  const startHour = date === today ? Math.min(Number(time!.slice(0, 2)) + 1, 22) : 9;
   return { start: `${date}T${pad(startHour)}:00`, end: `${date}T${pad(startHour + 1)}:00` };
 }
 
@@ -72,12 +70,17 @@ export default function EventForm({ event, initialDate, onSubmit, onCancel, isLo
   const schema = useMemo(() => buildSchema(t), [t]);
   const { data: membersData } = useHouseholdMembers();
   const members = membersData?.data ?? [];
+  const householdZone = useHousehold().data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Pinned at mount: the inputs were filled in this zone, so they must be read
+  // back in it too, even if the household loads (or changes) while it is open.
+  const [timeZone] = useState(householdZone);
+  const defaults = dateDefaults(initialDate, timeZone);
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: event?.title ?? '',
-      startAt: event ? toLocalInput(event.startAt) : dateDefaults(initialDate).start,
-      endAt: event ? toLocalInput(event.endAt) : dateDefaults(initialDate).end,
+      startAt: event ? toZonedInput(event.startAt, timeZone) : defaults.start,
+      endAt: event ? toZonedInput(event.endAt, timeZone) : defaults.end,
       allDay: event?.allDay ?? false,
       location: event?.location ?? '',
       notes: event?.notes ?? '',
@@ -95,8 +98,8 @@ export default function EventForm({ event, initialDate, onSubmit, onCancel, isLo
   const submit = handleSubmit(async (v) => {
     await onSubmit({
       ...v,
-      startAt: localToIso(v.startAt),
-      endAt: localToIso(v.endAt),
+      startAt: instantFromWallClock(v.startAt, timeZone).toISOString(),
+      endAt: instantFromWallClock(v.endAt, timeZone).toISOString(),
       recurrence: v.recurrence ? v.recurrence : null,
     });
   });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DayColumn from './day-column';
-import { remindersForDay, type DayComposition, type StalenessInfo } from '@/lib/hearth';
+import { edgeScrollDelta, remindersForDay, type DayComposition, type StalenessInfo } from '@/lib/hearth';
 import type { KithReminder, Member, Recipe, Task } from '@/lib/types';
 
 interface Props {
@@ -27,7 +27,8 @@ interface Ghost { label: string; x: number; y: number }
  * The default wall composition: seven day columns, each merging that day's
  * events, planned supper, and due/done tasks. Owns the one edit gesture —
  * dragging a supper between days — via pointer events (works for touch + mouse),
- * with a floating pickup ghost and drop-target highlight. The swap arithmetic
+ * with a floating pickup ghost, drop-target highlight and edge auto-scroll
+ * (phone width scrolls the page; a held finger cannot). The swap arithmetic
  * itself lives in lib/hearth.ts (computeMealSwap) and is unit-tested.
  */
 export default function HearthWeek(props: Props) {
@@ -63,18 +64,39 @@ export default function HearthWeek(props: Props) {
     setDropTarget(null);
     setGhost({ label, x: e.clientX, y: e.clientY });
 
-    const move = (ev: PointerEvent) => {
-      const over = dayUnderPoint(ev.clientX, ev.clientY);
+    let pointer = { x: e.clientX, y: e.clientY };
+    const hover = () => {
+      const over = dayUnderPoint(pointer.x, pointer.y);
       dropRef.current = over;
       setDropTarget(over);
+    };
+    const move = (ev: PointerEvent) => {
+      pointer = { x: ev.clientX, y: ev.clientY };
+      hover();
       setGhost({ label, x: ev.clientX, y: ev.clientY });
     };
+    // Edge auto-scroll: while the pointer sits near the top/bottom edge, scroll
+    // the page each frame and re-hit-test, so a held finger reaches a day below
+    // the fold (phone width stacks the days). Above md the wall is pinned to
+    // the viewport and the document cannot scroll, so scrollBy is a no-op there.
+    let frame = 0;
+    const tick = () => {
+      const dy = edgeScrollDelta(pointer.y, window.innerHeight);
+      if (dy !== 0) {
+        const before = window.scrollY;
+        window.scrollBy(0, dy);
+        if (window.scrollY !== before) hover();
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
     // Shared teardown for pointerup (may commit) and pointercancel/unmount
     // (never commits — a cancel means the gesture was taken over, e.g. a touch
     // scroll or palm rejection on the wall's touch panel, not a real drop).
     const teardown = (commit: boolean) => {
       suppressTapRef.current = true;
       setTimeout(() => { suppressTapRef.current = false; }, 0);
+      window.cancelAnimationFrame(frame);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', cancel);

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import i18n from '@/i18n';
 import HearthWeek from './hearth-week';
@@ -195,4 +195,71 @@ describe('HearthWeek meal drag', () => {
     addSpy.mockRestore();
     removeSpy.mockRestore();
   });
+
+  describe('edge auto-scroll (phone width: the page scrolls, days stack)', () => {
+    let frames: FrameRequestCallback[];
+    let scrollY: number;
+    const runFrames = (n: number) => {
+      for (let i = 0; i < n; i++) {
+        const batch = frames;
+        frames = [];
+        batch.forEach((cb) => cb(0));
+      }
+    };
+    beforeEach(() => {
+      frames = [];
+      scrollY = 0;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => { frames.push(cb); return frames.length; });
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { frames = []; });
+      vi.spyOn(window, 'scrollBy').mockImplementation(((_x: number, y: number) => { scrollY += y; }) as typeof window.scrollBy);
+      Object.defineProperty(window, 'scrollY', { configurable: true, get: () => scrollY });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+      Reflect.deleteProperty(window, 'scrollY');
+    });
+
+    it('scrolls the page while the pointer holds still at the bottom edge and drops on the day scrolled into view', () => {
+      const onSwapMeal = vi.fn();
+      render(<HearthWeek {...base} days={days} onSwapMeal={onSwapMeal} />);
+      const grips = screen.getAllByLabelText('Move meal');
+      hitTest('2026-07-20');
+
+      fireEvent.pointerDown(grips[0]!, { clientX: 100, clientY: 400 });
+      fireEvent(window, new MouseEvent('pointermove', { clientX: 100, clientY: 834 }));
+      // The finger stays put; the page scrolls underneath it and brings the
+      // next day under the pointer — without another pointermove.
+      hitTest('2026-07-21');
+      runFrames(10);
+      expect(scrollY).toBeGreaterThan(0);
+
+      fireEvent(window, new MouseEvent('pointerup', {}));
+      expect(onSwapMeal).toHaveBeenCalledWith('2026-07-20', '2026-07-21');
+    });
+
+    it('does not scroll while the pointer is away from the edges', () => {
+      render(<HearthWeek {...base} days={days} onSwapMeal={vi.fn()} />);
+      hitTest('2026-07-21');
+      fireEvent.pointerDown(screen.getAllByLabelText('Move meal')[0]!, { clientX: 100, clientY: 400 });
+      fireEvent(window, new MouseEvent('pointermove', { clientX: 100, clientY: 420 }));
+      runFrames(10);
+      expect(window.scrollBy).not.toHaveBeenCalled();
+      fireEvent(window, new MouseEvent('pointerup', {}));
+    });
+
+    it('stops scrolling once the supper is dropped', () => {
+      render(<HearthWeek {...base} days={days} onSwapMeal={vi.fn()} />);
+      hitTest('2026-07-21');
+      fireEvent.pointerDown(screen.getAllByLabelText('Move meal')[0]!, { clientX: 100, clientY: 400 });
+      fireEvent(window, new MouseEvent('pointermove', { clientX: 100, clientY: 834 }));
+      runFrames(2);
+      fireEvent(window, new MouseEvent('pointerup', {}));
+      const after = scrollY;
+      runFrames(10);
+      expect(scrollY).toBe(after);
+      expect(frames).toHaveLength(0);
+    });
+  });
 });
+

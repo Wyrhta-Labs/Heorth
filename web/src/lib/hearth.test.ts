@@ -7,7 +7,7 @@ process.env.TZ = 'Europe/Berlin';
 import { describe, it, expect } from 'vitest';
 import i18n from '@/i18n';
 import {
-  composeDay, computeMealSwap, deriveStaleness, effectiveDueAt, eventsForDay, formatAge,
+  composeDay, computeMealSwap, deriveStaleness, edgeScrollDelta, effectiveDueAt, eventsForDay, formatAge,
   ownerOfFeed, pickNowNext, remindersForDay, resolveAttribution, tasksForDay,
   HOUSEHOLD_COLOR, type FeedStatus,
 } from './hearth';
@@ -304,5 +304,36 @@ describe('formatAge', () => {
     expect(formatAge('2026-07-24T10:00:00Z', now, i18n.t)).toBe('2h');
     expect(formatAge('2026-07-21T12:00:00Z', now, i18n.t)).toBe('3d');
     expect(formatAge(null, now, i18n.t)).toBe('never');
+  });
+});
+
+describe('edgeScrollDelta (supper drag auto-scroll)', () => {
+  // 844px phone viewport, 80px edge zones, 20px/frame top speed.
+  const vh = 844;
+
+  it('does not scroll while the pointer is away from both edges', () => {
+    expect(edgeScrollDelta(400, vh)).toBe(0);
+    expect(edgeScrollDelta(80, vh)).toBe(0);
+    expect(edgeScrollDelta(vh - 80, vh)).toBe(0);
+  });
+
+  it('scrolls down near the bottom edge, faster the deeper into the zone', () => {
+    const shallow = edgeScrollDelta(vh - 70, vh);
+    const deep = edgeScrollDelta(vh - 10, vh);
+    expect(shallow).toBeGreaterThan(0);
+    expect(deep).toBeGreaterThan(shallow);
+    expect(edgeScrollDelta(vh - 40, vh)).toBe(10);
+    expect(edgeScrollDelta(vh, vh)).toBe(20);
+  });
+
+  it('scrolls up near the top edge, mirrored', () => {
+    expect(edgeScrollDelta(40, vh)).toBe(-10);
+    expect(edgeScrollDelta(0, vh)).toBe(-20);
+    expect(edgeScrollDelta(70, vh)).toBeLessThan(0);
+  });
+
+  it('caps the speed when the pointer leaves the viewport', () => {
+    expect(edgeScrollDelta(vh + 50, vh)).toBe(20);
+    expect(edgeScrollDelta(-50, vh)).toBe(-20);
   });
 });

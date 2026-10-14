@@ -272,6 +272,24 @@ export function computeMealSwap(
   return ops;
 }
 
+/**
+ * Edge auto-scroll for the supper drag: pixels to scroll the page this frame
+ * for a pointer at `y` in a viewport `viewportHeight` tall. Inside an
+ * `edge`-px band at the top or bottom the page scrolls (negative = up),
+ * proportionally faster the deeper the pointer sits, capped at `maxStep` —
+ * also once the pointer leaves the viewport. Anywhere else it is 0.
+ *
+ * Needed below md, where the week stacks one day per row and the page scrolls:
+ * the grip is `touch-none`, so a finger dragging a supper cannot scroll the
+ * page itself, and a day below the fold would otherwise be unreachable.
+ */
+export function edgeScrollDelta(y: number, viewportHeight: number, edge = 80, maxStep = 20): number {
+  if (y < edge) return -Math.round((maxStep * (edge - Math.max(y, 0))) / edge);
+  const bottom = viewportHeight - edge;
+  if (y > bottom) return Math.round((maxStep * (Math.min(y, viewportHeight) - bottom)) / edge);
+  return 0;
+}
+
 // ---------------------------------------------------------------------------
 // Per-feed staleness derivation from GET /api/v1/integrations/status feeds[]
 // ---------------------------------------------------------------------------

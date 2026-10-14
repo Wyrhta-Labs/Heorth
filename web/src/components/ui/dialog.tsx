@@ -58,8 +58,9 @@ function focusableIn(panel: HTMLElement): HTMLElement[] {
 interface DialogLabelContext {
   titleId: string;
   descriptionId: string;
-  setTitleMounted: (mounted: boolean) => void;
-  setDescriptionMounted: (mounted: boolean) => void;
+  /** Register the id the title/description actually renders (null when unmounted). */
+  setTitleId: (id: string | null) => void;
+  setDescriptionId: (id: string | null) => void;
 }
 
 const DialogLabelCtx = React.createContext<DialogLabelContext | null>(null);
@@ -72,10 +73,10 @@ function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   const openerRef = React.useRef<Element | null>(null);
   const titleId = React.useId();
   const descriptionId = React.useId();
-  const [titleMounted, setTitleMounted] = React.useState(false);
-  const [descriptionMounted, setDescriptionMounted] = React.useState(false);
+  const [renderedTitleId, setTitleId] = React.useState<string | null>(null);
+  const [renderedDescriptionId, setDescriptionId] = React.useState<string | null>(null);
   const labelCtx = React.useMemo(
-    () => ({ titleId, descriptionId, setTitleMounted, setDescriptionMounted }),
+    () => ({ titleId, descriptionId, setTitleId, setDescriptionId }),
     [titleId, descriptionId],
   );
 
@@ -137,8 +138,8 @@ function Dialog({ open, onOpenChange, children, className }: DialogProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleMounted ? titleId : undefined}
-        aria-describedby={descriptionMounted ? descriptionId : undefined}
+        aria-labelledby={renderedTitleId ?? undefined}
+        aria-describedby={renderedDescriptionId ?? undefined}
         tabIndex={-1}
         className={cn('relative z-50 w-full max-w-lg outline-none', className)}
       >
@@ -173,22 +174,24 @@ function DialogHeader({ className, ...props }: DialogHeaderProps) {
 
 function DialogTitle({ className, id, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   const ctx = React.useContext(DialogLabelCtx);
-  const setMounted = ctx?.setTitleMounted;
+  const setTitleId = ctx?.setTitleId;
+  const effectiveId = id ?? ctx?.titleId;
   React.useLayoutEffect(() => {
-    setMounted?.(true);
-    return () => setMounted?.(false);
-  }, [setMounted]);
-  return <h2 id={id ?? ctx?.titleId} className={cn('text-base font-bold text-fg', className)} {...props} />;
+    setTitleId?.(effectiveId ?? null);
+    return () => setTitleId?.(null);
+  }, [setTitleId, effectiveId]);
+  return <h2 id={effectiveId} className={cn('text-base font-bold text-fg', className)} {...props} />;
 }
 
 function DialogDescription({ className, id, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   const ctx = React.useContext(DialogLabelCtx);
-  const setMounted = ctx?.setDescriptionMounted;
+  const setDescriptionId = ctx?.setDescriptionId;
+  const effectiveId = id ?? ctx?.descriptionId;
   React.useLayoutEffect(() => {
-    setMounted?.(true);
-    return () => setMounted?.(false);
-  }, [setMounted]);
-  return <p id={id ?? ctx?.descriptionId} className={cn('text-[13px] text-muted', className)} {...props} />;
+    setDescriptionId?.(effectiveId ?? null);
+    return () => setDescriptionId?.(null);
+  }, [setDescriptionId, effectiveId]);
+  return <p id={effectiveId} className={cn('text-[13px] text-muted', className)} {...props} />;
 }
 
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

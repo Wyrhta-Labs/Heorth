@@ -200,4 +200,31 @@ describe('Dialog labelling', () => {
     expect(d).not.toHaveAttribute('aria-labelledby');
     expect(d).not.toHaveAttribute('aria-describedby');
   });
+
+  it('references a caller-provided id on title and description', () => {
+    render(
+      <Dialog open onOpenChange={() => {}}>
+        <DialogContent><DialogTitle id="custom-title">Hello</DialogTitle><DialogDescription id="custom-desc">Details</DialogDescription></DialogContent>
+      </Dialog>,
+    );
+    const d = screen.getByRole('dialog');
+    expect(d).toHaveAttribute('aria-labelledby', 'custom-title');
+    expect(d).toHaveAttribute('aria-describedby', 'custom-desc');
+    expect(document.getElementById('custom-title')).not.toBeNull();
+    expect(d).toHaveAccessibleName('Hello');
+  });
+
+  it('follows a changing id and drops the reference when the title unmounts', () => {
+    const ui = (id: string | null) => (
+      <Dialog open onOpenChange={() => {}}>
+        <DialogContent>{id && <DialogTitle id={id}>Hello</DialogTitle>}<button>x</button></DialogContent>
+      </Dialog>
+    );
+    const { rerender } = render(ui('a'));
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-labelledby', 'a');
+    rerender(ui('b'));
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-labelledby', 'b');
+    rerender(ui(null));
+    expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-labelledby');
+  });
 });

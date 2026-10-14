@@ -41,6 +41,8 @@ vi.mock('@/hooks/use-feoh-import', () => ({
 }));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
+vi.mock('@/hooks/use-household', () => ({ useHousehold: () => ({ data: { data: { timezone: 'UTC' } }, isError: false }) }));
+
 import FeohPage from './feoh';
 
 afterEach(() => {

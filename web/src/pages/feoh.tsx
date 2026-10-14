@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeftRight, CalendarClock, Inbox, Plus } from 'lucide-react';
-import { format } from 'date-fns';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -25,8 +25,10 @@ import { ApiError } from '@/api/client';
 export default function FeohPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const month = format(new Date(), 'yyyy-MM');
-  const summaryQuery = useSummary(month);
+  // The budget month is the HOUSEHOLD's; not fetched until its zone is known.
+  const { zone, ready } = useHouseholdZone();
+  const month = useHouseholdToday(zone).slice(0, 7);
+  const summaryQuery = useSummary(month, { enabled: ready });
   const envQuery = useEnvelopes();
   const acctQuery = useAccounts();
   const billsQuery = useBills();

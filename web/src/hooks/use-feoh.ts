@@ -4,7 +4,9 @@ import * as api from '@/api/feoh';
 
 export function useAccounts() { return useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: () => api.listAccounts() }); }
 export function useEnvelopes() { return useQuery({ queryKey: QUERY_KEYS.envelopes, queryFn: () => api.listEnvelopes() }); }
-export function useSummary(month: string) { return useQuery({ queryKey: QUERY_KEYS.summary(month), queryFn: () => api.getSummary(month) }); }
+export function useSummary(month: string, opts: { enabled?: boolean } = {}) {
+  return useQuery({ queryKey: QUERY_KEYS.summary(month), queryFn: () => api.getSummary(month), ...opts });
+}
 export function useTransactions(params: Parameters<typeof api.listTransactions>[0] = {}) {
   return useQuery({ queryKey: [...QUERY_KEYS.transactions, params], queryFn: () => api.listTransactions(params) });
 }

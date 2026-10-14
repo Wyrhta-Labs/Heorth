@@ -15,6 +15,8 @@ vi.mock('@/hooks/use-feoh', () => ({
   useReconcileAccount: () => ({ mutateAsync: reconcileMutateAsync, isPending: false }),
 }));
 
+vi.mock('@/hooks/use-household', () => ({ useHousehold: () => ({ data: { data: { timezone: 'UTC' } }, isError: false }) }));
+
 import AccountsPanel from './accounts-panel';
 
 afterEach(() => {

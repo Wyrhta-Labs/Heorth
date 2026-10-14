@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { format } from 'date-fns';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,10 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
   const reconcile = useReconcileAccount();
 
   const [counted, setCounted] = useState('');
-  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  // Defaults to the household's today and follows it until the user picks a date.
+  const today = useHouseholdToday(useHouseholdZone().zone);
+  const [picked, setDate] = useState<string | null>(null);
+  const date = picked ?? today;
   const [envelopeId, setEnvelopeId] = useState('');
   const [memo, setMemo] = useState('');
   const [result, setResult] = useState<ReconcileResult | null>(null);
@@ -41,7 +44,7 @@ export default function ReconcileDialog({ open, onOpenChange, accountId }: Props
 
   const reset = () => {
     setCounted('');
-    setDate(format(new Date(), 'yyyy-MM-dd'));
+    setDate(null);
     setEnvelopeId('');
     setMemo('');
     setResult(null);

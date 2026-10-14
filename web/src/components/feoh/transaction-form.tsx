@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Account, Envelope } from '@/lib/types';
 import type { TransactionInput } from '@/api/feoh';
-import { format } from 'date-fns';
 
 interface Props {
   accounts: Account[];
@@ -18,7 +18,10 @@ interface Props {
 /** A spend: debit the envelope, credit the account — always balanced. */
 export default function TransactionForm({ accounts, envelopes, onSubmit, onCancel, isLoading }: Props) {
   const { t } = useTranslation();
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  // Defaults to the household's today and follows it until the user picks a date.
+  const today = useHouseholdToday(useHouseholdZone().zone);
+  const [picked, setDate] = useState<string | null>(null);
+  const date = picked ?? today;
   const [payee, setPayee] = useState('');
   const [memo, setMemo] = useState('');
   const [amount, setAmount] = useState('');

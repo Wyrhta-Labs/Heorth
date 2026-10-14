@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { useCreateTask } from '@/hooks/use-tasks';
 import { useUpsertPlanEntry } from '@/hooks/use-meals';
-import { useFormatters } from '@/hooks/use-formatters';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import { MEAL_SLOTS } from '@/lib/constants';
 import type { MealSlot } from '@/lib/types';
 
@@ -23,7 +23,10 @@ type Mode = 'task' | 'meal' | null;
 export default function CapturePage() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { dayLabel } = useFormatters();
+  // A meal note is filed under the HOUSEHOLD's today, so it cannot be saved
+  // until the household's zone is known (browser zone only on a /household error).
+  const { zone, ready } = useHouseholdZone();
+  const today = useHouseholdToday(zone);
   const [mode, setMode] = useState<Mode>(null);
   const [text, setText] = useState('');
   const [slot, setSlot] = useState<MealSlot>('supper');
@@ -46,9 +49,9 @@ export default function CapturePage() {
 
   const submitMeal = async () => {
     const value = text.trim();
-    if (!value) return;
+    if (!value || !ready) return;
     try {
-      await upsertEntry.mutateAsync({ date: dayLabel(new Date()).iso, slot, recipeId: null, freeText: value });
+      await upsertEntry.mutateAsync({ date: today, slot, recipeId: null, freeText: value });
       toast(t('capture.mealNoteSaved'), 'success');
       reset();
     } catch (e) {
@@ -118,7 +121,7 @@ export default function CapturePage() {
               onKeyDown={(e) => e.key === 'Enter' && void submitMeal()} placeholder={t('capture.mealPlaceholder')}
             />
             <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => void submitMeal()} disabled={upsertEntry.isPending || !text.trim()}>
+              <Button className="flex-1" onClick={() => void submitMeal()} disabled={upsertEntry.isPending || !text.trim() || !ready}>
                 {t('capture.saveNote')}
               </Button>
               <Button variant="outline" onClick={reset}>{t('common.cancel')}</Button>

@@ -1,7 +1,6 @@
 // web/src/lib/format.test.ts
 import { describe, it, expect } from 'vitest';
-import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso, startOfDayInTimeZone, formatClock, instantFromWallClock, wallClockInput } from './format';
-import { startOfDay, endOfDay, parseISO } from 'date-fns';
+import { formatMoney, progressPercent, formatDate, formatTime, weekDays, dayLabel, startOfDayInTimeZone, formatClock, instantFromWallClock, wallClockInput } from './format';
 import { de, enGB, enUS } from 'date-fns/locale';
 
 describe('formatMoney', () => {
@@ -50,32 +49,6 @@ describe('formatDate / formatTime localize', () => {
     expect(formatDate('2026-07-13T18:30:00Z', de)).toMatch(/13\.\s?Juli 2026/);
     expect(formatTime('2026-07-13T09:05:00', enUS)).toBe('9:05 AM');
     expect(formatTime('2026-07-13T09:05:00', de)).toBe('09:05');
-  });
-});
-
-describe('dayRangeIso', () => {
-  it('brackets the LOCAL calendar day (not a Z-suffixed local date)', () => {
-    const d = new Date('2026-07-13T15:30:00'); // parsed in local time
-    const { from, to } = dayRangeIso(d);
-    // from/to are the exact local day boundaries, expressed as UTC instants.
-    expect(parseISO(from).getTime()).toBe(startOfDay(d).getTime());
-    expect(parseISO(to).getTime()).toBe(endOfDay(d).getTime());
-    // Local calendar date of both bounds equals the input's local date.
-    expect(dayLabel(parseISO(from)).iso).toBe(dayLabel(d).iso);
-    expect(dayLabel(parseISO(to)).iso).toBe(dayLabel(d).iso);
-    // Spans one full day minus a millisecond, in any timezone.
-    expect(parseISO(to).getTime() - parseISO(from).getTime()).toBe(86_399_999);
-  });
-});
-
-describe('nextDays', () => {
-  it('starts on the reference day and runs seven consecutive days, across a week boundary', () => {
-    const sunday = new Date(2026, 9, 4); // Sun 4 Oct 2026
-    const days = nextDays(sunday);
-    expect(days).toHaveLength(7);
-    expect(dayLabel(days[0]!).iso).toBe('2026-10-04');
-    expect(dayLabel(days[1]!).iso).toBe('2026-10-05');
-    expect(dayLabel(days[6]!).iso).toBe('2026-10-10');
   });
 });
 

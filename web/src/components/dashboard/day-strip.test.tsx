@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+vi.mock('@/hooks/use-household', () => ({ useHousehold: () => ({ data: { data: { timezone: 'UTC' } }, isError: false }) }));
 import DayStrip from './day-strip';
 
 describe('DayStrip', () => {
@@ -7,7 +8,7 @@ describe('DayStrip', () => {
 
   it('on a Sunday shows today followed by the coming week, not the week that is ending', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 9, 4, 12)); // Sun 4 Oct 2026
+    vi.setSystemTime(new Date('2026-10-04T12:00:00Z')); // Sun 4 Oct 2026
     render(<DayStrip />);
     const cells = screen.getAllByTestId('day-strip-cell');
     expect(cells.map((c) => c.dataset.iso)).toEqual([

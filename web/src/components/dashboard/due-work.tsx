@@ -1,12 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addDays, format, parseISO } from 'date-fns';
 import { useToast } from '@/components/ui/toast';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
-import { todayInTimeZone } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
 import { useFormatters } from '@/hooks/use-formatters';
-import { useHousehold } from '@/hooks/use-household';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
 import * as weorc from '@/api/weorc';
 import OccurrenceList, { type OccurrenceEntry } from '@/components/weorc/occurrence-list';
@@ -28,10 +27,8 @@ export default function DueWork() {
   const { formatDate } = useFormatters();
   const qc = useQueryClient();
 
-  const householdTimeZone = useHousehold().data?.data.timezone
-    ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const today = todayInTimeZone(householdTimeZone);
-  const tomorrow = format(addDays(parseISO(today), 1), 'yyyy-MM-dd');
+  const { zone } = useHouseholdZone();
+  const tomorrow = addDaysIso(useHouseholdToday(zone), 1);
 
   const routinesQuery = useQuery({ queryKey: ROUTINES_KEY, queryFn: () => weorc.listRoutines() });
   const tasksQuery = useTasks({ status: 'open' });

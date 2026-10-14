@@ -4,13 +4,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useWeekPlan } from '@/hooks/use-meals';
-import { useFormatters } from '@/hooks/use-formatters';
+import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 
 export default function SupperCard() {
   const { t } = useTranslation();
-  const { dayLabel } = useFormatters();
-  const today = dayLabel(new Date()).iso;
-  const planQuery = useWeekPlan(today, today);
+  // Tonight is the HOUSEHOLD's tonight; nothing is fetched until its zone is known.
+  const { zone, ready } = useHouseholdZone();
+  const today = useHouseholdToday(zone);
+  const planQuery = useWeekPlan(today, today, { enabled: ready });
   const plan = planQuery.data;
   const retry = retryOf(planQuery);
   if (retry) return <ErrorState compact message={t('today.supperLoadError')} onRetry={retry} />;

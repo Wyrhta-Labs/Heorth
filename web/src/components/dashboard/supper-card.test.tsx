@@ -19,6 +19,7 @@ vi.mock('@/hooks/use-meals', () => ({
   useRecipes: () => query([]),
 }));
 
+vi.mock('@/hooks/use-household', () => ({ useHousehold: () => ({ data: { data: { timezone: 'UTC' } }, isError: false }) }));
 import SupperCard from './supper-card';
 
 afterEach(() => { cleanup(); plan = []; });

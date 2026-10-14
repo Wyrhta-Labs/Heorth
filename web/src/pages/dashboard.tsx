@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import { addDays } from 'date-fns';
 import { CalendarDays, House, ListChecks, Sunrise } from 'lucide-react';
 import { SectionCard } from '@/components/ui/section-tone';
 import DayStrip from '@/components/dashboard/day-strip';
@@ -23,7 +22,7 @@ export default function DashboardPage() {
             </SectionCard>
             <SectionCard title={t('today.tomorrow')} icon={Sunrise} tone="sky">
               <Agenda
-                day={addDays(new Date(), 1)}
+                offset={1}
                 emptyMessage={t('today.noEventsTomorrow')}
                 errorMessage={t('today.tomorrowLoadError')}
               />

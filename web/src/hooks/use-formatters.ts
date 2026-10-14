@@ -11,7 +11,6 @@ export function useFormatters() {
     formatDate: (d: string | null | undefined) => fmt.formatDate(d, locale),
     formatTime: (d: string | null | undefined, timeZone?: string) => fmt.formatTime(d, locale, timeZone),
     weekDays: (ref?: Date) => fmt.weekDays(ref),
-    nextDays: fmt.nextDays,
     dayLabel: (d: Date) => fmt.dayLabel(d, locale),
   }), [locale]);
 }

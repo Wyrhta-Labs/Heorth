@@ -1,4 +1,4 @@
-import { format, parseISO, addDays, startOfWeek, startOfDay, endOfDay, type Locale } from 'date-fns';
+import { format, parseISO, addDays, startOfWeek, type Locale } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 
 /** Format a money value as currency. Locale drives separators; currency stays USD (follow-up). */
@@ -38,12 +38,6 @@ export function formatTime(dateStr: string | null | undefined, locale: Locale = 
 export function weekDays(ref: Date = new Date()): Date[] {
   const first = startOfWeek(ref, { weekStartsOn: 1 });
   return Array.from({ length: 7 }, (_, i) => addDays(first, i));
-}
-
-/** `ref`'s day and the six after it — a rolling week that never shows days already past. */
-export function nextDays(ref: Date = new Date(), count = 7): Date[] {
-  const first = startOfDay(ref);
-  return Array.from({ length: count }, (_, i) => addDays(first, i));
 }
 
 export function dayLabel(d: Date, locale: Locale = enUS): { dow: string; dom: string; iso: string } {
@@ -197,14 +191,4 @@ function uses12HourClock(locale: Locale): boolean {
     hourCycles.set(code, h12);
   }
   return h12;
-}
-
-/**
- * The start/end instants (ISO-8601, UTC) bracketing the LOCAL calendar day
- * containing `d`. Built from local midnight/end-of-day so a negative-UTC
- * viewer's "today" window is not shifted into the previous day (which a naive
- * `${yyyy-MM-dd}T00:00:00Z` construction would cause).
- */
-export function dayRangeIso(d: Date = new Date()): { from: string; to: string } {
-  return { from: startOfDay(d).toISOString(), to: endOfDay(d).toISOString() };
 }

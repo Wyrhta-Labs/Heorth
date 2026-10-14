@@ -16,7 +16,9 @@ vi.mock('@/hooks/use-meals', () => ({
   useUpsertPlanEntry: () => ({ mutateAsync: vi.fn() }),
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/hooks/use-household', () => ({ useHouseholdMembers: () => emptyQuery }));
+// No household loaded: the wall falls back to the browser zone, which these
+// tests' local-time assertions assume (hearth.tz.test.tsx covers the gap).
+vi.mock('@/hooks/use-household', () => ({ useHousehold: () => ({ data: undefined }), useHouseholdMembers: () => emptyQuery }));
 vi.mock('@/hooks/use-m365', () => ({ useIntegrationsFeedStatus: () => ({ data: [] }) }));
 // KithLedger enabled so the wall's reminders toggle renders (and is asserted in German).
 vi.mock('@/hooks/use-features', () => ({

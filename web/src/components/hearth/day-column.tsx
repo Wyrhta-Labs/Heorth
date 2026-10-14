@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import EventChip from './event-chip';
 import { useFormatters } from '@/hooks/use-formatters';
+import { wallClockIn } from '@/lib/format';
 import { effectiveDueAt, resolveAttribution, type DayComposition, type StalenessInfo } from '@/lib/hearth';
 import type { KithReminder, Member, Recipe, Task } from '@/lib/types';
 
@@ -23,6 +24,8 @@ interface Props {
   isDragSource: boolean;
   isDropTarget: boolean;
   dragActive: boolean;
+  /** The household's IANA zone; event and reminder times read in it. */
+  timeZone?: string;
 }
 
 function ownerStale(owner: string | null | undefined, stale: Record<string, StalenessInfo>): boolean {
@@ -31,7 +34,7 @@ function ownerStale(owner: string | null | undefined, stale: Record<string, Stal
 
 export default function DayColumn({
   comp, reminders = [], isToday, membersById, recipesById, staleByOwner, completingIds,
-  onCompleteTask, onOpenRecipe, onSupperPickup, onDayTap, isDragSource, isDropTarget, dragActive,
+  onCompleteTask, onOpenRecipe, onSupperPickup, onDayTap, isDragSource, isDropTarget, dragActive, timeZone,
 }: Props) {
   const { t } = useTranslation();
   const { dayLabel } = useFormatters();
@@ -44,6 +47,7 @@ export default function DayColumn({
   return (
     <div
       data-hearth-day={comp.iso}
+      aria-current={isToday ? 'date' : undefined}
       // Day-level tap → add an event. Buttons inside the column (supper grip,
       // recipe title, task rows) keep their own actions: a click that bubbles
       // up from any button is not a day tap.
@@ -79,6 +83,7 @@ export default function DayColumn({
                 occurrence={o}
                 membersById={membersById}
                 dimmed={ownerStale(owner, staleByOwner)}
+                timeZone={timeZone}
               />
             );
           })}
@@ -101,7 +106,7 @@ export default function DayColumn({
                 <span className="min-w-0 flex-1 truncate text-base text-ink">{r.title}</span>
                 {/* Birthdays are date-level — a clock time would be noise. */}
                 {r.kind !== 'birthday' && (
-                  <span className="shrink-0 text-sm text-ash">{format(new Date(effectiveDueAt(r)), 'HH:mm')}</span>
+                  <span className="shrink-0 text-sm text-ash">{format(timeZone ? wallClockIn(timeZone, new Date(effectiveDueAt(r))) : new Date(effectiveDueAt(r)), 'HH:mm')}</span>
                 )}
               </div>
             ))}

@@ -14,6 +14,8 @@ interface Props {
   /** Display prefs: omit the tonight / due-today panels entirely when off. */
   showSupper: boolean;
   showTasks: boolean;
+  /** The household's IANA zone; event times read in it. */
+  timeZone?: string;
 }
 
 function Panel({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
@@ -30,7 +32,7 @@ function Panel({ icon, label, children }: { icon: React.ReactNode; label: string
  * for supper tonight, and how many tasks are due today. Glance-only.
  */
 export default function NowNextStrip({
-  todayOccurrences, supper, dueTodayCount, nowMs, membersById, recipesById, showSupper, showTasks,
+  todayOccurrences, supper, dueTodayCount, nowMs, membersById, recipesById, showSupper, showTasks, timeZone,
 }: Props) {
   const { t } = useTranslation();
   const { formatTime } = useFormatters();
@@ -44,7 +46,7 @@ export default function NowNextStrip({
         {shown ? (
           <div className="flex items-baseline gap-3">
             <span className="shrink-0 font-serif text-2xl text-ember">
-              {shown.allDay ? t('hearth.event.allDay') : formatTime(shown.occurrenceStart)}
+              {shown.allDay ? t('hearth.event.allDay') : formatTime(shown.occurrenceStart, timeZone)}
             </span>
             <span className="min-w-0 truncate text-2xl text-ink">{shown.title}</span>
             <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: resolveAttribution(shown, membersById).color }} aria-hidden />

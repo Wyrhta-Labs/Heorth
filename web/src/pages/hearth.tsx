@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import {
-  addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format,
+  addDays, addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, parseISO,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,7 @@ import { useIdle } from '@/components/hearth/use-idle';
 import { useEvents } from '@/hooks/use-calendar';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
 import { useWeekPlan, useRecipes, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
-import { useHouseholdMembers } from '@/hooks/use-household';
+import { useHousehold, useHouseholdMembers } from '@/hooks/use-household';
 import { useIntegrationsFeedStatus } from '@/hooks/use-m365';
 import { useFeatures } from '@/hooks/use-features';
 import { useKithReminders } from '@/hooks/use-kith';
@@ -28,6 +28,7 @@ import {
   loadHearthDisplayPrefs, saveHearthDisplayPrefs, loadHearthPosition, saveHearthPosition,
 } from '@/lib/hearth-prefs';
 import { usePersistedState } from '@/hooks/use-persisted-state';
+import { startOfDayInTimeZone, todayInTimeZone, wallClockIn } from '@/lib/format';
 import {
   composeDay, computeMealSwap, deriveStaleness, tasksForDay, formatAge,
   type DayComposition, type MealOp,
@@ -60,7 +61,9 @@ function HearthInner() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const idle = useIdle();
 
-  // Ticking clock (30s) — drives now/next and the header time without a busy loop.
+  // Ticking clock (30s) — drives now/next and the header time without a busy
+  // loop, and rolls the wall over at the household's midnight: today, the
+  // highlighted day and the fetched week/month are all re-derived from it.
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(id);
@@ -78,22 +81,36 @@ function HearthInner() {
     saveHearthPosition({ weekOffset, monthOffset });
   }, [weekOffset, monthOffset]);
 
+  // Everything date-shaped on the wall is the HOUSEHOLD's, not the browser's:
+  // a panel whose OS clock sits in another zone must still show the
+  // household's today and fetch the household's week. Until the household
+  // loads, the browser zone stands in.
+  const timeZone = useHousehold().data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const now = new Date(nowMs);
-  const todayIso = dayLabel(now).iso;
+  const todayIso = todayInTimeZone(timeZone, now);
+  // The household's wall clock, for the header and footer text only.
+  const wallNow = wallClockIn(timeZone, now);
 
-  // Visible range depends on the mode + paging offset.
-  const base = view === 'week' ? addWeeks(now, weekOffset) : addMonths(now, monthOffset);
+  // Visible range depends on the mode + paging offset. `base` and the range
+  // ends are calendar dates (local-midnight carriers of household dates), so
+  // the Monday-first week arithmetic is pure date arithmetic; only the API
+  // windows below turn them into instants, at the household's midnight.
+  const today = parseISO(todayIso);
+  const base = view === 'week' ? addWeeks(today, weekOffset) : addMonths(today, monthOffset);
   const rangeFrom = view === 'week' ? startOfWeek(base, { weekStartsOn: 1 }) : startOfWeek(startOfMonth(base), { weekStartsOn: 1 });
   const rangeTo = view === 'week' ? endOfWeek(base, { weekStartsOn: 1 }) : endOfWeek(endOfMonth(base), { weekStartsOn: 1 });
-  const fromIso = rangeFrom.toISOString();
-  const toIso = rangeTo.toISOString();
   const fromDay = format(rangeFrom, 'yyyy-MM-dd');
   const toDay = format(rangeTo, 'yyyy-MM-dd');
+  // Inclusive instant window: household Mon 00:00 → the instant before the
+  // following Monday's household midnight (the events/tasks/kith validators
+  // take datetimes and compare inclusively).
+  const fromIso = startOfDayInTimeZone(fromDay, timeZone).toISOString();
+  const toIso = new Date(startOfDayInTimeZone(format(addDays(rangeTo, 1), 'yyyy-MM-dd'), timeZone).getTime() - 1).toISOString();
 
   const eventsQuery = useEvents({ from: fromIso, to: toIso }, { refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData });
   // Full instants, not fromDay/toDay: the tasks validator requires ISO
-  // datetimes (date-only 400s, #3), and the local week boundaries match the
-  // local-day bucketing used on the display side (lib/hearth.ts isoOf).
+  // datetimes (date-only 400s, #3), and the household week boundaries match
+  // the household-day bucketing used on the display side (lib/hearth.ts isoOf).
   const tasksQuery = useTasks({ due_from: fromIso, due_to: toIso }, { refetchInterval: POLL_TASKS, gcTime: GC, placeholderData: keepPreviousData });
   const planQuery = useWeekPlan(fromDay, toDay, { refetchInterval: POLL_MEALS, gcTime: GC, placeholderData: keepPreviousData });
   const recipesQuery = useRecipes();
@@ -145,12 +162,12 @@ function HearthInner() {
     if (view !== 'week') return [];
     return weekDays(base).map((d) => {
       const iso = dayLabel(d).iso;
-      return composeDay(iso, occurrences, entries, tasks, todayIso, completingIds);
+      return composeDay(iso, occurrences, entries, tasks, todayIso, { completingIds, timeZone });
     });
-  }, [view, base, occurrences, entries, tasks, todayIso, completingIds]);
+  }, [view, base, occurrences, entries, tasks, todayIso, completingIds, timeZone]);
 
-  const todayComposition = composeDay(todayIso, occurrences, entries, tasks, todayIso, completingIds);
-  const dueTodayCount = tasksForDay(tasks, todayIso, todayIso, completingIds).open.length;
+  const todayComposition = composeDay(todayIso, occurrences, entries, tasks, todayIso, { completingIds, timeZone });
+  const dueTodayCount = tasksForDay(tasks, todayIso, todayIso, { completingIds, timeZone }).open.length;
 
   const onCompleteTask = async (task: Task) => {
     setCompletingIds((prev) => new Set(prev).add(task.id));
@@ -214,8 +231,8 @@ function HearthInner() {
       {/* Header */}
       <header className="mb-5 flex items-end justify-between gap-6 max-md:flex-col max-md:items-stretch max-md:gap-3">
         <div>
-          <h1 className="font-serif text-5xl leading-none text-ink max-md:text-4xl">{format(now, 'EEEE', { locale })}</h1>
-          <p className="mt-1 text-xl text-ash max-md:text-base">{format(now, t('hearth.header.datePattern'), { locale })} · {format(now, 'HH:mm')}</p>
+          <h1 className="font-serif text-5xl leading-none text-ink max-md:text-4xl">{format(wallNow, 'EEEE', { locale })}</h1>
+          <p className="mt-1 text-xl text-ash max-md:text-base">{format(wallNow, t('hearth.header.datePattern'), { locale })} · {format(wallNow, 'HH:mm')}</p>
         </div>
         <div className="flex flex-col items-end gap-3 max-md:items-stretch">
           <div className="flex items-center gap-2 max-md:justify-between">
@@ -269,6 +286,7 @@ function HearthInner() {
             recipesById={recipesById}
             showSupper={displayPrefs.meals}
             showTasks={displayPrefs.tasks}
+            timeZone={timeZone}
           />
         </div>
       )}
@@ -287,6 +305,7 @@ function HearthInner() {
           onOpenRecipe={setOpenRecipeId}
           onSwapMeal={onSwapMeal}
           onAddEvent={setAddEventDate}
+          timeZone={timeZone}
         />
       ) : (
         <HearthMonth
@@ -301,13 +320,14 @@ function HearthInner() {
           recipesById={recipesById}
           staleByOwner={staleByOwner}
           onAddEvent={setAddEventDate}
+          timeZone={timeZone}
         />
       )}
 
       {/* Freshness / staleness footer */}
       <footer className="mt-4 flex items-center justify-between gap-6 text-sm text-ash/80 max-md:gap-3">
         <span className="shrink-0">
-          {reconnecting ? t('hearth.footer.reconnecting') : ''}{t('hearth.footer.asOf', { time: format(new Date(updatedAt), 'HH:mm') })}
+          {reconnecting ? t('hearth.footer.reconnecting') : ''}{t('hearth.footer.asOf', { time: format(wallClockIn(timeZone, new Date(updatedAt)), 'HH:mm') })}
         </span>
         {displayPrefs.staleFooter && staleNotes.length > 0 && (
           <span className="truncate text-right">{staleNotes.join('   ·   ')}</span>

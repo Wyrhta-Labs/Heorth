@@ -20,9 +20,13 @@ export function formatDate(dateStr: string | null | undefined, locale: Locale = 
   try { return format(parseISO(dateStr), 'PP', { locale }); } catch { return dateStr; }
 }
 
-export function formatTime(dateStr: string | null | undefined, locale: Locale = enUS): string {
+/** Clock time of an instant — in `timeZone` when given (the household's), else the browser's. */
+export function formatTime(dateStr: string | null | undefined, locale: Locale = enUS, timeZone?: string): string {
   if (!dateStr) return '—';
-  try { return format(parseISO(dateStr), 'p', { locale }); } catch { return dateStr; }
+  try {
+    const d = parseISO(dateStr);
+    return format(timeZone ? wallClockIn(timeZone, d) : d, 'p', { locale });
+  } catch { return dateStr; }
 }
 
 /**
@@ -46,6 +50,16 @@ export function dayLabel(d: Date, locale: Locale = enUS): { dow: string; dom: st
   return { dow: format(d, 'EEE', { locale }), dom: format(d, 'd'), iso: format(d, 'yyyy-MM-dd') };
 }
 
+// Intl.DateTimeFormat construction is costly and the wall buckets every event,
+// task and reminder per day cell, so keep one formatter per zone.
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
+function cachedFormat(cache: Map<string, Intl.DateTimeFormat>, timeZone: string, make: () => Intl.DateTimeFormat) {
+  let f = cache.get(timeZone);
+  if (!f) { f = make(); cache.set(timeZone, f); }
+  return f;
+}
+
 /**
  * Today's calendar date (`YYYY-MM-DD`) as a given IANA zone reckons it — the
  * client-side counterpart of the server's `householdToday()`. Uses
@@ -54,11 +68,51 @@ export function dayLabel(d: Date, locale: Locale = enUS): { dow: string; dom: st
  * instead of drifting a day out whenever the browser and household differ.
  */
 export function todayInTimeZone(timeZone: string, ref: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
+  const parts = cachedFormat(dateFormats, timeZone, () => new Intl.DateTimeFormat('en-CA', {
     timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(ref);
+  })).formatToParts(ref);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** The wall-clock fields of instant `ref` as `timeZone` reads them. */
+function zonedFields(ref: Date, timeZone: string) {
+  const parts = cachedFormat(dateTimeFormats, timeZone, () => new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })).formatToParts(ref);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute'), second: get('second') };
+}
+
+/** How far `timeZone`'s wall clock runs ahead of UTC at instant `ms`, in ms. */
+function zoneOffsetMs(ms: number, timeZone: string): number {
+  const f = zonedFields(new Date(ms), timeZone);
+  return Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute, f.second) - Math.floor(ms / 1000) * 1000;
+}
+
+/**
+ * The instant at which calendar day `iso` (`YYYY-MM-DD`) begins in `timeZone` —
+ * the household-zone counterpart of `startOfDay`, for building API windows
+ * whose bounds are instants. Two passes so a day that starts on the far side of
+ * a DST change still lands on its own offset.
+ */
+export function startOfDayInTimeZone(iso: string, timeZone: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  const midnightAsUtc = Date.UTC(y!, m! - 1, d!);
+  const first = midnightAsUtc - zoneOffsetMs(midnightAsUtc, timeZone);
+  return new Date(midnightAsUtc - zoneOffsetMs(first, timeZone));
+}
+
+/**
+ * A `Date` whose LOCAL fields read as `timeZone`'s wall clock at `ref`, so the
+ * date-fns formatters (`EEEE`, `HH:mm`, a locale pattern) print the household's
+ * time instead of the browser's. A display carrier only: its own instant is
+ * meaningless and must never be sent to the API or compared with real instants.
+ */
+export function wallClockIn(timeZone: string, ref: Date = new Date()): Date {
+  const f = zonedFields(ref, timeZone);
+  return new Date(f.year, f.month - 1, f.day, f.hour, f.minute, f.second, ref.getMilliseconds());
 }
 
 /**

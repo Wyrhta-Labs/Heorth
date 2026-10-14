@@ -19,6 +19,8 @@ interface Props {
   onSwapMeal: (fromIso: string, toIso: string) => void;
   /** A day surface was tapped — open the add-event overlay for that day. */
   onAddEvent: (iso: string) => void;
+  /** The household's IANA zone: day keys and clock times read in it. */
+  timeZone?: string;
 }
 
 interface Ghost { label: string; x: number; y: number }
@@ -32,7 +34,7 @@ interface Ghost { label: string; x: number; y: number }
  * itself lives in lib/hearth.ts (computeMealSwap) and is unit-tested.
  */
 export default function HearthWeek(props: Props) {
-  const { days, reminders = [], todayIso, membersById, recipesById, staleByOwner, completingIds, onCompleteTask, onOpenRecipe, onSwapMeal, onAddEvent } = props;
+  const { days, reminders = [], todayIso, membersById, recipesById, staleByOwner, completingIds, onCompleteTask, onOpenRecipe, onSwapMeal, onAddEvent, timeZone } = props;
   const { t } = useTranslation();
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export default function HearthWeek(props: Props) {
           <DayColumn
             key={comp.iso}
             comp={comp}
-            reminders={remindersForDay(reminders, comp.iso)}
+            reminders={remindersForDay(reminders, comp.iso, timeZone)}
             isToday={comp.iso === todayIso}
             membersById={membersById}
             recipesById={recipesById}
@@ -147,6 +149,7 @@ export default function HearthWeek(props: Props) {
             isDragSource={dragFrom === comp.iso}
             isDropTarget={Boolean(dragFrom) && dropTarget === comp.iso && dropTarget !== dragFrom}
             dragActive={Boolean(dragFrom)}
+            timeZone={timeZone}
           />
         ))}
       </div>

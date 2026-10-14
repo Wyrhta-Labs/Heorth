@@ -9,7 +9,7 @@ export function useFormatters() {
     locale,
     formatMoney: (v: string | number | null | undefined) => fmt.formatMoney(v, locale),
     formatDate: (d: string | null | undefined) => fmt.formatDate(d, locale),
-    formatTime: (d: string | null | undefined) => fmt.formatTime(d, locale),
+    formatTime: (d: string | null | undefined, timeZone?: string) => fmt.formatTime(d, locale, timeZone),
     weekDays: (ref?: Date) => fmt.weekDays(ref),
     nextDays: fmt.nextDays,
     dayLabel: (d: Date) => fmt.dayLabel(d, locale),

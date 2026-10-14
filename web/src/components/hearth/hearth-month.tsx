@@ -23,10 +23,12 @@ interface Props {
   staleByOwner: Record<string, StalenessInfo>;
   /** A day cell was tapped — open the add-event overlay for that day. */
   onAddEvent?: (iso: string) => void;
+  /** The household's IANA zone: events, tasks and reminders bucket into its days. */
+  timeZone?: string;
 }
 
 /** A calm, glanceable month: coloured event lines + a supper marker per day. Tap a day to add an event. */
-export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, reminders = [], membersById, recipesById, staleByOwner, onAddEvent }: Props) {
+export default function HearthMonth({ year, month0, todayIso, occurrences, entries, tasks, reminders = [], membersById, recipesById, staleByOwner, onAddEvent, timeZone }: Props) {
   const { t } = useTranslation();
   const { locale } = useFormatters();
   const grid = monthGrid(year, month0);
@@ -42,13 +44,14 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
             {week.map((iso) => {
               const inMonth = Number(iso.slice(5, 7)) === month0 + 1;
               const isToday = iso === todayIso;
-              const comp = composeDay(iso, occurrences, entries, tasks, todayIso);
+              const comp = composeDay(iso, occurrences, entries, tasks, todayIso, { timeZone });
               const supper = comp.supper?.recipeId ? recipesById[comp.supper.recipeId]?.title : comp.supper?.freeText;
-              const dayReminders = remindersForDay(reminders, iso);
+              const dayReminders = remindersForDay(reminders, iso, timeZone);
               return (
                 <div
                   key={iso}
                   data-hearth-month-day={iso}
+                  aria-current={isToday ? 'date' : undefined}
                   onClick={onAddEvent ? () => onAddEvent(iso) : undefined}
                   className={[
                     'flex min-h-0 flex-col overflow-hidden rounded-xl border p-2 max-md:min-w-0 max-md:rounded-lg max-md:p-1',

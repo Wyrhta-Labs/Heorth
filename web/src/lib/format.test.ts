@@ -1,7 +1,7 @@
 // web/src/lib/format.test.ts
 import { describe, it, expect } from 'vitest';
-import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso } from './format';
-import { startOfDay, endOfDay, parseISO } from 'date-fns';
+import { formatMoney, progressPercent, formatDate, formatTime, weekDays, nextDays, dayLabel, dayRangeIso, startOfDayInTimeZone, wallClockIn } from './format';
+import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import { de, enGB, enUS } from 'date-fns/locale';
 
 describe('formatMoney', () => {
@@ -76,5 +76,28 @@ describe('nextDays', () => {
     expect(dayLabel(days[0]!).iso).toBe('2026-10-04');
     expect(dayLabel(days[1]!).iso).toBe('2026-10-05');
     expect(dayLabel(days[6]!).iso).toBe('2026-10-10');
+  });
+});
+
+describe('household-zone helpers', () => {
+  it('startOfDayInTimeZone: the instant a calendar day begins in a zone', () => {
+    // NZST (UTC+12) in July, NZDT (UTC+13) in October.
+    expect(startOfDayInTimeZone('2026-07-27', 'Pacific/Auckland').toISOString()).toBe('2026-07-26T12:00:00.000Z');
+    expect(startOfDayInTimeZone('2026-10-14', 'Pacific/Auckland').toISOString()).toBe('2026-10-13T11:00:00.000Z');
+    expect(startOfDayInTimeZone('2026-07-27', 'America/Los_Angeles').toISOString()).toBe('2026-07-27T07:00:00.000Z');
+    expect(startOfDayInTimeZone('2026-07-27', 'UTC').toISOString()).toBe('2026-07-27T00:00:00.000Z');
+  });
+
+  it('startOfDayInTimeZone: a day after a DST change starts at the new offset', () => {
+    // Europe/Berlin switches to CET on Sun 2026-10-25 at 03:00 CEST.
+    expect(startOfDayInTimeZone('2026-10-25', 'Europe/Berlin').toISOString()).toBe('2026-10-24T22:00:00.000Z');
+    expect(startOfDayInTimeZone('2026-10-26', 'Europe/Berlin').toISOString()).toBe('2026-10-25T23:00:00.000Z');
+  });
+
+  it('wallClockIn: local fields read as the zone wall clock (for display only)', () => {
+    const wall = wallClockIn('Pacific/Auckland', new Date('2026-07-26T13:05:00Z'));
+    expect(format(wall, 'yyyy-MM-dd HH:mm EEEE')).toBe('2026-07-27 01:05 Monday');
+    const la = wallClockIn('America/Los_Angeles', new Date('2026-07-26T13:05:00Z'));
+    expect(format(la, 'yyyy-MM-dd HH:mm')).toBe('2026-07-26 06:05');
   });
 });

@@ -149,7 +149,7 @@ describe('tasksForDay completed cap + midnight reset', () => {
       mk('c3', '2026-07-24T08:00:00Z'),
       mk('c4', '2026-07-24T12:00:00Z'),
     ];
-    const r = tasksForDay(tasks, iso, iso, new Set(), 3);
+    const r = tasksForDay(tasks, iso, iso, { completingIds: new Set(), cap: 3 });
     expect(r.completed.map((t) => t.id)).toEqual(['c4', 'c2', 'c1']); // recent-first, capped 3
     expect(r.hiddenCompleted).toBe(1);
   });
@@ -165,7 +165,7 @@ describe('tasksForDay completed cap + midnight reset', () => {
 
   it('treats an optimistic completing id as struck-through immediately', () => {
     const tasks = [task({ id: 'o1', dueAt: `${iso}T00:00:00Z`, status: 'open' })];
-    const r = tasksForDay(tasks, iso, iso, new Set(['o1']));
+    const r = tasksForDay(tasks, iso, iso, { completingIds: new Set(['o1']) });
     expect(r.open).toHaveLength(0);
     expect(r.completed.map((t) => t.id)).toEqual(['o1']);
   });
@@ -199,6 +199,30 @@ describe('local-day boundary (not UTC) for events and task completion', () => {
     // bucketing regressed to UTC slicing, this would be the day it shows under.
     const r = tasksForDay([t], '2026-07-23', '2026-07-23');
     expect(r.completed).toHaveLength(0);
+  });
+});
+
+// ---- household-zone bucketing (household zone != browser zone) ------------
+// The browser runs in Europe/Berlin (top of file); the household is in
+// Pacific/Auckland (UTC+12 in July). A day key is the HOUSEHOLD's date.
+describe('household-zone bucketing', () => {
+  const tz = 'Pacific/Auckland';
+  // 20:00Z on Sun 26 Jul: 22:00 Sun in Berlin, 08:00 Mon 27 Jul in Auckland.
+  const at = '2026-07-26T20:00:00Z';
+
+  it('buckets events, reminders and due tasks into the household day', () => {
+    const occ = [ev({ id: 'breakfast', occurrenceStart: at })];
+    expect(eventsForDay(occ, '2026-07-27', tz).map((o) => o.id)).toEqual(['breakfast']);
+    expect(eventsForDay(occ, '2026-07-26', tz)).toHaveLength(0);
+    expect(remindersForDay([reminder({ id: 'r', dueAt: at })], '2026-07-27', tz).map((r) => r.id)).toEqual(['r']);
+    const t = task({ id: 't', dueAt: at, status: 'open' });
+    expect(tasksForDay([t], '2026-07-27', '2026-07-27', { timeZone: tz }).open.map((x) => x.id)).toEqual(['t']);
+  });
+
+  it('judges completed-today against the household day', () => {
+    const t = task({ id: 'done', dueAt: at, status: 'completed', completedAt: at });
+    const comp = composeDay('2026-07-27', [], [], [t], '2026-07-27', { timeZone: tz });
+    expect(comp.tasks.completed.map((x) => x.id)).toEqual(['done']);
   });
 });
 

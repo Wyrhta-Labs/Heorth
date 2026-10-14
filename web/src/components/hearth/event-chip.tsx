@@ -9,6 +9,8 @@ interface Props {
   /** Grey out (a member's feed is stale). */
   dimmed?: boolean;
   large?: boolean;
+  /** The household's IANA zone; the clock time reads in it. */
+  timeZone?: string;
 }
 
 /**
@@ -22,7 +24,7 @@ interface Props {
  * attribution colour and no time gutter (squeezing "Ganztägig" into the gutter
  * was unreadable at wall distance), plus a small outlined "all day" badge.
  */
-export default function EventChip({ occurrence: o, membersById, dimmed, large }: Props) {
+export default function EventChip({ occurrence: o, membersById, dimmed, large, timeZone }: Props) {
   const { t } = useTranslation();
   const { formatTime } = useFormatters();
   const attr = resolveAttribution(o, membersById);
@@ -65,7 +67,7 @@ export default function EventChip({ occurrence: o, membersById, dimmed, large }:
       title={hoverTitle}
     >
       <span className="mt-0.5 shrink-0 font-medium text-ash" style={{ minWidth: large ? '5rem' : '4rem' }}>
-        {formatTime(o.occurrenceStart)}
+        {formatTime(o.occurrenceStart, timeZone)}
       </span>
       <span className="min-w-0 flex-1 truncate text-ink">{o.title}</span>
       {familyBadge && <span className="mt-0.5 flex shrink-0">{familyBadge}</span>}

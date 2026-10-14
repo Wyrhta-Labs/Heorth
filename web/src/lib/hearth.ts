@@ -6,6 +6,7 @@
 import { format } from 'date-fns';
 import type { TFunction } from 'i18next';
 import { MEMBER_COLORS } from './constants';
+import { todayInTimeZone } from './format';
 import { isMirroredEvent, type EventOccurrence, type KithReminder, type MealPlanEntry, type Member, type Task } from './types';
 
 // ---------------------------------------------------------------------------
@@ -83,24 +84,32 @@ export interface DayComposition {
 }
 
 /**
- * Local-day bucket key for an ISO instant. Household timezone === server/
- * browser local (this is a self-hosted, single-household deployment — there is
- * no cross-timezone household to reconcile), so the LOCAL calendar day is the
- * correct reset/bucketing boundary. A naive `dateStr.slice(0, 10)` reads the
- * UTC date instead: in UTC+1/+2 that shifts the midnight reset to 01:00–02:00
- * local and mis-buckets late-evening timed events into the wrong day column.
- * `todayIso` and the column keys are already local-formatted (see
- * `dayLabel`/`format` in pages/hearth.tsx), so every comparison against them
- * must go through this same local formatting.
+ * Day bucket key for an ISO instant: its calendar date in the household's
+ * `timeZone`. The wall's columns, `todayIso` and fetch windows are household
+ * days (pages/hearth.tsx), and the server anchors date-only data (Google
+ * all-day events, To Do due dates) to household-local midnight, so every
+ * comparison against a day key must go through this same zone. A naive
+ * `dateStr.slice(0, 10)` reads the UTC date instead and mis-buckets anything
+ * near midnight. Without a zone it falls back to the browser's local day.
  */
-function isoOf(dateStr: string): string {
-  return format(new Date(dateStr), 'yyyy-MM-dd');
+function isoOf(dateStr: string, timeZone?: string): string {
+  return timeZone ? todayInTimeZone(timeZone, new Date(dateStr)) : format(new Date(dateStr), 'yyyy-MM-dd');
+}
+
+/** Per-day composition knobs (see `tasksForDay` / `composeDay`). */
+export interface DayOptions {
+  /** Tasks the user just tapped, struck through before the poll confirms them. */
+  completingIds?: ReadonlySet<string>;
+  /** Visible completed-today tasks before the "+N done" collapse. */
+  cap?: number;
+  /** The household's IANA zone that day keys are read in (default: browser). */
+  timeZone?: string;
 }
 
 /** Events whose occurrence falls on `iso`, all-day first then chronological. */
-export function eventsForDay(occurrences: EventOccurrence[], iso: string): EventOccurrence[] {
+export function eventsForDay(occurrences: EventOccurrence[], iso: string, timeZone?: string): EventOccurrence[] {
   return occurrences
-    .filter((o) => isoOf(o.occurrenceStart) === iso)
+    .filter((o) => isoOf(o.occurrenceStart, timeZone) === iso)
     .sort((a, b) => {
       if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
       return a.occurrenceStart.localeCompare(b.occurrenceStart);
@@ -119,10 +128,9 @@ export function tasksForDay(
   tasks: Task[],
   iso: string,
   todayIso: string,
-  completingIds: ReadonlySet<string> = new Set(),
-  cap = COMPLETED_CAP,
+  { completingIds = new Set(), cap = COMPLETED_CAP, timeZone }: DayOptions = {},
 ): DayTasks {
-  const due = tasks.filter((t) => t.dueAt && isoOf(t.dueAt) === iso);
+  const due = tasks.filter((t) => t.dueAt && isoOf(t.dueAt, timeZone) === iso);
   const open: Task[] = [];
   const completedAll: Task[] = [];
   for (const t of due) {
@@ -135,7 +143,7 @@ export function tasksForDay(
     // completion (still `open` in cache but tapped) counts as completed-today.
     const completedToday = completingIds.has(t.id)
       ? true
-      : t.completedAt !== null && isoOf(t.completedAt) === todayIso;
+      : t.completedAt !== null && isoOf(t.completedAt, timeZone) === todayIso;
     if (completedToday) completedAll.push(t);
   }
   open.sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));
@@ -153,14 +161,13 @@ export function composeDay(
   entries: MealPlanEntry[],
   tasks: Task[],
   todayIso: string,
-  completingIds: ReadonlySet<string> = new Set(),
-  cap = COMPLETED_CAP,
+  opts: DayOptions = {},
 ): DayComposition {
   return {
     iso,
-    events: eventsForDay(occurrences, iso),
+    events: eventsForDay(occurrences, iso, opts.timeZone),
     supper: entries.find((e) => e.date === iso && e.slot === 'supper') ?? null,
-    tasks: tasksForDay(tasks, iso, todayIso, completingIds, cap),
+    tasks: tasksForDay(tasks, iso, todayIso, opts),
   };
 }
 
@@ -178,10 +185,10 @@ export function effectiveDueAt(r: KithReminder): string {
   return r.status === 'snoozed' && r.snoozedUntil ? r.snoozedUntil : r.dueAt;
 }
 
-/** Reminders effectively due on local day `iso`, soonest first. Same local-day bucketing as events/tasks (`isoOf`). */
-export function remindersForDay(reminders: KithReminder[], iso: string): KithReminder[] {
+/** Reminders effectively due on household day `iso`, soonest first. Same day bucketing as events/tasks (`isoOf`). */
+export function remindersForDay(reminders: KithReminder[], iso: string, timeZone?: string): KithReminder[] {
   return reminders
-    .filter((r) => isoOf(effectiveDueAt(r)) === iso)
+    .filter((r) => isoOf(effectiveDueAt(r), timeZone) === iso)
     .sort((a, b) => effectiveDueAt(a).localeCompare(effectiveDueAt(b)));
 }
 

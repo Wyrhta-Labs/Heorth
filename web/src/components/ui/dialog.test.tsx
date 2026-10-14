@@ -227,4 +227,37 @@ describe('Dialog labelling', () => {
     rerender(ui(null));
     expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-labelledby');
   });
+
+  it('keeps the reference while another title is still mounted', () => {
+    const ui = (both: boolean) => (
+      <Dialog open onOpenChange={() => {}}>
+        <DialogContent><DialogTitle id="t1">One</DialogTitle>{both && <DialogTitle id="t2">Two</DialogTitle>}</DialogContent>
+      </Dialog>
+    );
+    const { rerender } = render(ui(true));
+    rerender(ui(false));
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-labelledby', 't1');
+  });
+
+  it('keeps the reference when one of two generated-id titles unmounts', () => {
+    const ui = (both: boolean) => (
+      <Dialog open onOpenChange={() => {}}>
+        <DialogContent><DialogTitle>One</DialogTitle>{both && <DialogTitle>Two</DialogTitle>}</DialogContent>
+      </Dialog>
+    );
+    const { rerender } = render(ui(true));
+    rerender(ui(false));
+    expect(screen.getByRole('dialog').getAttribute('aria-labelledby')).toBeTruthy();
+  });
+
+  it('keeps the reference while another description is still mounted', () => {
+    const ui = (both: boolean) => (
+      <Dialog open onOpenChange={() => {}}>
+        <DialogContent><DialogDescription id="d1">One</DialogDescription>{both && <DialogDescription id="d2">Two</DialogDescription>}</DialogContent>
+      </Dialog>
+    );
+    const { rerender } = render(ui(true));
+    rerender(ui(false));
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-describedby', 'd1');
+  });
 });

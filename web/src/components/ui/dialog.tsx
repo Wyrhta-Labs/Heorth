@@ -58,9 +58,9 @@ function focusableIn(panel: HTMLElement): HTMLElement[] {
 interface DialogLabelContext {
   titleId: string;
   descriptionId: string;
-  /** Register the id the title/description actually renders (null when unmounted). */
-  setTitleId: (id: string | null) => void;
-  setDescriptionId: (id: string | null) => void;
+  /** Register the id a title/description actually renders; returns the unregister function. */
+  registerTitle: (id: string) => () => void;
+  registerDescription: (id: string) => () => void;
 }
 
 const DialogLabelCtx = React.createContext<DialogLabelContext | null>(null);
@@ -73,12 +73,23 @@ function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   const openerRef = React.useRef<Element | null>(null);
   const titleId = React.useId();
   const descriptionId = React.useId();
-  const [renderedTitleId, setTitleId] = React.useState<string | null>(null);
-  const [renderedDescriptionId, setDescriptionId] = React.useState<string | null>(null);
-  const labelCtx = React.useMemo(
-    () => ({ titleId, descriptionId, setTitleId, setDescriptionId }),
-    [titleId, descriptionId],
-  );
+  const [titleIds, setTitleIds] = React.useState<string[]>([]);
+  const [descriptionIds, setDescriptionIds] = React.useState<string[]>([]);
+  const labelCtx = React.useMemo(() => {
+    // Several titles/descriptions may be mounted at once; the panel references
+    // the most recent one that is still there.
+    const registrar = (set: React.Dispatch<React.SetStateAction<string[]>>) => (id: string) => {
+      set((ids) => [...ids, id]);
+      return () =>
+        set((ids) => {
+          const i = ids.lastIndexOf(id);
+          return i === -1 ? ids : ids.filter((_, j) => j !== i);
+        });
+    };
+    return { titleId, descriptionId, registerTitle: registrar(setTitleIds), registerDescription: registrar(setDescriptionIds) };
+  }, [titleId, descriptionId]);
+  const renderedTitleId = titleIds[titleIds.length - 1];
+  const renderedDescriptionId = descriptionIds[descriptionIds.length - 1];
 
   // Remember what had focus before the dialog (and any autoFocus child, which
   // focuses during commit, before effects) took it.
@@ -138,8 +149,8 @@ function Dialog({ open, onOpenChange, children, className }: DialogProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={renderedTitleId ?? undefined}
-        aria-describedby={renderedDescriptionId ?? undefined}
+        aria-labelledby={renderedTitleId}
+        aria-describedby={renderedDescriptionId}
         tabIndex={-1}
         className={cn('relative z-50 w-full max-w-lg outline-none', className)}
       >
@@ -174,23 +185,23 @@ function DialogHeader({ className, ...props }: DialogHeaderProps) {
 
 function DialogTitle({ className, id, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   const ctx = React.useContext(DialogLabelCtx);
-  const setTitleId = ctx?.setTitleId;
+  const register = ctx?.registerTitle;
   const effectiveId = id ?? ctx?.titleId;
   React.useLayoutEffect(() => {
-    setTitleId?.(effectiveId ?? null);
-    return () => setTitleId?.(null);
-  }, [setTitleId, effectiveId]);
+    if (!register || !effectiveId) return;
+    return register(effectiveId);
+  }, [register, effectiveId]);
   return <h2 id={effectiveId} className={cn('text-base font-bold text-fg', className)} {...props} />;
 }
 
 function DialogDescription({ className, id, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   const ctx = React.useContext(DialogLabelCtx);
-  const setDescriptionId = ctx?.setDescriptionId;
+  const register = ctx?.registerDescription;
   const effectiveId = id ?? ctx?.descriptionId;
   React.useLayoutEffect(() => {
-    setDescriptionId?.(effectiveId ?? null);
-    return () => setDescriptionId?.(null);
-  }, [setDescriptionId, effectiveId]);
+    if (!register || !effectiveId) return;
+    return register(effectiveId);
+  }, [register, effectiveId]);
   return <p id={effectiveId} className={cn('text-[13px] text-muted', className)} {...props} />;
 }
 

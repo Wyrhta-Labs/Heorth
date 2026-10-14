@@ -11,7 +11,7 @@ one you want *before* starting anything.
 
 | | API | Web UI | DB | Picks up source edits? |
 |---|---|---|---|---|
-| **A. Compose stack** (usually already up) | `wyrhta-dev-heorth-1` container, host **4000** | built bundle, same port | `wyrhta-dev-db-1` :5432 `heorth_dev` | No — baked image, needs a rebuild |
+| **A. Compose stack** (usually already up) | `wyrhta-dev-heorth-1` container, host **14000** | built bundle, same port | `wyrhta-dev-db-1` host :15432 `heorth_dev` | No — baked image, needs a rebuild |
 | **B. Local processes** | `tsx` on **4000** (repo `.env`) | Vite on **5173** | whatever the repo `.env` points at | Yes |
 
 Vite proxies `/api` → `http://localhost:4000` (hardcoded in
@@ -133,16 +133,16 @@ into the transcript beyond what a login needs.
 
 ## Neighbours on the dev stack
 
-The same compose project also publishes `wyrhta-dev-kithledger-1` on **4002**
-and `wyrhta-dev-db-1` on **5432**. The backend suite needs a **separate**
-`heorth_test` database — `tests/setup.ts` refuses any DB whose name does not end
-in `_test`, because it truncates every table between tests. Point `DATABASE_URL`
-at a primary database and you will lose its contents.
+The same compose project also publishes `wyrhta-dev-kithledger-1` on **14002**,
+the dev cluster `wyrhta-dev-db-1` on **15432** (`heorth_dev`), and a separate,
+disposable test cluster `wyrhta-dev-db-test-1` on **15433**. The backend suite
+needs a `heorth_test` database — `tests/setup.ts` refuses any DB whose name does
+not end in `_test`, because it truncates every table between tests. Point
+`DATABASE_URL` at a primary database and you will lose its contents.
 
-**Do not reach for the dev stack to run the suite at all.** Nothing on this page
-is a prerequisite for `npm test`: `tests/setup.ts` runs the migrations itself, so
-a disposable container is enough, and it cannot truncate anything you care about.
-The command is in `README.md` → **Testing**. Use it when the cluster on 5432 is
-down, when you do not have `deploy/.env`, or by default — starting the dev stack
-to run tests buys nothing and puts a real database one typo away from the
-allowlist. This page is for **manual** testing: driving the running app.
+**Run the suite against `db-test` (15433), never the dev cluster (15432).**
+`127.0.0.1:15433/heorth_test` is the suite's fallback (AGENTS.md, data rules);
+`tests/setup.ts` runs the migrations itself, so nothing on this page is a
+prerequisite for `npm test`. Without the dev stack, the throwaway-container
+command in `README.md` → **Testing** works the same way.
+This page is for **manual** testing: driving the running app.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import {
-  addDays, addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, parseISO,
+  addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, parseISO,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,8 @@ import { useIdle } from '@/components/hearth/use-idle';
 import { useEvents } from '@/hooks/use-calendar';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
 import { useWeekPlan, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
-import { useHousehold, useHouseholdMembers } from '@/hooks/use-household';
+import { useHouseholdMembers } from '@/hooks/use-household';
+import { useHouseholdZone } from '@/hooks/use-household-zone';
 import { useIntegrationsFeedStatus } from '@/hooks/use-m365';
 import { useFeatures } from '@/hooks/use-features';
 import { useKithReminders } from '@/hooks/use-kith';
@@ -28,7 +29,7 @@ import {
   loadHearthDisplayPrefs, saveHearthDisplayPrefs, loadHearthPosition, saveHearthPosition,
 } from '@/lib/hearth-prefs';
 import { usePersistedState } from '@/hooks/use-persisted-state';
-import { formatClock, startOfDayInTimeZone, todayInTimeZone } from '@/lib/format';
+import { dayWindowInTimeZone, formatClock, todayInTimeZone } from '@/lib/format';
 import {
   composeDay, computeMealSwap, deriveStaleness, tasksForDay, formatAge,
   type DayComposition, type MealOp,
@@ -88,9 +89,7 @@ function HearthInner() {
   // would go out first and flash under the household's columns). If the
   // household cannot be loaded, the browser zone stands in so the wall still
   // works.
-  const householdQuery = useHousehold();
-  const zoneKnown = householdQuery.data !== undefined || householdQuery.isError;
-  const timeZone = householdQuery.data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const { zone: timeZone, ready: zoneKnown } = useHouseholdZone();
   const now = new Date(nowMs);
   const todayIso = todayInTimeZone(timeZone, now);
 
@@ -107,8 +106,7 @@ function HearthInner() {
   // Inclusive instant window: household Mon 00:00 → the instant before the
   // following Monday's household midnight (the events/tasks/kith validators
   // take datetimes and compare inclusively).
-  const fromIso = startOfDayInTimeZone(fromDay, timeZone).toISOString();
-  const toIso = new Date(startOfDayInTimeZone(format(addDays(rangeTo, 1), 'yyyy-MM-dd'), timeZone).getTime() - 1).toISOString();
+  const { from: fromIso, to: toIso } = dayWindowInTimeZone(fromDay, toDay, timeZone);
 
   const eventsQuery = useEvents({ from: fromIso, to: toIso }, { enabled: zoneKnown, refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData });
   // Full instants, not fromDay/toDay: the tasks validator requires ISO

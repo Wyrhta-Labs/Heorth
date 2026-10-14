@@ -33,12 +33,12 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
   const dowLabels = grid[0]!.map((iso) => format(new Date(iso + 'T00:00:00'), 'EEE', { locale }));
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-2 grid grid-cols-7 gap-3">
+      <div className="mb-2 grid grid-cols-7 gap-3 max-md:gap-1">
         {dowLabels.map((d, i) => <div key={`${d}-${i}`} className="text-center text-sm uppercase tracking-wide text-ash">{d}</div>)}
       </div>
-      <div className="grid min-h-0 flex-1 grid-rows-6 gap-3">
+      <div className="grid min-h-0 flex-1 grid-rows-6 gap-3 max-md:flex-none max-md:gap-1">
         {grid.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 gap-3">
+          <div key={wi} className="grid grid-cols-7 gap-3 max-md:min-h-20 max-md:gap-1">
             {week.map((iso) => {
               const inMonth = Number(iso.slice(5, 7)) === month0 + 1;
               const isToday = iso === todayIso;
@@ -51,7 +51,7 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
                   data-hearth-month-day={iso}
                   onClick={onAddEvent ? () => onAddEvent(iso) : undefined}
                   className={[
-                    'flex min-h-0 flex-col overflow-hidden rounded-xl border p-2',
+                    'flex min-h-0 flex-col overflow-hidden rounded-xl border p-2 max-md:min-w-0 max-md:rounded-lg max-md:p-1',
                     isToday ? 'border-ember bg-card' : inMonth ? 'border-tan bg-card/60' : 'border-tan/40 bg-card/30',
                   ].join(' ')}
                 >
@@ -84,7 +84,7 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
                         </div>
                       );
                     })}
-                    {comp.events.length > 3 && <div className="text-xs text-ash/70">{t('hearth.day.more', { count: comp.events.length - 3 })}</div>}
+                    {comp.events.length > 3 && <div className="text-xs text-ash/70 max-md:truncate">{t('hearth.day.more', { count: comp.events.length - 3 })}</div>}
                     {/* KithLedger reminders: icon + title row, visibly not an
                         event (no colour dot, no pill), capped on its own. */}
                     {dayReminders.slice(0, MONTH_REMINDER_CAP).map((r) => (
@@ -96,7 +96,7 @@ export default function HearthMonth({ year, month0, todayIso, occurrences, entri
                       </div>
                     ))}
                     {dayReminders.length > MONTH_REMINDER_CAP && (
-                      <div className="text-xs text-ash/70">{t('hearth.day.more', { count: dayReminders.length - MONTH_REMINDER_CAP })}</div>
+                      <div className="text-xs text-ash/70 max-md:truncate">{t('hearth.day.more', { count: dayReminders.length - MONTH_REMINDER_CAP })}</div>
                     )}
                   </div>
                   {supper && (

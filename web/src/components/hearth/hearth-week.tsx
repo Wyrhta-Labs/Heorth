@@ -107,7 +107,7 @@ export default function HearthWeek(props: Props) {
 
   return (
     <>
-      <div className="grid min-h-0 flex-1 grid-cols-7 gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-7 gap-3 max-md:flex-none max-md:grid-cols-1">
         {days.map((comp) => (
           <DayColumn
             key={comp.iso}

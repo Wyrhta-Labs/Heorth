@@ -194,3 +194,8 @@ h1, h2, h3, h4 {
 @media (prefers-reduced-motion: reduce) {
   .hearth-drift { animation: none; }
 }
+/* Below md (Tailwind's 48rem) the wall scrolls like a normal page; the burn-in
+   drift is for the always-on panel and would push the page 4px sideways there. */
+@media (width < 48rem) {
+  .hearth-drift { animation: none; }
+}

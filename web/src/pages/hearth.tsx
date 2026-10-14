@@ -204,21 +204,24 @@ function HearthInner() {
   const page = (delta: number) => (view === 'week' ? setWeekOffset((o) => o + delta) : setMonthOffset((o) => o + delta));
   const resetPage = () => (view === 'week' ? setWeekOffset(0) : setMonthOffset(0));
 
+  // A wall display first: the unprefixed classes are the panel layout and stay
+  // as they are. Below md (max-md:) the page scrolls like a phone page instead:
+  // header and strip stack, and the week becomes one day per row.
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-parchment px-8 py-6 hearth-drift">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-parchment px-8 py-6 hearth-drift max-md:h-auto max-md:min-h-screen max-md:w-full max-md:overflow-y-visible max-md:px-4 max-md:py-4">
       {/* Header */}
-      <header className="mb-5 flex items-end justify-between gap-6">
+      <header className="mb-5 flex items-end justify-between gap-6 max-md:flex-col max-md:items-stretch max-md:gap-3">
         <div>
-          <h1 className="font-serif text-5xl leading-none text-ink">{format(now, 'EEEE', { locale })}</h1>
-          <p className="mt-1 text-xl text-ash">{format(now, t('hearth.header.datePattern'), { locale })} · {format(now, 'HH:mm')}</p>
+          <h1 className="font-serif text-5xl leading-none text-ink max-md:text-4xl">{format(now, 'EEEE', { locale })}</h1>
+          <p className="mt-1 text-xl text-ash max-md:text-base">{format(now, t('hearth.header.datePattern'), { locale })} · {format(now, 'HH:mm')}</p>
         </div>
-        <div className="flex flex-col items-end gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-3 max-md:items-stretch">
+          <div className="flex items-center gap-2 max-md:justify-between">
             {/* Wallboard display settings (which elements the wall shows). */}
             <button
               onClick={() => setDisplayOpen(true)}
               aria-haspopup="dialog"
-              className="inline-flex items-center gap-2 rounded-xl border border-tan bg-card px-5 py-3 text-lg text-ash"
+              className="inline-flex items-center gap-2 rounded-xl border border-tan bg-card px-5 py-3 text-lg text-ash max-md:px-3 max-md:py-2 max-md:text-base"
             >
               <SlidersHorizontal className="h-5 w-5" aria-hidden />
               {t('hearth.display.button')}
@@ -228,18 +231,18 @@ function HearthInner() {
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`rounded-lg px-5 py-2 text-lg ${view === v ? 'bg-ember text-on-primary' : 'text-ash'}`}
+                  className={`rounded-lg px-5 py-2 text-lg max-md:px-3 max-md:py-1.5 max-md:text-base ${view === v ? 'bg-ember text-on-primary' : 'text-ash'}`}
                 >
                   {t(v === 'week' ? 'hearth.view.week' : 'hearth.view.month')}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 max-md:gap-2">
             <button onClick={() => page(-1)} aria-label={t('hearth.nav.previous')} className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ink">
               <ChevronLeft className="h-6 w-6" />
             </button>
-            <span className="min-w-56 text-center font-serif text-2xl text-ink">{label}</span>
+            <span className="min-w-56 text-center font-serif text-2xl text-ink max-md:min-w-0 max-md:flex-1 max-md:text-xl">{label}</span>
             <button onClick={() => page(1)} aria-label={t('hearth.nav.next')} className="flex h-11 w-11 items-center justify-center rounded-full border border-tan bg-card text-ink">
               <ChevronRight className="h-6 w-6" />
             </button>
@@ -300,7 +303,7 @@ function HearthInner() {
       )}
 
       {/* Freshness / staleness footer */}
-      <footer className="mt-4 flex items-center justify-between gap-6 text-sm text-ash/80">
+      <footer className="mt-4 flex items-center justify-between gap-6 text-sm text-ash/80 max-md:gap-3">
         <span className="shrink-0">
           {reconnecting ? t('hearth.footer.reconnecting') : ''}{t('hearth.footer.asOf', { time: format(new Date(updatedAt), 'HH:mm') })}
         </span>

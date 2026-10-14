@@ -18,7 +18,7 @@ interface Props {
 
 function Panel({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-tan bg-card/70 px-6 py-4">
+    <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-tan bg-card/70 px-6 py-4 max-md:px-4 max-md:py-2.5">
       <div className="mb-1 flex items-center gap-2 text-sm uppercase tracking-wide text-ash">{icon}{label}</div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -39,7 +39,7 @@ export default function NowNextStrip({
   const supperLabel = supper?.recipeId ? (recipesById[supper.recipeId]?.title ?? supper.freeText) : supper?.freeText;
 
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-4 max-md:flex-col max-md:gap-2">
       <Panel icon={<CalendarClock className="h-4 w-4" />} label={current ? t('hearth.nowNext.happeningNow') : t('hearth.nowNext.upNext')}>
         {shown ? (
           <div className="flex items-baseline gap-3">

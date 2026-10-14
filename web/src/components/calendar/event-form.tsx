@@ -65,15 +65,28 @@ interface Props {
   isLoading?: boolean;
 }
 
-export default function EventForm({ event, initialDate, onSubmit, onCancel, isLoading }: Props) {
+/**
+ * The form's inputs hold the household's wall clock, so they are not mounted
+ * until the household's zone is known: filled in the browser zone first, they
+ * would keep it (useForm reads its defaults once). Only if /household fails
+ * does the browser zone stand in.
+ */
+export default function EventForm(props: Props) {
   const { t } = useTranslation();
+  const household = useHousehold();
+  if (household.data) return <EventFormFields {...props} timeZone={household.data.data.timezone} />;
+  if (household.isError) return <EventFormFields {...props} timeZone={Intl.DateTimeFormat().resolvedOptions().timeZone} />;
+  return <p className="py-8 text-center text-sm text-ash">{t('common.loading')}</p>;
+}
+
+function EventFormFields({ event, initialDate, onSubmit, onCancel, isLoading, timeZone: zone }: Props & { timeZone: string }) {
+  const { t } = useTranslation();
+  // Pinned at mount: the inputs were filled in this zone, so they are read
+  // back in it too, even if the household's zone changes while the form is open.
+  const [timeZone] = useState(zone);
   const schema = useMemo(() => buildSchema(t), [t]);
   const { data: membersData } = useHouseholdMembers();
   const members = membersData?.data ?? [];
-  const householdZone = useHousehold().data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-  // Pinned at mount: the inputs were filled in this zone, so they must be read
-  // back in it too, even if the household loads (or changes) while it is open.
-  const [timeZone] = useState(householdZone);
   const defaults = dateDefaults(initialDate, timeZone);
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),

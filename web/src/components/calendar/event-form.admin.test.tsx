@@ -3,7 +3,8 @@ import { render, screen } from '@testing-library/react';
 import EventForm from './event-form';
 
 vi.mock('@/hooks/use-household', () => ({
-  useHousehold: () => ({ data: undefined }), // browser zone stands in
+  // A loaded household in the browser's own zone.
+  useHousehold: () => ({ data: { data: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }, isError: false }),
   useHouseholdMembers: () => ({
     data: { data: [
       { id: 'b', role: 'adult', displayName: 'Anna', avatarColor: 'sage' },

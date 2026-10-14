@@ -7,14 +7,17 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Event } from '@/lib/types';
 
+type HouseholdStub = { data?: { data: { timezone: string } }; isError: boolean };
+const auckland: HouseholdStub = { data: { data: { timezone: 'Pacific/Auckland' } }, isError: false };
+let household: HouseholdStub = auckland;
 vi.mock('@/hooks/use-household', () => ({
-  useHousehold: () => ({ data: { data: { timezone: 'Pacific/Auckland' } } }),
+  useHousehold: () => household,
   useHouseholdMembers: () => ({ data: { data: [] } }),
 }));
 
 import EventForm from './event-form';
 
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); household = auckland; });
 
 const submitWith = async (props: Partial<Parameters<typeof EventForm>[0]> = {}) => {
   const onSubmit = vi.fn().mockResolvedValue(undefined);
@@ -58,5 +61,34 @@ describe('EventForm in the household time zone', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].startAt).toBe(event.startAt);
     expect(onSubmit.mock.calls[0][0].endAt).toBe(event.endAt);
+  });
+});
+
+describe('EventForm before the household zone is known', () => {
+  it('waits for the household, then fills and saves in its zone', async () => {
+    household = { data: undefined, isError: false };
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    const { rerender } = render(<EventForm initialDate="2026-08-03" onSubmit={onSubmit} onCancel={() => {}} />);
+    // No inputs yet: they would be filled in the browser's zone and kept.
+    expect(screen.queryByLabelText('Start *')).toBeNull();
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+
+    household = auckland;
+    rerender(<EventForm initialDate="2026-08-03" onSubmit={onSubmit} onCancel={() => {}} />);
+    await user.type(screen.getByLabelText('Title *'), 'School run');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].startAt).toBe('2026-08-02T21:00:00.000Z');
+  });
+
+  it("falls back to the browser's zone only when the household cannot be loaded", async () => {
+    household = { data: undefined, isError: true };
+    const { onSubmit, user } = await submitWith({ initialDate: '2026-08-03' });
+    await user.type(screen.getByLabelText('Title *'), 'School run');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    // 09:00 PDT on 3 Aug is 16:00Z.
+    expect(onSubmit.mock.calls[0][0].startAt).toBe('2026-08-03T16:00:00.000Z');
   });
 });

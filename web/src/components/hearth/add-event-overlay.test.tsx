@@ -10,7 +10,8 @@ vi.mock('@/hooks/use-calendar', () => ({
   useCreateEvent: () => ({ mutateAsync, isPending: false }),
 }));
 vi.mock('@/hooks/use-household', () => ({
-  useHousehold: () => ({ data: undefined }), // browser zone stands in
+  // A loaded household in the browser's own zone.
+  useHousehold: () => ({ data: { data: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }, isError: false }),
   useHouseholdMembers: () => ({ data: { data: [] } }),
 }));
 

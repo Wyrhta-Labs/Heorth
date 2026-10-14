@@ -87,6 +87,13 @@ export interface MealPlanEntry {
   freeText: string | null;
   cook: string | null;
   helper: string | null;
+  /**
+   * The planned recipe itself, embedded by GET /meals/plan (null for free
+   * text or a deleted recipe; absent on the POST /meals/plan response).
+   * Resolve a planned meal from this, never by looking `recipeId` up in
+   * GET /recipes: that list is paged and misses everything past page one.
+   */
+  recipe?: Recipe | null;
 }
 
 export interface ShoppingListItem {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react';
 
 // Stub all data hooks so the page renders deterministically without a network.
 const emptyQuery = { data: { data: [] }, isError: false, dataUpdatedAt: Date.parse('2026-07-24T12:00:00Z') };
@@ -16,8 +16,11 @@ vi.mock('@/hooks/use-tasks', () => ({
   useTasks: (...args: Parameters<typeof useTasksSpy>) => useTasksSpy(...args),
   useCompleteTask: () => ({ mutateAsync: vi.fn() }),
 }));
+type PlanQueryStub = { data?: { data: MealPlanEntry[] }; isError: boolean; dataUpdatedAt: number };
+const useWeekPlanMock = vi.fn((): PlanQueryStub => emptyQuery);
 vi.mock('@/hooks/use-meals', () => ({
-  useWeekPlan: () => emptyQuery,
+  useWeekPlan: () => useWeekPlanMock(),
+  // The recipe list is paged (first 20 by title): the wall must not need it.
   useRecipes: () => emptyQuery,
   useUpsertPlanEntry: () => ({ mutateAsync: vi.fn() }),
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
@@ -38,7 +41,7 @@ vi.mock('@/hooks/use-kith', () => ({
 }));
 
 import HearthPage from './hearth';
-import type { KithReminder, Task } from '@/lib/types';
+import type { KithReminder, MealPlanEntry, Recipe, Task } from '@/lib/types';
 
 const reminder = (over: Partial<KithReminder> & { id: string; dueAt: string }): KithReminder => ({
   createdAt: '', updatedAt: '', personId: 'p1', title: 'Reminder', notes: null,
@@ -60,6 +63,7 @@ beforeEach(() => {
   useFeaturesMock.mockReturnValue({ data: { data: { finance: false, kithledger: false } }, isError: false });
   useKithRemindersMock.mockReturnValue(emptyQuery);
   useTasksSpy.mockReturnValue(emptyQuery);
+  useWeekPlanMock.mockReturnValue(emptyQuery);
   useM365FeedStatusMock.mockReturnValue({ data: [] });
 });
 afterEach(() => { vi.useRealTimers(); cleanup(); });
@@ -372,5 +376,33 @@ describe('HearthPage KithLedger reminders', () => {
     const { container } = render(<HearthPage />);
     expect(container.querySelectorAll('[data-hearth-day]')).toHaveLength(7);
     expect(container.querySelectorAll('[data-hearth-reminder]')).toHaveLength(0);
+  });
+});
+
+describe('HearthPage planned suppers', () => {
+  const zucchini: Recipe = {
+    id: 'r-zucchini', createdAt: '', updatedAt: '', title: 'Zucchini bake', servings: 2,
+    ingredients: [{ name: 'Zucchini', qty: 2, unit: 'pc' }], steps: ['Bake'], tags: [], createdBy: 'm1',
+  };
+
+  it("renders a supper whose recipe is not on the recipe list's first page, with its grip", () => {
+    // The recipe list stub is empty (as if the recipe sorted past page one);
+    // the plan entry carries its recipe, which is all the wall needs.
+    useWeekPlanMock.mockReturnValue({
+      ...emptyQuery,
+      data: { data: [{
+        id: 'p1', createdAt: '', updatedAt: '', date: '2026-07-22', slot: 'supper',
+        recipeId: zucchini.id, freeText: null, cook: null, helper: null, recipe: zucchini,
+      }] },
+    });
+    const { container } = render(<HearthPage />);
+    const day = container.querySelector('[data-hearth-day="2026-07-22"]') as HTMLElement;
+
+    expect(within(day).getByRole('button', { name: 'Zucchini bake' })).toBeInTheDocument();
+    expect(within(day).getByRole('button', { name: 'Move meal' })).toBeInTheDocument();
+
+    // ...and opens the recipe overlay from that same entry.
+    fireEvent.click(within(day).getByRole('button', { name: 'Zucchini bake' }));
+    expect(screen.getByText('Bake')).toBeInTheDocument();
   });
 });

@@ -43,10 +43,18 @@ export async function deleteRecipe(id: string) {
   return row ?? null;
 }
 
+/**
+ * Plan entries in [from, to], each carrying its full `recipe` (null for a
+ * free-text entry or a deleted recipe). Clients render and open a planned
+ * meal from this alone: resolving `recipeId` against GET /recipes, which is
+ * paged (20 by default), silently lost every recipe past the first page.
+ */
 export async function getWeekPlan(from: string, to: string) {
-  return db.select().from(mealPlanEntries)
+  const rows = await db.select({ entry: mealPlanEntries, recipe: recipes }).from(mealPlanEntries)
+    .leftJoin(recipes, eq(recipes.id, mealPlanEntries.recipeId))
     .where(and(gte(mealPlanEntries.date, from), lte(mealPlanEntries.date, to)))
     .orderBy(mealPlanEntries.date);
+  return rows.map(({ entry, recipe }) => ({ ...entry, recipe }));
 }
 
 export async function upsertPlanEntry(input: UpsertPlanEntryInput) {

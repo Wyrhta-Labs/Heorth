@@ -72,7 +72,7 @@ export default function MealsPage() {
 
       <TabsContent value="planner">
         <Card><CardContent className="p-4">
-          <WeekPlanner entries={entries} recipes={recipes} onAssign={(date, slot) => setAssign({ date, slot })} />
+          <WeekPlanner entries={entries} onAssign={(date, slot) => setAssign({ date, slot })} />
         </CardContent></Card>
       </TabsContent>
 

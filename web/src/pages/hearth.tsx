@@ -18,7 +18,7 @@ import DisplayPrefsModal from '@/components/hearth/display-prefs-modal';
 import { useIdle } from '@/components/hearth/use-idle';
 import { useEvents } from '@/hooks/use-calendar';
 import { useTasks, useCompleteTask } from '@/hooks/use-tasks';
-import { useWeekPlan, useRecipes, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
+import { useWeekPlan, useUpsertPlanEntry, useDeletePlanEntry } from '@/hooks/use-meals';
 import { useHousehold, useHouseholdMembers } from '@/hooks/use-household';
 import { useIntegrationsFeedStatus } from '@/hooks/use-m365';
 import { useFeatures } from '@/hooks/use-features';
@@ -113,7 +113,6 @@ function HearthInner() {
   // the household-day bucketing used on the display side (lib/hearth.ts isoOf).
   const tasksQuery = useTasks({ due_from: fromIso, due_to: toIso }, { refetchInterval: POLL_TASKS, gcTime: GC, placeholderData: keepPreviousData });
   const planQuery = useWeekPlan(fromDay, toDay, { refetchInterval: POLL_MEALS, gcTime: GC, placeholderData: keepPreviousData });
-  const recipesQuery = useRecipes();
   const membersQuery = useHouseholdMembers();
   const statusQuery = useIntegrationsFeedStatus();
   // KithLedger reminders: only when the integration is configured server-side
@@ -135,7 +134,6 @@ function HearthInner() {
   // so re-enabling is instant.
   const tasks = displayPrefs.tasks ? allTasks : [];
   const entries = displayPrefs.meals ? allEntries : [];
-  const recipes = recipesQuery.data?.data ?? [];
   const members = membersQuery.data?.data ?? [];
   const feeds = statusQuery.data ?? [];
   // Degrade silently: if KithLedger is unreachable (502 KITH_UNAVAILABLE) the
@@ -145,7 +143,12 @@ function HearthInner() {
     : [];
 
   const membersById = useMemo(() => Object.fromEntries(members.map((m: Member) => [m.id, m])), [members]);
-  const recipesById = useMemo(() => Object.fromEntries(recipes.map((r: Recipe) => [r.id, r])), [recipes]);
+  // Recipes come embedded in the plan entries, never from the paged recipe
+  // list — a supper whose recipe sorts past its first page would vanish.
+  const recipesById = useMemo(
+    () => Object.fromEntries(allEntries.flatMap((e) => (e.recipe ? [[e.recipe.id, e.recipe] as const] : []))) as Record<string, Recipe>,
+    [allEntries],
+  );
   const staleByOwner = useMemo(() => deriveStaleness(feeds, nowMs), [feeds, nowMs]);
 
   // Prune optimistic "completing" ids once the server confirms them completed,

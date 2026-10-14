@@ -1,19 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { useFormatters } from '@/hooks/use-formatters';
 import { MEAL_SLOTS } from '@/lib/constants';
-import type { MealPlanEntry, Recipe, MealSlot } from '@/lib/types';
+import type { MealPlanEntry, MealSlot } from '@/lib/types';
 
 interface Props {
   entries: MealPlanEntry[];
-  recipes: Recipe[];
   onAssign: (date: string, slot: MealSlot) => void;
 }
 
-export default function WeekPlanner({ entries, recipes, onAssign }: Props) {
+export default function WeekPlanner({ entries, onAssign }: Props) {
   const { t } = useTranslation();
   const { weekDays, dayLabel } = useFormatters();
   const days = weekDays();
-  const recipeTitle = (id: string | null) => (id ? recipes.find((r) => r.id === id)?.title ?? '—' : null);
   const cell = (iso: string, slot: MealSlot) => entries.find((e) => e.date === iso && e.slot === slot);
 
   return (
@@ -35,7 +33,8 @@ export default function WeekPlanner({ entries, recipes, onAssign }: Props) {
               {days.map((d) => {
                 const iso = dayLabel(d).iso;
                 const entry = cell(iso, s.value);
-                const label = entry ? (recipeTitle(entry.recipeId) ?? entry.freeText ?? '—') : null;
+                // The entry carries its recipe; the recipe list is paged and would miss it.
+                const label = entry ? (entry.recipe?.title ?? entry.freeText ?? '—') : null;
                 return (
                   <td key={iso}>
                     <button onClick={() => onAssign(iso, s.value)}

@@ -4,7 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ErrorState } from '@/components/ui/error-state';
 import { retryOf } from '@/lib/query-error';
 import { useWeekPlan } from '@/hooks/use-meals';
-import { useRecipes } from '@/hooks/use-meals';
 import { useFormatters } from '@/hooks/use-formatters';
 
 export default function SupperCard() {
@@ -12,13 +11,12 @@ export default function SupperCard() {
   const { dayLabel } = useFormatters();
   const today = dayLabel(new Date()).iso;
   const planQuery = useWeekPlan(today, today);
-  const recipesQuery = useRecipes();
   const plan = planQuery.data;
-  const recipes = recipesQuery.data;
-  const retry = retryOf(planQuery, recipesQuery);
+  const retry = retryOf(planQuery);
   if (retry) return <ErrorState compact message={t('today.supperLoadError')} onRetry={retry} />;
   const supper = plan?.data.find((e) => e.slot === 'supper');
-  const recipe = supper?.recipeId ? recipes?.data.find((r) => r.id === supper.recipeId) : undefined;
+  // The plan entry carries its recipe; the recipe list is paged and would miss it.
+  const recipe = supper?.recipe ?? undefined;
   const title = recipe?.title ?? supper?.freeText ?? t('today.nothingPlannedYet');
 
   return (

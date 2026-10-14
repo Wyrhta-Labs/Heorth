@@ -5,6 +5,20 @@ membership, calendar, meal planning, finance (envelopes/accounts/double-entry
 transactions, ADR 0007), and a media/book library, built with Node.js 22 +
 TypeScript, Hono, Drizzle ORM, PostgreSQL 18, Zod, and Vitest.
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/hearth-wall.png" alt="Hearth, the wall view: the family's week with events, reminders and each night's supper"></td>
+    <td width="50%"><img src="docs/images/this-week.png" alt="This week at home: tonight's supper, today and tomorrow, open chores, who is home"></td>
+  </tr>
+  <tr>
+    <td><b>Hearth</b> — the wall view for the kitchen touchscreen: the whole household's week, what's next, and what's for supper, readable from across the room.</td>
+    <td><b>This week</b> — the same household on a normal screen: tonight's supper, today and tomorrow, the chores that are due, and who lives here.</td>
+  </tr>
+</table>
+
+<sub>Screenshots from the seeded demo household (<code>deploy/demo-up.sh</code> in the
+<a href="https://github.com/Wyrhta-Labs/wyrhta">umbrella repo</a>) — every name in them is made up.</sub>
+
 ## Quick start
 
 Requires Node.js 22 and Docker (or your own PostgreSQL 18).

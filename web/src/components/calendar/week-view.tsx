@@ -1,28 +1,39 @@
+import { parseISO } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { useFormatters } from '@/hooks/use-formatters';
 import { groupByDay } from '@/lib/calendar-grid';
 import { isMirroredEvent, type EventOccurrence } from '@/lib/types';
 
-interface Props { occurrences: EventOccurrence[]; onSelect: (o: EventOccurrence) => void; }
+interface Props {
+  /** The week's seven household dates (`YYYY-MM-DD`), Monday first. */
+  days: string[];
+  /** The household's today, marked as the current date. */
+  todayIso: string;
+  /** The household's IANA zone: events are bucketed and timed on its clock. */
+  timeZone: string;
+  occurrences: EventOccurrence[];
+  onSelect: (o: EventOccurrence) => void;
+}
 
-export default function WeekView({ occurrences, onSelect }: Props) {
+export default function WeekView({ days, todayIso, timeZone, occurrences, onSelect }: Props) {
   const { t } = useTranslation();
-  const { weekDays, dayLabel, formatTime } = useFormatters();
-  const days = weekDays();
-  const byDay = groupByDay(occurrences);
+  const { dayLabel, formatTime } = useFormatters();
+  const byDay = groupByDay(occurrences, timeZone);
   return (
     <div className="grid grid-cols-7 gap-2">
-      {days.map((d) => {
-        const { dow, dom, iso } = dayLabel(d);
+      {days.map((iso) => {
+        const { dow, dom } = dayLabel(parseISO(iso));
+        const isToday = iso === todayIso;
         return (
-          <div key={iso} className="min-h-40 rounded-xl border border-tan bg-card p-2">
+          <div key={iso} data-calendar-day={iso} aria-current={isToday ? 'date' : undefined}
+            className={`min-h-40 rounded-xl border bg-card p-2 ${isToday ? 'border-ember' : 'border-tan'}`}>
             <div className="mb-2 text-center">
               <div className="text-[11px] uppercase text-ash">{dow}</div>
-              <div className="font-serif text-lg">{dom}</div>
+              <div className={`font-serif text-lg ${isToday ? 'text-ember' : ''}`}>{dom}</div>
             </div>
             <div className="space-y-1">
               {(byDay[iso] ?? []).map((o) => {
-                const time = <span className="text-ember">{o.allDay ? '' : formatTime(o.occurrenceStart) + ' '}</span>;
+                const time = <span className="text-ember">{o.allDay ? '' : formatTime(o.occurrenceStart, timeZone) + ' '}</span>;
                 // Mirrored (external) events are read-only: rendered as a static
                 // chip with a subtle source marker and no click-to-edit.
                 if (isMirroredEvent(o)) {

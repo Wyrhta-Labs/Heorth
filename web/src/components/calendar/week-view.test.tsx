@@ -3,12 +3,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { EventOccurrence } from '@/lib/types';
 
-// Pin "now" so weekDays() renders a known week containing our fixtures.
-vi.mock('@/lib/format', async (orig) => {
-  const actual = await orig<typeof import('@/lib/format')>();
-  return actual;
-});
-
 import WeekView from './week-view';
 
 function occ(partial: Partial<EventOccurrence>): EventOccurrence {
@@ -23,12 +17,12 @@ function occ(partial: Partial<EventOccurrence>): EventOccurrence {
 
 describe('WeekView mirrored (M365) events', () => {
   it('renders a mirrored event as read-only (no edit button) and a native event as clickable', async () => {
-    const day = new Date();
-    day.setHours(9, 0, 0, 0);
-    const iso = day.toISOString();
+    const days = ['2026-07-06', '2026-07-07', '2026-07-08', '2026-07-09', '2026-07-10', '2026-07-11', '2026-07-12'];
+    const iso = '2026-07-06T09:00:00.000Z';
     const onSelect = vi.fn();
 
     render(<WeekView
+      days={days} todayIso="2026-07-06" timeZone="UTC"
       occurrences={[
         occ({ id: 'n1', title: 'Native Party', source: 'native', startAt: iso, occurrenceStart: iso }),
         occ({ id: 'm1', title: 'M365 Dentist', source: 'm365', organizer: 'Reception', startAt: iso, occurrenceStart: iso }),

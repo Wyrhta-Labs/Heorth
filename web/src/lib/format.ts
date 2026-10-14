@@ -139,6 +139,24 @@ export function instantFromWallClock(local: string, timeZone: string): Date {
   return new Date(hi);
 }
 
+/** Calendar date `iso` (`YYYY-MM-DD`) moved by `days` — pure date arithmetic, no zone involved. */
+export function addDaysIso(iso: string, days: number): string {
+  return format(addDays(parseISO(iso), days), 'yyyy-MM-dd');
+}
+
+/**
+ * The inclusive instant window (ISO-8601, UTC) covering household days
+ * `fromDay` through `toDay`: `fromDay`'s midnight in `timeZone` up to the
+ * millisecond before the midnight that follows `toDay` — the shape the
+ * events/tasks validators take (datetimes, compared inclusively).
+ */
+export function dayWindowInTimeZone(fromDay: string, toDay: string, timeZone: string): { from: string; to: string } {
+  return {
+    from: startOfDayInTimeZone(fromDay, timeZone).toISOString(),
+    to: new Date(startOfDayInTimeZone(addDaysIso(toDay, 1), timeZone).getTime() - 1).toISOString(),
+  };
+}
+
 /** `ref` as a `datetime-local` value (`YYYY-MM-DDTHH:mm`) on `timeZone`'s wall clock. */
 export function wallClockInput(ref: Date, timeZone: string): string {
   const f = zonedFields(ref, timeZone);

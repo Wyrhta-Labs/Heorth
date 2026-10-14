@@ -4,14 +4,24 @@ import { monthGrid, groupByDay } from '@/lib/calendar-grid';
 import { isMirroredEvent, type EventOccurrence } from '@/lib/types';
 import { useFormatters } from '@/hooks/use-formatters';
 
-interface Props { year: number; month0: number; occurrences: EventOccurrence[]; onSelect: (o: EventOccurrence) => void; }
+interface Props {
+  /** The household month shown (`month0` is 0-based). */
+  year: number;
+  month0: number;
+  /** The household's today, marked as the current date. */
+  todayIso: string;
+  /** The household's IANA zone: events are bucketed into its days. */
+  timeZone: string;
+  occurrences: EventOccurrence[];
+  onSelect: (o: EventOccurrence) => void;
+}
 
-export default function MonthView({ year, month0, occurrences, onSelect }: Props) {
+export default function MonthView({ year, month0, todayIso, timeZone, occurrences, onSelect }: Props) {
   const { t } = useTranslation();
   const { locale } = useFormatters();
   const grid = monthGrid(year, month0);
   const dowLabels = grid[0]!.map((iso) => format(new Date(iso + 'T00:00:00'), 'EEE', { locale }));
-  const byDay = groupByDay(occurrences);
+  const byDay = groupByDay(occurrences, timeZone);
   return (
     <div>
       <div className="grid grid-cols-7 gap-2 mb-2">
@@ -20,9 +30,11 @@ export default function MonthView({ year, month0, occurrences, onSelect }: Props
       <div className="grid grid-cols-7 gap-2">
         {grid.flat().map((iso) => {
           const inMonth = Number(iso.slice(5, 7)) === month0 + 1;
+          const isToday = iso === todayIso;
           return (
-            <div key={iso} className={`min-h-24 rounded-lg border p-1.5 ${inMonth ? 'border-tan bg-card' : 'border-tan/50 bg-card/40'}`}>
-              <div className={`text-xs mb-1 ${inMonth ? 'text-ink' : 'text-ash/60'}`}>{Number(iso.slice(8, 10))}</div>
+            <div key={iso} data-calendar-day={iso} aria-current={isToday ? 'date' : undefined}
+              className={`min-h-24 rounded-lg border p-1.5 ${isToday ? 'border-ember bg-card' : inMonth ? 'border-tan bg-card' : 'border-tan/50 bg-card/40'}`}>
+              <div className={`text-xs mb-1 ${isToday ? 'text-ember' : inMonth ? 'text-ink' : 'text-ash/60'}`}>{Number(iso.slice(8, 10))}</div>
               <div className="space-y-0.5">
                 {(byDay[iso] ?? []).slice(0, 3).map((o) => (
                   isMirroredEvent(o) ? (

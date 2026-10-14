@@ -30,7 +30,7 @@ describe('groupByDay', () => {
       occ('b', '2026-07-10T18:00:00.000Z'),
       occ('a', '2026-07-10T09:00:00.000Z'),
       occ('c', '2026-07-11T09:00:00.000Z'),
-    ]);
+    ], 'Europe/Berlin');
     expect(map['2026-07-10']!.map((o) => o.id)).toEqual(['a', 'b']);
     expect(map['2026-07-11']!.length).toBe(1);
   });
@@ -42,7 +42,7 @@ describe('groupByDay', () => {
       createdBy: 'u', recurrence: null, attendeeIds: [], occurrenceStart: start,
     });
     // 22:30 UTC on 2026-07-10 is 00:30 local on 2026-07-11 in Europe/Berlin (UTC+2).
-    const map = groupByDay([occ('a', '2026-07-10T22:30:00.000Z')]);
+    const map = groupByDay([occ('a', '2026-07-10T22:30:00.000Z')], 'Europe/Berlin');
     expect(map['2026-07-10']).toBeUndefined();
     expect(map['2026-07-11']!.map((o) => o.id)).toEqual(['a']);
   });
@@ -54,8 +54,20 @@ describe('groupByDay', () => {
       createdBy: 'u', recurrence: null, attendeeIds: [], occurrenceStart: start,
     });
     // 09:00 UTC on 2026-07-10 is 11:00 local — well inside the same local day.
-    const map = groupByDay([occ('a', '2026-07-10T09:00:00.000Z')]);
+    const map = groupByDay([occ('a', '2026-07-10T09:00:00.000Z')], 'Europe/Berlin');
     expect(map['2026-07-10']!.map((o) => o.id)).toEqual(['a']);
     expect(map['2026-07-11']).toBeUndefined();
+  });
+
+  it("buckets by the household's zone, not the browser's (Pacific/Auckland household, Berlin browser)", () => {
+    const occ = (id: string, start: string): EventOccurrence => ({
+      id, createdAt: '', updatedAt: '', title: id, startAt: start, endAt: start,
+      allDay: false, location: null, notes: null, category: null, color: null,
+      createdBy: 'u', recurrence: null, attendeeIds: [], occurrenceStart: start,
+    });
+    // 21:00 UTC on 2026-07-10 is 23:00 Fri in Berlin but 09:00 Sat in Auckland (UTC+12).
+    const map = groupByDay([occ('a', '2026-07-10T21:00:00.000Z')], 'Pacific/Auckland');
+    expect(map['2026-07-10']).toBeUndefined();
+    expect(map['2026-07-11']!.map((o) => o.id)).toEqual(['a']);
   });
 });

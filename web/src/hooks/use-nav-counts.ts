@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/constants';
 import { todayInTimeZone } from '@/lib/format';
 import { useHousehold } from '@/hooks/use-household';
+import { useHouseholdToday } from '@/hooks/use-household-zone';
 import * as tasks from '@/api/tasks';
 import * as meals from '@/api/meals';
 import * as weorc from '@/api/weorc';
@@ -18,26 +18,6 @@ const BADGE_QUERY = { staleTime: 5 * 60_000, retry: false } as const;
 export function countDueTasks(list: Task[], timeZone: string, now: Date = new Date()): number {
   const today = todayInTimeZone(timeZone, now);
   return list.filter((t) => t.dueAt != null && todayInTimeZone(timeZone, new Date(t.dueAt)) <= today).length;
-}
-
-/** How often the household date is re-read. A tick (not a timeout to midnight)
- *  stays correct across DST shifts and zone changes. */
-const DATE_TICK_MS = 30_000;
-
-/** The household's current date, re-read on a timer so a shell left open
- *  across midnight rolls over (the Weorc key and the task comparison depend on it). */
-function useHouseholdToday(timeZone: string): string {
-  const [, setTick] = useState(0);
-  const last = useRef('');
-  const today = todayInTimeZone(timeZone);
-  last.current = today;
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (todayInTimeZone(timeZone) !== last.current) setTick((n) => n + 1);
-    }, DATE_TICK_MS);
-    return () => clearInterval(id);
-  }, [timeZone]);
-  return today;
 }
 
 /** The four nav counts. Same query keys and functions as the pages, so the

@@ -10,6 +10,10 @@ vi.mock('@/hooks/use-calendar', () => ({
   useUpdateEvent: () => mutation,
   useDeleteEvent: () => mutation,
 }));
+vi.mock('@/hooks/use-household', () => ({
+  useHousehold: () => ({ data: { data: { timezone: 'Europe/Berlin' } }, isError: false }),
+  useHouseholdMembers: () => ({ data: { data: [] } }),
+}));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/components/calendar/week-view', () => ({ default: () => <div>week-grid</div> }));
 vi.mock('@/components/calendar/month-view', () => ({ default: () => <div>month-grid</div> }));

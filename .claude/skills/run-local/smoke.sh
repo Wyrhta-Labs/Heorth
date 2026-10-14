@@ -1,66 +1,63 @@
 #!/usr/bin/env bash
-# Smoke-test a running Heorth stack through its web (Vite proxy) port.
+# Smoke-test the Wyrhta dev stack through Vite's /api proxy (web -> proxy -> API -> DB).
 #
 # Usage: smoke.sh [WEB_PORT] [ADMIN_EMAIL] [ADMIN_PASSWORD]
 #
-# The seeded admin differs depending on which API holds port 4000 — the
-# wyrhta-dev-heorth-1 compose container or a local `tsx` run off the repo .env.
-# With no credentials passed we resolve them from whichever is actually serving,
-# because hardcoded defaults just produce a confusing UNAUTHORIZED.
+# Vite (default 5173) proxies /api to http://localhost:14000, the dev stack's
+# Heorth. With no credentials passed, the maintenance admin is read from the
+# repo-sibling deploy/.env (HEORTH_ADMIN_EMAIL / HEORTH_ADMIN_PASSWORD) or, as a
+# fallback, from the running wyrhta-dev-heorth-1 container. Nothing is printed
+# except the email.
 set -euo pipefail
 PORT="${1:-5173}"
 EMAIL="${2:-}"
 PASS="${3:-}"
 BASE="http://localhost:${PORT}"
-REPO_ENV="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/.env"
+DEPLOY_ENV="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)/deploy/.env"
 CONTAINER=wyrhta-dev-heorth-1
 
-# Read KEY=value from a file, ignoring comments. Value may contain '='.
-env_file_get() { sed -n "s/^${2}=//p" "$1" 2>/dev/null | tail -1; }
+env_file_get() { sed -n "s/^${2}=//p" "$1" 2>/dev/null | tail -1 | tr -d '\r'; }
 
 resolve_creds() {
-  [ -n "$EMAIL" ] && [ -n "$PASS" ] && { echo "Using credentials passed on the command line."; return; }
-
-  # The container publishes 4000; if it is up it is what Vite proxies to.
+  [ -n "$EMAIL" ] && [ -n "$PASS" ] && return
+  if [ -f "$DEPLOY_ENV" ]; then
+    EMAIL="${EMAIL:-$(env_file_get "$DEPLOY_ENV" HEORTH_ADMIN_EMAIL)}"
+    PASS="${PASS:-$(env_file_get "$DEPLOY_ENV" HEORTH_ADMIN_PASSWORD)}"
+    [ -n "$EMAIL" ] && [ -n "$PASS" ] && { echo "Resolved admin from deploy/.env."; return; }
+  fi
   if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)" = "true" ]; then
-    local env_dump
-    env_dump=$(docker inspect "$CONTAINER" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)
-    EMAIL="${EMAIL:-$(sed -n 's/^ADMIN_EMAIL=//p' <<<"$env_dump" | tail -1)}"
-    PASS="${PASS:-$(sed -n 's/^ADMIN_PASSWORD=//p' <<<"$env_dump" | tail -1)}"
+    local d
+    d=$(docker inspect "$CONTAINER" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)
+    EMAIL="${EMAIL:-$(sed -n 's/^ADMIN_EMAIL=//p' <<<"$d" | tail -1)}"
+    PASS="${PASS:-$(sed -n 's/^ADMIN_PASSWORD=//p' <<<"$d" | tail -1)}"
     [ -n "$EMAIL" ] && [ -n "$PASS" ] && { echo "Resolved admin from the ${CONTAINER} container."; return; }
   fi
-
-  if [ -f "$REPO_ENV" ]; then
-    EMAIL="${EMAIL:-$(env_file_get "$REPO_ENV" ADMIN_EMAIL)}"
-    PASS="${PASS:-$(env_file_get "$REPO_ENV" ADMIN_PASSWORD)}"
-    [ -n "$EMAIL" ] && [ -n "$PASS" ] && { echo "Resolved admin from ${REPO_ENV}."; return; }
-  fi
-
-  echo "FAIL: could not resolve admin credentials (no ${CONTAINER} container, no usable .env)."
-  echo "      Pass them explicitly: smoke.sh ${PORT} <email> <password>"
+  echo "FAIL: no admin credentials found (no deploy/.env, no ${CONTAINER})."
+  echo "      Pass them: smoke.sh ${PORT} <email> <password>"
   exit 1
 }
 
-echo "Waiting for web + API via ${BASE} ..."
-for _ in $(seq 1 30); do
+echo "Waiting for ${BASE} (Vite's first start can take ~15 s) ..."
+code=000
+for _ in $(seq 1 40); do
   code=$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/" || true)
   [ "$code" = "200" ] && break
   sleep 1
 done
-[ "${code:-000}" = "200" ] || { echo "FAIL: web not serving on ${BASE} (last=${code:-000})"; exit 1; }
+[ "$code" = "200" ] || { echo "FAIL: web not serving on ${BASE} (last=${code})"; exit 1; }
 
 resolve_creds
 
-echo "Logging in as ${EMAIL} (web -> proxy -> API -> DB -> seeded admin) ..."
+echo "Logging in as ${EMAIL} through ${BASE}/api ..."
 resp=$(curl -s -X POST "${BASE}/api/v1/auth/token" \
   -H 'Content-Type: application/json' \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASS}\"}")
 
 if grep -q '"token"' <<<"$resp"; then
-  echo "OK: Heorth healthy — login returned a JWT."
+  echo "OK: web -> proxy -> Heorth :14000 -> Postgres healthy; login returned a JWT."
   exit 0
 fi
 echo "FAIL: no token in response: $resp"
-echo "      If this is UNAUTHORIZED, the API on :4000 is probably not the one"
-echo "      these credentials belong to — see the skill's Environment table."
+echo "      UNAUTHORIZED: the credentials do not belong to the API on :14000;"
+echo "      a refused connection / 5xx: the dev stack is down (see wyrhta-dev-env)."
 exit 1

@@ -1,148 +1,140 @@
 ---
 name: run-local
-description: Use when asked to run, start, launch, restart, or smoke-test Heorth locally (API + web UI) for manual testing.
+description: Use when asked to run, start, restart, rebuild, or smoke-test Heorth locally for manual testing — Vite web UI on 5173 against the Wyrhta dev stack, rebuilding the Heorth dev container from this checkout, running the web or server test suites, or logging in to the dev instance. For the stack itself (bring-up, ports, KithLedger, Firefly) the meta repo's wyrhta-dev-env skill is the source of truth.
 ---
 
 # Run Heorth locally
 
-Heorth is a Hono API (`tsx`/Node) plus a Vite + React web UI in `web/`. There
-are **two** ways it runs locally, and they collide on port 4000. Work out which
-one you want *before* starting anything.
+Heorth runs against the **Wyrhta dev stack** (`deploy/compose.dev.yml` in the
+meta repo, one directory up from this repo). Bring-up, ports, databases and
+troubleshooting live in the meta repo — read
+`../.agents/skills/wyrhta-dev-env/SKILL.md` and `../deploy/README.md` instead of
+this page for anything about the stack itself. This page covers only what you do
+*from the Heorth checkout*.
 
-| | API | Web UI | DB | Picks up source edits? |
-|---|---|---|---|---|
-| **A. Compose stack** (usually already up) | `wyrhta-dev-heorth-1` container, host **14000** | built bundle, same port | `wyrhta-dev-db-1` host :15432 `heorth_dev` | No — baked image, needs a rebuild |
-| **B. Local processes** | `tsx` on **4000** (repo `.env`) | Vite on **5173** | whatever the repo `.env` points at | Yes |
+What the stack gives you (from the meta skill; check it if in doubt):
 
-Vite proxies `/api` → `http://localhost:4000` (hardcoded in
-`web/vite.config.ts`), so **Vite on 5173 works against either API** — the
-compose container or a local `tsx`, whichever holds 4000.
+| | |
+|---|---|
+| Heorth API + built web bundle | `http://localhost:14000` (container `wyrhta-dev-heorth-1`) |
+| Dev Postgres `db` | `localhost:15432`, database `heorth_dev` (durable dev data) |
+| Test Postgres `db-test` | `127.0.0.1:15433`, database `heorth_test` (tmpfs, disposable) |
+
+All `docker compose` commands below run **from the meta repo root** (`..`) and
+use `-f deploy/compose.dev.yml --env-file deploy/.env`. If the stack is down,
+bring it up with `deploy/dev-up.sh` (meta repo), do not hand-roll it.
 
 ## 0. Look before you start
 
 ```bash
 docker ps --format '{{.Names}}\t{{.Ports}}\t{{.Status}}'
+curl -s http://localhost:14000/health     # {"data":{"status":"ok"},"meta":{}}
 ```
 
-`wyrhta-dev-heorth-1  0.0.0.0:4000->3000/tcp` means the compose API is already
-serving. **Do not check port 3000** — nothing listens there; the container's
-`API_PORT=3000` is internal only, published as 4000. To see local processes:
+The liveness route is **`/health`, unversioned** — there is no
+`/api/v1/health`, and Vite does not proxy `/health` (only `/api`). Nothing
+listens on 3000 or 4000: 3000 is container-internal.
 
-```bash
-powershell -c "Get-NetTCPConnection -State Listen -LocalPort 4000,5173 -ea 0 | select LocalPort,OwningProcess"
-```
+## 1. Web change: Vite on 5173 against the stack
 
-## 1. Common case: a web-only change
-
-The compose container already serves the API, so **start Vite only** — there is
-nothing to restart on the API side.
+`web/vite.config.ts` proxies `/api` to `http://localhost:14000`, so the stack's
+container is the backend; nothing to start on the API side.
 
 ```bash
 ( cd web && npx vite --port 5173 --strictPort ) &> "$SCRATCH/heorth-web.log" &
 ```
 
-Ready line: `Local:   http://localhost:5173/`. Then verify (§4).
+Vite's first start can take 10+ seconds; ready line `Local: http://localhost:5173/`.
+Then run the smoke test (§5) or open http://localhost:5173.
 
-## 2. API / backend change
-
-Source edits do **not** reach the container (`build: ../Heorth`, no bind
-mounts). Either rebuild it:
+Stop by PID, not by name (Git Bash `pkill -f` is unreliable here):
 
 ```bash
-docker compose -f ../deploy/compose.dev.yml up -d --build heorth   # ~image rebuild
+powershell -c "Get-NetTCPConnection -State Listen -LocalPort 5173 -ea 0 | select -Expand OwningProcess"
+powershell -c "Stop-Process -Id <pid> -Force"
+# verify free: the same Get-NetTCPConnection line prints nothing
 ```
 
-…or take port 4000 over with a local process, which is faster to iterate on.
-`.env` is **not** auto-loaded (no dotenv / `--env-file` in the package scripts),
-so pass `--env-file` explicitly:
+(`netstat` prints German state names — `ABHÖREN` — so don't grep for `LISTENING`.)
+
+## 2. API / backend change: rebuild the container
+
+Source edits do not reach the container (`build: ../Heorth`, no bind mounts).
+From the meta repo root:
 
 ```bash
-docker compose -f ../deploy/compose.dev.yml stop heorth   # free port 4000 first
-npx tsx --env-file=.env src/index.ts &> "$SCRATCH/heorth-api.log" &
+docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d --build --wait heorth
+curl -s http://localhost:14000/health
 ```
 
-Ready line: `Heorth running on http://localhost:4000`. Skipping the `stop` gives
-`Error: listen EADDRINUSE: address already in use :::4000`.
+~1-2 minutes; `--wait` returns when the container is healthy. This also bakes
+in the web bundle served on :14000, so web changes show there after a rebuild
+too (Vite on 5173 is the hot-reload path for those).
 
-Keep the local API on **4000**: `web/vite.config.ts` hardcodes that proxy
-target, so overriding `API_PORT` to dodge the container silently breaks the web
-UI's `/api` calls.
+## 3. Optional: run the API from source (hot reload)
 
-Postgres for this path is whatever the repo `.env`'s `DATABASE_URL` names — a
-container of your own, or the compose stack's `db`. If it is a container that is
-stopped:
+Works, but replaces the container on 14000 — only when a rebuild per edit is too
+slow. **Do not use the repo's own `.env` as-is**: it is a stale pre-compose file
+(`API_PORT=4000`, `localhost:5432`, a Postgres that is not the stack's). The `.env`
+auto-loader never overrides exported variables, so export the stack's values
+instead (passwords read from `deploy/.env`, never echoed). From the Heorth repo:
 
 ```bash
-docker start <your-postgres-container>
-docker exec <your-postgres-container> pg_isready
+docker compose -f ../deploy/compose.dev.yml --env-file ../deploy/.env stop heorth
+set -a; . <(grep -E '^(HEORTH_DB_PASSWORD|HEORTH_JWT_SECRET|HEORTH_ADMIN_EMAIL|HEORTH_ADMIN_PASSWORD|HOUSEHOLD_NAME)=' ../deploy/.env | tr -d '\r'); set +a
+export DATABASE_URL="postgres://heorth:${HEORTH_DB_PASSWORD}@127.0.0.1:15432/heorth_dev" \
+       JWT_SECRET="$HEORTH_JWT_SECRET" ADMIN_EMAIL="$HEORTH_ADMIN_EMAIL" \
+       ADMIN_PASSWORD="$HEORTH_ADMIN_PASSWORD" API_PORT=14000
+npx tsx watch src/index.ts &> "$SCRATCH/heorth-api.log" &     # = npm run dev
 ```
 
-Migrations run and the admin is seeded on boot, so an empty DB self-populates.
+Ready line: `Heorth running on http://localhost:14000`. Port stays **14000** because the
+Vite proxy is hardcoded to it. It runs against the real `heorth_dev` data. To go
+back: stop the node process by PID (see §1) and
+`docker compose -f ../deploy/compose.dev.yml --env-file ../deploy/.env up -d --wait heorth`.
+Optional integrations (M365, Google, Kith, Firefly, Gewrit) stay off unless you
+also export their variables from `deploy/.env`.
 
-## 3. Stop
+## 4. Tests
+
+Never against the dev cluster (15432): the suite truncates every table, and
+`tests/setup.ts` only accepts database names ending in `_test`. Use `db-test` on
+**`127.0.0.1:15433`** (never `localhost` — on Windows it resolves to `::1`
+and stalls with `CONNECT_TIMEOUT`). It is part of the normal stack `up`; if it
+is down: `docker compose -f deploy/compose.dev.yml --env-file deploy/.env up -d --wait db-test`.
 
 ```bash
-pkill -f "vite --port 5173"
-pkill -f "tsx --env-file=.env src/index.ts"
-docker compose -f ../deploy/compose.dev.yml stop heorth    # only if you started it
+# server suite, from the Heorth repo (~2.5 min, 99 files)
+set -a; . <(grep -E '^HEORTH_DB_PASSWORD=' ../deploy/.env | tr -d '\r'); set +a
+export DATABASE_URL="postgres://heorth:${HEORTH_DB_PASSWORD}@127.0.0.1:15433/heorth_test"
+npx vitest run
+
+# web suite, from web/ (~40 s, needs no database)
+cd web && npx vitest run
 ```
 
-Leave the compose stack alone unless you actually took port 4000 — it is the
-default dev API and has usually been up for hours.
+Without the dev stack, the throwaway-container command in `README.md` → Testing
+works the same way. `tests/setup.ts` runs the migrations itself.
 
-## 4. Verify (drive it, don't just launch)
+## 5. Smoke test and logging in
 
 ```bash
-bash .claude/skills/run-local/smoke.sh          # resolves admin creds itself
+bash .claude/skills/run-local/smoke.sh        # Vite must be up on 5173
+bash .claude/skills/run-local/smoke.sh 14000  # or point it at the container directly
 ```
 
-Logs in through web → Vite proxy → API → Postgres → seeded admin and checks for
-a JWT. Exit 0 = the whole stack is healthy. The credentials **differ per path**
-(see below), so let the script resolve them rather than passing guesses; to
-override: `smoke.sh [WEB_PORT] [EMAIL] [PASSWORD]`.
+Logs in through web -> proxy -> API -> Postgres and checks for a JWT; exit 0 =
+healthy. It reads the maintenance admin itself (`HEORTH_ADMIN_EMAIL` /
+`HEORTH_ADMIN_PASSWORD` in the meta repo's git-ignored `deploy/.env`); override
+with `smoke.sh [WEB_PORT] [EMAIL] [PASSWORD]`.
 
-Open http://localhost:5173 in a browser to click through the UI (title:
-"Heorth"). The API's own liveness route is unversioned:
-`curl http://localhost:4000/health` → `{"data":{"status":"ok"}}`.
+Login is `POST /api/v1/auth/token` with `{"email","password"}`. For the UI:
 
-## Environment
+- The **maintenance admin** from `deploy/.env` authenticates but is not a
+  household member — don't judge content visibility with it.
+- Household members: the dev household's real members, or the `@demo.invalid`
+  sample members after `node deploy/seed-dev.mjs` (see `../deploy/README.md`,
+  "seed the dev stack"; member password convention in `deploy/seed-demo.mjs`).
+  The seeded *demo* instance is a different stack on 24000, not this one.
 
-Login is `POST /api/v1/auth/token` with `{"email","password"}`. **The seeded
-admin is not the same account on both paths** — this is the single most common
-way a smoke test fails:
-
-| | Compose container | Local `tsx` (repo `.env`) |
-|---|---|---|
-| `ADMIN_EMAIL` | from `deploy/.env` | from the repo `.env` |
-| `ADMIN_PASSWORD` | from `deploy/.env` | from the repo `.env` |
-| `DATABASE_URL` | `…@db:5432/heorth_dev` | whatever the repo `.env` points at |
-| `API_PORT` | `3000` internal → **4000** published | **4000** |
-
-Both sides are whatever *your* env files say — they are not the same account,
-and neither is guessable, which is why `smoke.sh` resolves them at run time
-instead of hardcoding a default.
-
-Read the container's values with:
-
-```bash
-docker inspect wyrhta-dev-heorth-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E "ADMIN|DATABASE_URL"
-```
-
-`JWT_SECRET` (≥32 chars) lives in `.env` / `deploy/.env`. Never echo secrets
-into the transcript beyond what a login needs.
-
-## Neighbours on the dev stack
-
-The same compose project also publishes `wyrhta-dev-kithledger-1` on **14002**,
-the dev cluster `wyrhta-dev-db-1` on **15432** (`heorth_dev`), and a separate,
-disposable test cluster `wyrhta-dev-db-test-1` on **15433**. The backend suite
-needs a `heorth_test` database — `tests/setup.ts` refuses any DB whose name does
-not end in `_test`, because it truncates every table between tests. Point
-`DATABASE_URL` at a primary database and you will lose its contents.
-
-**Run the suite against `db-test` (15433), never the dev cluster (15432).**
-`127.0.0.1:15433/heorth_test` is the suite's fallback (AGENTS.md, data rules);
-`tests/setup.ts` runs the migrations itself, so nothing on this page is a
-prerequisite for `npm test`. Without the dev stack, the throwaway-container
-command in `README.md` → **Testing** works the same way.
-This page is for **manual** testing: driving the running app.
+Never copy a password into this file, a commit, or the transcript.

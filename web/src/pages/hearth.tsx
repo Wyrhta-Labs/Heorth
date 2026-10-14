@@ -83,9 +83,14 @@ function HearthInner() {
 
   // Everything date-shaped on the wall is the HOUSEHOLD's, not the browser's:
   // a panel whose OS clock sits in another zone must still show the
-  // household's today and fetch the household's week. Until the household
-  // loads, the browser zone stands in.
-  const timeZone = useHousehold().data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // household's today and fetch the household's week. Nothing date-shaped is
+  // fetched or shown until the household's zone is known (a browser-zone week
+  // would go out first and flash under the household's columns). If the
+  // household cannot be loaded, the browser zone stands in so the wall still
+  // works.
+  const householdQuery = useHousehold();
+  const zoneKnown = householdQuery.data !== undefined || householdQuery.isError;
+  const timeZone = householdQuery.data?.data.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const now = new Date(nowMs);
   const todayIso = todayInTimeZone(timeZone, now);
 
@@ -105,12 +110,12 @@ function HearthInner() {
   const fromIso = startOfDayInTimeZone(fromDay, timeZone).toISOString();
   const toIso = new Date(startOfDayInTimeZone(format(addDays(rangeTo, 1), 'yyyy-MM-dd'), timeZone).getTime() - 1).toISOString();
 
-  const eventsQuery = useEvents({ from: fromIso, to: toIso }, { refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData });
+  const eventsQuery = useEvents({ from: fromIso, to: toIso }, { enabled: zoneKnown, refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData });
   // Full instants, not fromDay/toDay: the tasks validator requires ISO
   // datetimes (date-only 400s, #3), and the household week boundaries match
   // the household-day bucketing used on the display side (lib/hearth.ts isoOf).
-  const tasksQuery = useTasks({ due_from: fromIso, due_to: toIso }, { refetchInterval: POLL_TASKS, gcTime: GC, placeholderData: keepPreviousData });
-  const planQuery = useWeekPlan(fromDay, toDay, { refetchInterval: POLL_MEALS, gcTime: GC, placeholderData: keepPreviousData });
+  const tasksQuery = useTasks({ due_from: fromIso, due_to: toIso }, { enabled: zoneKnown, refetchInterval: POLL_TASKS, gcTime: GC, placeholderData: keepPreviousData });
+  const planQuery = useWeekPlan(fromDay, toDay, { enabled: zoneKnown, refetchInterval: POLL_MEALS, gcTime: GC, placeholderData: keepPreviousData });
   const membersQuery = useHouseholdMembers();
   const statusQuery = useIntegrationsFeedStatus();
   // KithLedger reminders: only when the integration is configured server-side
@@ -119,7 +124,7 @@ function HearthInner() {
   const kithEnabled = featuresQuery.data?.data.kithledger ?? false;
   const kithQuery = useKithReminders(
     { from: fromIso, to: toIso },
-    { enabled: kithEnabled && displayPrefs.kithReminders, refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData },
+    { enabled: zoneKnown && kithEnabled && displayPrefs.kithReminders, refetchInterval: POLL_EVENTS, gcTime: GC, placeholderData: keepPreviousData },
   );
   const complete = useCompleteTask();
   const upsertMeal = useUpsertPlanEntry();
@@ -222,11 +227,15 @@ function HearthInner() {
   const page = (delta: number) => (view === 'week' ? setWeekOffset((o) => o + delta) : setMonthOffset((o) => o + delta));
   const resetPage = () => (view === 'week' ? setWeekOffset(0) : setMonthOffset(0));
 
+  // Waiting for the household's zone: a bare wall, no browser-zone dates.
+  if (!zoneKnown) return <div className="fixed inset-0 bg-parchment" aria-busy="true" />;
+
   // Wall display: fixed to the viewport so the burn-in drift (a transform) can
   // never widen or lengthen the document (no scrollbar, no 100vw overflow).
   // A wall display first: the unprefixed classes are the panel layout and stay
   // as they are. Below md (max-md:) the page scrolls like a phone page instead:
   // header and strip stack, and the week becomes one day per row.
+
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-parchment px-8 py-6 hearth-drift max-md:static max-md:inset-auto max-md:h-auto max-md:min-h-screen max-md:w-full max-md:overflow-y-visible max-md:px-4 max-md:py-4">
       {/* Header */}

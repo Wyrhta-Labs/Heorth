@@ -3,7 +3,7 @@ import { QUERY_KEYS } from '@/lib/constants';
 import * as api from '@/api/calendar';
 
 /** Extra react-query options callers (e.g. the always-on Hearth wall) can pass to tune polling. */
-type QueryOpts = { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData };
+type QueryOpts = { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData; enabled?: boolean };
 
 export function useEvents(params: api.ListEventsParams = {}, opts: QueryOpts = {}) {
   return useQuery({ queryKey: [...QUERY_KEYS.events, params], queryFn: () => api.listEvents(params), ...opts });

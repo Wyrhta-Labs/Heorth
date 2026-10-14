@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { QUERY_KEYS } from '@/lib/constants';
 import * as api from '@/api/tasks';
 
-type QueryOpts = { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData };
+type QueryOpts = { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData; enabled?: boolean };
 
 export function useTasks(params: api.ListTasksParams = {}, opts: QueryOpts = {}) {
   return useQuery({ queryKey: [...QUERY_KEYS.tasks, params], queryFn: () => api.listTasks(params), ...opts });

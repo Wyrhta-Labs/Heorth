@@ -27,8 +27,11 @@ vi.mock('@/hooks/use-meals', () => ({
   useUpsertPlanEntry: () => ({ mutateAsync: vi.fn() }),
   useDeletePlanEntry: () => ({ mutateAsync: vi.fn() }),
 }));
+type HouseholdStub = { data?: { data: { timezone: string } }; isError: boolean };
+const loaded: HouseholdStub = { data: { data: { timezone: HOUSEHOLD_TZ } }, isError: false };
+const useHouseholdMock = vi.fn((): HouseholdStub => loaded);
 vi.mock('@/hooks/use-household', () => ({
-  useHousehold: () => ({ data: { data: { timezone: HOUSEHOLD_TZ } } }),
+  useHousehold: () => useHouseholdMock(),
   useHouseholdMembers: () => stub([]),
 }));
 vi.mock('@/hooks/use-m365', () => ({ useIntegrationsFeedStatus: () => ({ data: [] }) }));
@@ -54,6 +57,7 @@ beforeEach(() => {
   useEventsSpy.mockClear();
   useTasksSpy.mockClear();
   useWeekPlanSpy.mockClear();
+  useHouseholdMock.mockReturnValue(loaded);
 });
 afterEach(() => { vi.useRealTimers(); cleanup(); });
 
@@ -105,5 +109,32 @@ describe('HearthPage in the household time zone', () => {
 
     expect(todayColumn(container)).toBe('2026-07-27');
     expect(lastCall(useWeekPlanSpy).slice(0, 2)).toEqual(['2026-07-27', '2026-08-02']);
+  });
+});
+
+describe('HearthPage before the household zone is known', () => {
+  const enabledOf = (opts: unknown) => (opts as { enabled?: boolean } | undefined)?.enabled;
+
+  it('fetches nothing date-shaped and shows no week while the household loads', () => {
+    vi.setSystemTime(new Date('2026-07-26T13:00:00Z'));
+    useHouseholdMock.mockReturnValue({ data: undefined, isError: false });
+    const { container } = render(<HearthPage />);
+
+    expect(container.querySelectorAll('[data-hearth-day]')).toHaveLength(0);
+    // Every call so far was disabled: no browser-zone week went out.
+    expect(useTasksSpy.mock.calls.every(([, o]) => enabledOf(o) === false)).toBe(true);
+    expect(useEventsSpy.mock.calls.every(([, o]) => enabledOf(o) === false)).toBe(true);
+    expect(useWeekPlanSpy.mock.calls.every(([, , o]) => enabledOf(o) === false)).toBe(true);
+  });
+
+  it("falls back to the browser's zone if the household cannot be loaded", () => {
+    vi.setSystemTime(new Date('2026-07-26T13:00:00Z'));
+    useHouseholdMock.mockReturnValue({ data: undefined, isError: true });
+    const { container } = render(<HearthPage />);
+
+    // Browser (UTC) Sunday 26 Jul: the week of 20-26 Jul, fetched.
+    expect(todayColumn(container)).toBe('2026-07-26');
+    expect(enabledOf(lastCall(useTasksSpy)[1])).not.toBe(false);
+    expect(lastCall(useTasksSpy)[0]).toEqual({ due_from: '2026-07-20T00:00:00.000Z', due_to: '2026-07-26T23:59:59.999Z' });
   });
 });

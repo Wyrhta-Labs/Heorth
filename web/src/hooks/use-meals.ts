@@ -26,7 +26,7 @@ export function useDeleteRecipe() {
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.recipes }),
   });
 }
-export function useWeekPlan(from: string, to: string, opts: { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData } = {}) {
+export function useWeekPlan(from: string, to: string, opts: { refetchInterval?: number; gcTime?: number; placeholderData?: typeof keepPreviousData; enabled?: boolean } = {}) {
   return useQuery({ queryKey: [...QUERY_KEYS.mealPlan, from, to], queryFn: () => api.getWeekPlan(from, to), ...opts });
 }
 export function useUpsertPlanEntry() {

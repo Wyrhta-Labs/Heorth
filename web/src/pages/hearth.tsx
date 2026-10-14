@@ -204,11 +204,13 @@ function HearthInner() {
   const page = (delta: number) => (view === 'week' ? setWeekOffset((o) => o + delta) : setMonthOffset((o) => o + delta));
   const resetPage = () => (view === 'week' ? setWeekOffset(0) : setMonthOffset(0));
 
+  // Wall display: fixed to the viewport so the burn-in drift (a transform) can
+  // never widen or lengthen the document (no scrollbar, no 100vw overflow).
   // A wall display first: the unprefixed classes are the panel layout and stay
   // as they are. Below md (max-md:) the page scrolls like a phone page instead:
   // header and strip stack, and the week becomes one day per row.
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-parchment px-8 py-6 hearth-drift max-md:h-auto max-md:min-h-screen max-md:w-full max-md:overflow-y-visible max-md:px-4 max-md:py-4">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-parchment px-8 py-6 hearth-drift max-md:static max-md:inset-auto max-md:h-auto max-md:min-h-screen max-md:w-full max-md:overflow-y-visible max-md:px-4 max-md:py-4">
       {/* Header */}
       <header className="mb-5 flex items-end justify-between gap-6 max-md:flex-col max-md:items-stretch max-md:gap-3">
         <div>

@@ -179,7 +179,9 @@ h1, h2, h3, h4 {
  * Hearth wall: a very slow, sub-pixel-scale drift of the whole surface so a
  * static always-on layout never burns fixed edges into the panel. Pure CSS, a
  * few pixels over minutes — imperceptible in use, but the pixels are never
- * lit identically for long. Disabled for reduced-motion users.
+ * lit identically for long. Disabled for reduced-motion users. The element
+ * must be position: fixed (see hearth.tsx): a drifting in-flow box makes the
+ * document scrollable, which adds a scrollbar and overflows 100vw.
  */
 @keyframes hearth-drift {
   0%   { transform: translate(0, 0); }

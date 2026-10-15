@@ -48,3 +48,11 @@ describe('index.css tokens', () => {
     expect(css).not.toMatch(/html\s*\{[^}]*font-size/);
   });
 });
+
+describe('index.css cursor', () => {
+  it('gives enabled buttons the pointer cursor in the base layer', () => {
+    const base = block('@layer base {');
+    expect(base).toContain('button:not(:disabled)');
+    expect(base).toContain('cursor: pointer;');
+  });
+});

@@ -201,3 +201,22 @@ h1, h2, h3, h4 {
 @media (width < 48rem) {
   .hearth-drift { animation: none; }
 }
+
+/* Tailwind v4's preflight dropped `cursor: pointer` on buttons (the desktop-app
+   convention). Heorth is a web app whose clickable things are often cards and
+   rows, so the hand is what says "this is clickable" — restore it here once
+   rather than per component. Utilities (cursor-grab, disabled:cursor-not-allowed)
+   are in a later layer and still win. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='menuitem'],
+  [role='tab'],
+  summary,
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  label:has(> input[type='checkbox']:not(:disabled)) {
+    cursor: pointer;
+  }
+}

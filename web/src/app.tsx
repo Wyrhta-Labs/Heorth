@@ -22,7 +22,6 @@ import EthelPage from '@/pages/ethel';
 import WeorcPage from '@/pages/weorc';
 import TodayPage from '@/pages/today';
 import ShoppingPage from '@/pages/shopping';
-import CapturePage from '@/pages/capture';
 import HearthPage from '@/pages/hearth';
 import ProfilePage from '@/pages/profile';
 
@@ -98,7 +97,6 @@ const ethelRoute = createRoute({ getParentRoute: () => authRoute, path: '/ethel'
 const weorcRoute = createRoute({ getParentRoute: () => authRoute, path: '/weorc', component: WeorcPage });
 const todayRoute = createRoute({ getParentRoute: () => authRoute, path: '/today', component: TodayPage });
 const shoppingRoute = createRoute({ getParentRoute: () => authRoute, path: '/shopping', component: ShoppingPage });
-const captureRoute = createRoute({ getParentRoute: () => authRoute, path: '/capture', component: CapturePage });
 const profileRoute = createRoute({ getParentRoute: () => authRoute, path: '/profile', component: ProfilePage });
 
 const routeTree = rootRoute.addChildren([
@@ -107,7 +105,7 @@ const routeTree = rootRoute.addChildren([
   authRoute.addChildren([
     dashboardRoute, calendarRoute, tasksRoute, mealsRoute, feohRoute,
     householdRoute.addChildren([householdIndexRoute, householdTabRoute]),
-    libraryRoute, ethelRoute, weorcRoute, todayRoute, shoppingRoute, captureRoute, profileRoute,
+    libraryRoute, ethelRoute, weorcRoute, todayRoute, shoppingRoute, profileRoute,
   ]),
 ]);
 

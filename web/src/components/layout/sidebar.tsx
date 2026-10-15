@@ -2,7 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, CalendarDays, ListChecks, UtensilsCrossed, Wallet, Home, Flame, Library,
-  Sun, ShoppingCart, PlusCircle, Tv, Package, ClipboardList, BookUser, ExternalLink, LogOut,
+  Sun, ShoppingCart, Tv, Package, ClipboardList, BookUser, ExternalLink, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFeatures } from '@/hooks/use-features';
@@ -18,7 +18,6 @@ export type NavLabelKey =
   | 'nav.calendar'
   | 'nav.tasks'
   | 'nav.shoppingList'
-  | 'nav.quickCapture'
   | 'nav.meals'
   | 'nav.feoh'
   | 'nav.library'
@@ -63,7 +62,6 @@ export const navItems: NavItem[] = [
   { to: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'day' },
   { to: '/tasks', labelKey: 'nav.tasks', icon: ListChecks, group: 'day', count: 'tasks' },
   { to: '/shopping', labelKey: 'nav.shoppingList', icon: ShoppingCart, group: 'day', count: 'shopping' },
-  { to: '/capture', labelKey: 'nav.quickCapture', icon: PlusCircle, group: 'day' },
   { to: '/meals', labelKey: 'nav.meals', icon: UtensilsCrossed, group: 'day' },
   { to: '/feoh', labelKey: 'nav.feoh', icon: Wallet, group: 'household', count: 'feoh' },
   { to: '/ethel', labelKey: 'nav.ethel', icon: Package, group: 'household' },

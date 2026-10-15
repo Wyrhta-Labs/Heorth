@@ -89,7 +89,7 @@ describe('Sidebar', () => {
       [...g.querySelectorAll('a')].map((a) => a.textContent?.trim()),
     ]);
     expect(groups).toEqual([
-      ['day', ['This week', 'Today', 'Calendar', 'Tasks', 'Shopping list', 'Quick capture', 'Meals']],
+      ['day', ['This week', 'Today', 'Calendar', 'Tasks', 'Shopping list', 'Meals']],
       ['household', ['Feoh', 'Ethel', 'Weorc', 'Library']],
       ['system', ['Household', 'Hearth (wall)']],
     ]);

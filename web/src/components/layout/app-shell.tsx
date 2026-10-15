@@ -23,7 +23,6 @@ const PAGE_TITLES: Record<string, PageTitleKey> = {
   '/household': 'nav.household',
   '/today': 'nav.today',
   '/shopping': 'nav.shoppingList',
-  '/capture': 'nav.quickCapture',
   '/profile': 'nav.profile',
 };
 

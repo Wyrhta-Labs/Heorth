@@ -14,7 +14,7 @@ const useHouseholdMock = vi.fn((): HouseholdStub => loaded);
 vi.mock('@/hooks/use-household', () => ({ useHousehold: () => useHouseholdMock() }));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
-import CapturePage from './capture';
+import QuickCapture from './quick-capture';
 
 // 13:00Z on Sun 26 Jul is 01:00 on Mon 27 Jul in Auckland.
 beforeEach(() => {
@@ -26,13 +26,14 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); cleanup(); });
 
 const writeNote = () => {
-  fireEvent.click(screen.getByRole('button', { name: /meal note/i }));
+  fireEvent.click(screen.getByRole('button', { name: /quick capture/i }));
+  fireEvent.click(screen.getByRole('menuitem', { name: /meal note/i }));
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Leftovers' } });
 };
 
-describe('CapturePage meal note in the household time zone', () => {
+describe('QuickCapture meal note in the household time zone', () => {
   it("files the note under the household's today", async () => {
-    render(<CapturePage />);
+    render(<QuickCapture />);
     writeNote();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /save note/i })); });
     expect(upsert.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ date: '2026-07-27', freeText: 'Leftovers' }));
@@ -40,7 +41,7 @@ describe('CapturePage meal note in the household time zone', () => {
 
   it("can't save a browser-dated note while the household loads", () => {
     useHouseholdMock.mockReturnValue({ data: undefined, isError: false });
-    render(<CapturePage />);
+    render(<QuickCapture />);
     writeNote();
     expect(screen.getByRole('button', { name: /save note/i })).toBeDisabled();
   });

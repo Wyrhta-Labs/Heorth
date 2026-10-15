@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { Sun, ShoppingCart, PlusCircle, Menu, LogOut } from 'lucide-react';
+import { Sun, ShoppingCart, Menu, LogOut } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { useFeatures } from '@/hooks/use-features';
@@ -11,13 +11,12 @@ import { cn } from '@/lib/utils';
 const TABS = [
   { to: '/today', labelKey: 'nav.today', icon: Sun },
   { to: '/shopping', labelKey: 'nav.shoppingTab', icon: ShoppingCart, count: 'shopping' as const },
-  { to: '/capture', labelKey: 'nav.captureTab', icon: PlusCircle },
 ] as const;
 
 /**
  * Thumb-reach bottom navigation for phone widths (hidden at `md` and up,
- * where the sidebar takes over). Surfaces the three PWA priority screens
- * directly; "More" opens the full nav list for everything else.
+ * where the sidebar takes over). Surfaces the PWA priority screens
+ * directly (quick capture lives in the top bar); "More" opens the full nav list for everything else.
  */
 export default function MobileNav({ counts = {} }: { counts?: NavCounts }) {
   const { t } = useTranslation();

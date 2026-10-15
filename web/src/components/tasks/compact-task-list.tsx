@@ -1,12 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { useFormatters } from '@/hooks/use-formatters';
 import { useHouseholdZone } from '@/hooks/use-household-zone';
+import { keepHighlighted } from '@/lib/day-focus';
+import { todayInTimeZone } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { Task } from '@/lib/types';
 
 interface Props {
   tasks: Task[];
   limit?: number;
   onToggle: (task: Task) => void;
+  /** Highlight (and keep in view) the tasks due on this household day. */
+  highlightDay?: string;
 }
 
 /**
@@ -15,7 +20,7 @@ interface Props {
  * (no phone-specific chrome) — the Hearth wall view (Task 2.5) can reuse this
  * for its "due tasks" column instead of re-deriving the sort/cap logic.
  */
-export default function CompactTaskList({ tasks, limit = 5, onToggle }: Props) {
+export default function CompactTaskList({ tasks, limit = 5, onToggle, highlightDay }: Props) {
   const { t } = useTranslation();
   const { formatDate } = useFormatters();
   // Due dates are the household's: not shown until its zone is known.
@@ -26,14 +31,24 @@ export default function CompactTaskList({ tasks, limit = 5, onToggle }: Props) {
     if (!b.dueAt) return -1;
     return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
   });
-  const shown = sorted.slice(0, limit);
+  // Which day a task is due on is the household's reading: nothing is highlighted before the zone is known.
+  const isHighlighted = (task: Task) =>
+    ready && !!highlightDay && !!task.dueAt && todayInTimeZone(zone, new Date(task.dueAt)) === highlightDay;
+  const shown = keepHighlighted(sorted, limit, isHighlighted);
 
   if (shown.length === 0) return <p className="text-sm text-ash py-2 text-center">{t('tasks.noOpenTasks')}</p>;
 
   return (
     <ul className="zebra space-y-1.5">
       {shown.map((task) => (
-        <li key={task.id} className="flex items-center gap-3 rounded-lg border border-tan bg-card px-3 py-2">
+        <li
+          key={task.id}
+          data-highlight={isHighlighted(task) ? 'true' : undefined}
+          className={cn(
+            'flex items-center gap-3 rounded-lg border px-3 py-2',
+            isHighlighted(task) ? 'border-ember bg-ember/10' : 'border-tan bg-card',
+          )}
+        >
           <input
             type="checkbox"
             className="h-5 w-5 shrink-0 accent-ember"

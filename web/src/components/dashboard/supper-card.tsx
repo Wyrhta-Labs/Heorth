@@ -6,12 +6,14 @@ import { retryOf } from '@/lib/query-error';
 import { useWeekPlan } from '@/hooks/use-meals';
 import { useHouseholdZone, useHouseholdToday } from '@/hooks/use-household-zone';
 
-export default function SupperCard() {
+/** The supper planned for `day` (default: tonight); `label` names that day. */
+export default function SupperCard({ day, label }: { day?: string; label?: string } = {}) {
   const { t } = useTranslation();
   // Tonight is the HOUSEHOLD's tonight; nothing is fetched until its zone is known.
   const { zone, ready } = useHouseholdZone();
   const today = useHouseholdToday(zone);
-  const planQuery = useWeekPlan(today, today, { enabled: ready });
+  const date = day ?? today;
+  const planQuery = useWeekPlan(date, date, { enabled: ready });
   const plan = planQuery.data;
   const retry = retryOf(planQuery);
   if (retry) return <ErrorState compact message={t('today.supperLoadError')} onRetry={retry} />;
@@ -26,7 +28,7 @@ export default function SupperCard() {
     <Card className="border-nav-active bg-nav text-nav-fg">
       <CardContent className="p-6">
         <div className="flex items-center gap-2 text-nav-muted text-sm mb-2">
-          <UtensilsCrossed className="h-4 w-4" /> {t('today.tonightsSupper')}
+          <UtensilsCrossed className="h-4 w-4" /> {label ?? t('today.tonightsSupper')}
         </div>
         <div className="font-serif text-2xl">{title}</div>
         {recipe && (

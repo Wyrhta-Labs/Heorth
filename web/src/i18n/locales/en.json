@@ -182,13 +182,18 @@
     "invalidCredentials": "Invalid email or password. Please try again."
   },
   "dashboard": {
+    "dayPattern": "EEEE, d MMMM",
+    "supperOn": "Supper · {{day}}",
+    "noEventsOnDay": "Nothing on the calendar for {{day}}.",
+    "dayLoadError": "We couldn’t load {{day}}.",
     "home": "Home",
     "membersLoadError": "Couldn’t load members.",
     "work": {
       "title": "To do",
       "chores": "Chores",
       "tasks": "Tasks",
-      "noChores": "No chores due by tomorrow."
+      "noChores": "No chores due by tomorrow.",
+      "noChoresThrough": "No chores due by {{day}}."
     }
   },
   "calendar": {
@@ -201,6 +206,7 @@
     "eventCreated": "Event created",
     "eventDeleted": "Event deleted",
     "saveFailed": "Failed to save event",
+    "details": { "date": "Date", "time": "Time", "source": "Source" },
     "mirroredTitle": "From Microsoft 365 (read-only)",
     "mirroredTitleWithOrganizer": "From Microsoft 365 · {{organizer}} (read-only)",
     "form": {
@@ -762,6 +768,7 @@
     "history": "History",
     "nothingDue": "Nothing is due.",
     "complete": "Done",
+    "confirmComplete": "Sure?",
     "skip": "Skip",
     "skipped": "Skipped",
     "completedOn": "Done {{date}}",

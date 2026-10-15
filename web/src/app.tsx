@@ -72,7 +72,15 @@ const hearthRoute = createRoute({
   component: HearthPage,
 });
 
-const dashboardRoute = createRoute({ getParentRoute: () => authRoute, path: '/', component: DashboardPage });
+// `?day=YYYY-MM-DD` focuses the start page on one day of its week strip.
+const dashboardRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/',
+  validateSearch: (search: Record<string, unknown>): { day?: string } => ({
+    day: typeof search['day'] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search['day']) ? search['day'] : undefined,
+  }),
+  component: DashboardPage,
+});
 const calendarRoute = createRoute({ getParentRoute: () => authRoute, path: '/calendar', component: CalendarPage });
 const tasksRoute = createRoute({ getParentRoute: () => authRoute, path: '/tasks', component: TasksPage });
 const mealsRoute = createRoute({ getParentRoute: () => authRoute, path: '/meals', component: MealsPage });

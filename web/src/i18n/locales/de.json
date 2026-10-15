@@ -182,13 +182,18 @@
     "invalidCredentials": "E-Mail oder Passwort ungültig. Bitte versuch es nochmal."
   },
   "dashboard": {
+    "dayPattern": "EEEE, d. MMMM",
+    "supperOn": "Abendessen · {{day}}",
+    "noEventsOnDay": "Keine Termine am {{day}}.",
+    "dayLoadError": "{{day}} konnte nicht geladen werden.",
     "home": "Zuhause",
     "membersLoadError": "Mitglieder konnten nicht geladen werden.",
     "work": {
       "title": "Aufgaben",
       "chores": "Hausarbeit",
       "tasks": "Aufgaben",
-      "noChores": "Bis morgen ist keine Hausarbeit fällig."
+      "noChores": "Bis morgen ist keine Hausarbeit fällig.",
+      "noChoresThrough": "Bis {{day}} ist keine Hausarbeit fällig."
     }
   },
   "calendar": {
@@ -201,6 +206,7 @@
     "eventCreated": "Termin erstellt",
     "eventDeleted": "Termin gelöscht",
     "saveFailed": "Termin konnte nicht gespeichert werden",
+    "details": { "date": "Datum", "time": "Uhrzeit", "source": "Quelle" },
     "mirroredTitle": "Von Microsoft 365 (nur lesbar)",
     "mirroredTitleWithOrganizer": "Von Microsoft 365 · {{organizer}} (nur lesbar)",
     "form": {
@@ -762,6 +768,7 @@
     "history": "Verlauf",
     "nothingDue": "Nichts fällig.",
     "complete": "Erledigt",
+    "confirmComplete": "Sicher?",
     "skip": "Überspringen",
     "skipped": "Übersprungen",
     "completedOn": "Erledigt am {{date}}",

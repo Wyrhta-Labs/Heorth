@@ -21,3 +21,18 @@ describe('CompactTaskList in the household time zone', () => {
     expect(screen.getByText('Jul 27, 2026')).toBeInTheDocument();
   });
 });
+
+describe('CompactTaskList highlightDay', () => {
+  it("highlights the tasks due on the household's day, and keeps them inside the cap", () => {
+    // 21:00Z Sun 26 Jul is Mon 27 Jul in Auckland; 21:00Z Fri 31 Jul is Sat 1 Aug.
+    const tasks = [
+      ...['a', 'b', 'c'].map((id) => ({ id, title: `Early ${id}`, dueAt: '2026-07-26T21:00:00Z', status: 'open' }) as Task),
+      { id: 'late', title: 'Saturday job', dueAt: '2026-07-31T21:00:00Z', status: 'open' } as Task,
+    ];
+    render(<CompactTaskList tasks={tasks} limit={2} onToggle={() => {}} highlightDay="2026-08-01" />);
+    const rows = screen.getAllByRole('listitem').filter((li) => li.querySelector('input'));
+    expect(rows.map((r) => r.textContent?.includes('Saturday job'))).toEqual([false, true]);
+    expect(screen.getByText('Saturday job').closest('li')).toHaveAttribute('data-highlight', 'true');
+    expect(screen.getByText('Early a').closest('li')).not.toHaveAttribute('data-highlight');
+  });
+});

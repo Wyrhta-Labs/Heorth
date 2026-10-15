@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as weorc from '@/api/weorc';
@@ -56,11 +56,45 @@ describe('DueWork', () => {
     expect(tasks.listTasks).toHaveBeenCalledWith({ status: 'open' });
   });
 
-  it('completes a chore from the card', async () => {
+  it('completes a chore from the card only on the second press', async () => {
     const user = userEvent.setup();
     renderDueWork();
     await screen.findByText('Clean the oven');
     await user.click(screen.getAllByRole('button', { name: 'Done' })[0]!);
+    expect(weorc.completeOccurrence).not.toHaveBeenCalled();
+    const confirm = screen.getByRole('button', { name: 'Sure?' });
+    await user.click(confirm);
     await waitFor(() => expect(weorc.completeOccurrence).toHaveBeenCalledWith('o-r1', {}));
+    // Once sent it cannot fire again before the list refreshes.
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+    expect(weorc.completeOccurrence).toHaveBeenCalledTimes(1);
+  });
+
+  it('disarms the confirmation after a few seconds', async () => {
+    renderDueWork();
+    await screen.findByText('Clean the oven');
+    // Swap the Date-only fake for one that also drives setTimeout.
+    vi.useRealTimers();
+    vi.useFakeTimers();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Done' })[0]!);
+    expect(screen.getByRole('button', { name: 'Sure?' })).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(4000); });
+    expect(screen.queryByRole('button', { name: 'Sure?' })).not.toBeInTheDocument();
+    expect(weorc.completeOccurrence).not.toHaveBeenCalled();
+  });
+
+  it('with a later focused day, runs chores through it and highlights what is due that day', async () => {
+    vi.mocked(tasks.listTasks).mockResolvedValue(listing(
+      { id: 't1', title: 'Call the orthodontist', dueAt: null, status: 'open' },
+      { id: 't2', title: 'Return the parcel', dueAt: '2026-10-08T08:00:00Z', status: 'open' },
+    ) as never);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={qc}><DueWork day="2026-10-08" /></QueryClientProvider>);
+    const boiler = await screen.findByText('Service the boiler');
+    expect(boiler.closest('li')).toHaveAttribute('data-highlight', 'true');
+    expect(screen.getByText('Clean the oven').closest('li')).not.toHaveAttribute('data-highlight');
+    expect((await screen.findByText('Return the parcel')).closest('li')).toHaveAttribute('data-highlight', 'true');
+    expect(screen.getByText('Call the orthodontist').closest('li')).not.toHaveAttribute('data-highlight');
   });
 });

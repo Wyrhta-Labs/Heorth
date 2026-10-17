@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-17
+
 ### Added
 
 - `GET /api/v1/recipes` takes `q`, a case-insensitive title search (LIKE
@@ -46,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web: lists and tables alternate their row background (tasks, shopping,
   agenda, Weorc, Feoh bills and bank import, linked documents, and every
   table).
+- Web: the start page's week strip days are buttons. Picking one focuses the
+  page on that day (`?day=YYYY-MM-DD`): the agenda pair, supper, and the
+  chores and tasks due on it follow; the real today keeps a marker.
+- `GET /api/v1/household` returns `currency`, the one Feoh currency
+  (`FEOH_CURRENCY`), read-only.
 
 ### Changed
 
@@ -58,11 +65,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   light only.
 - Web: the day strip is a rolling seven days from today instead of the
   calendar week, so a Sunday still looks ahead.
+- Web: quick capture is a "+" menu in the top bar (Add task, Meal note) that
+  opens its form in a modal over the current page. The `/capture` page, its
+  sidebar entry and the phone bottom-bar tab are gone.
+- Web: vendor code is split into chunks (largest 298 kB instead of one
+  826 kB bundle).
 
 ### Removed
 
 - Web: the reserved "Chores — coming in a later release" slot on the start
   page; the "To do" card replaces it.
+
+### Fixed
+
+- Web: every money amount was shown in US dollars; it now uses the household
+  currency (#10).
+- Web: dates and times follow the household's time zone everywhere, not the
+  browser's — calendar events and the event form, the Hearth wall and its
+  fetch window, the start page's today and tonight, meal planning and
+  shopping weeks, task due dates, quick meal notes, Feoh and Ethel date
+  defaults, and the nav counts' midnight rollover. Wall times across DST gaps
+  and folds resolve to a defined instant.
+- Web: week columns and the month grid are Monday-first, like every range.
+- Web: the Hearth wall works at phone width (one day per row), auto-scrolls
+  while a supper is dragged near the edge, and is pinned to the viewport so
+  its burn-in drift cannot overflow.
+- Web: recipes beyond the first 20 can be browsed and picked; each plan entry
+  carries its recipe, and the end of the list is judged by distinct ids.
+- Web: the shared Dialog is an accessible modal (focus, aria references), and
+  the phone nav marks the current page.
+- Web: Slate dark mode keeps tonight's supper card and the update banner
+  dark; the page clears the bottom bar between 640px and 767px and the safe
+  area; the Tasks page has its title; clickable elements show a pointer.
+- Members: a too-short new password is refused with a clear message instead
+  of an opaque "Invalid request body".
+- Gewrit: the last search word matches as a prefix, so "Tel" finds "Telekom".
 
 ## [0.9.0] - 2026-09-24
 

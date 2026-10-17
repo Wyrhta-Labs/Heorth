@@ -55,6 +55,15 @@ describe('household & members routes', () => {
     expect(other.status).toBe(403);
   });
 
+  it('names the reason when a profile PATCH fails validation', async () => {
+    const { adult } = await seedTestHousehold();
+    const res = await app.request(`/api/v1/members/${adult.user.id}`, {
+      method: 'PATCH', headers: authHeaders(adult.jwt), body: JSON.stringify({ password: 'short' }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json() as { error: { message: string } }).error.message).toBe('Password must be at least 8 characters');
+  });
+
   it('serves the timezone/locale option lists to any authenticated member', async () => {
     const { child } = await seedTestHousehold();
     const res = await app.request('/api/v1/household/options', { headers: authHeaders(child.jwt) });

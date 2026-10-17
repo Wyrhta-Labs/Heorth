@@ -23,7 +23,9 @@ export default function MemberForm({ member, onSubmit, onCancel, isLoading }: Pr
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!member && password.length < 8) { setError(t('settings.form.passwordTooShort')); return; }
+    // Required on create; on edit a blank password means "keep it", but a typed one
+    // must still meet the API's minimum or the PATCH is rejected.
+    if ((!member || password) && password.length < 8) { setError(t('settings.form.passwordTooShort')); return; }
     setError('');
     await onSubmit({ email, password, displayName, avatarColor, role });
   };

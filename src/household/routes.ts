@@ -71,7 +71,9 @@ membersRouter.patch('/:id', async (c) => {
     return err(c, 'FORBIDDEN', 'You may only edit your own profile', 403);
   }
   const body = updateMemberSchema.safeParse(await c.req.json());
-  if (!body.success) return err(c, 'VALIDATION_ERROR', 'Invalid request body', 400);
+  // Field-level reason, as on `PATCH /household`: a too-short password otherwise
+  // surfaces in the UI as an opaque 'Invalid request body'.
+  if (!body.success) return err(c, 'VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid request body', 400);
   // Maintenance credentials (email AND password) are env-only by design — see
   // `repairMaintenanceAdmin`, which re-syncs both from env on every boot, so a
   // manual change here would just be silently overwritten anyway.

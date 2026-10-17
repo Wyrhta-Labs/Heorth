@@ -16,7 +16,7 @@ export const updateMemberSchema = z.object({
   displayName: z.string().min(1).optional(),
   avatarColor: z.enum(AVATAR_COLORS).optional(),
   email: z.string().email().optional(),
-  password: z.string().min(8).optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
 });
 
 export const setRoleSchema = z.object({

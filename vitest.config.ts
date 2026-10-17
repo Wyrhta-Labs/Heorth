@@ -15,10 +15,8 @@ export default defineConfig({
     // Windows) being reported as test failures.
     testTimeout: 20000,
     hookTimeout: 30000,
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    // One file at a time: every file truncates the shared _test database.
+    // (Vitest 4 replaced `poolOptions.forks.singleFork` with this.)
+    maxWorkers: 1,
   },
 });

@@ -90,20 +90,18 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # `latest=false` disables the default `latest=auto` behaviour (which would
-          # apply :latest on semver tag pushes only) so the rules below are the whole
-          # story: every build published from here is :latest and :<sha>, and a tag
-          # build adds its version on top.
-          flavor: |
-            latest=false
+          # The same rules as KithLedger and heorth-mcp. A v* tag push publishes
+          # its version (v0.10.0 -> :0.10.0, :0.10, :0) and :latest — the default
+          # flavor `latest=auto` applies `latest` ONLY on semver tag pushes, so
+          # `latest` is a release-only pointer.
           tags: |
-            # Moving pointer at the newest build, from a main push or a tag push alike.
-            type=raw,value=latest
-            # Immutable, per-commit handle for traceability and pinning. Bare short sha
-            # (no `sha-` prefix) so the tag reads as :<sha>.
-            type=sha,prefix=,format=short
-            # Only on a v* tag push: the release version, e.g. v0.5.0 -> :0.5.0
             type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            # On main push: moving :main tag, plus an immutable :main-<sha> for
+            # traceability. Main builds never receive a semver/latest tag.
+            type=ref,event=branch
+            type=sha,prefix=main-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push
         uses: docker/build-push-action@v7

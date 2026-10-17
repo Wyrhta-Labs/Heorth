@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createApp } from '../src/app.js';
 import { householdModule } from '../src/household/index.js';
 import { seedTestHousehold, authHeaders } from './helpers.js';
+import { config } from '../src/config/env.js';
 
 const app = createApp([householdModule]);
 
@@ -105,6 +106,24 @@ describe('household & members routes', () => {
     const opts = await app.request('/api/v1/household/options', { headers: authHeaders(child.jwt) });
     const { data } = await opts.json() as { data: { themes: { value: string; label: string }[] } };
     expect(data.themes.map((t) => t.value)).toEqual(['slate', 'hearth']);
+  });
+
+  it('serves the one Feoh currency, read-only, so the web formats money in it', async () => {
+    const { admin, child } = await seedTestHousehold();
+    const original = config.feohCurrency;
+    try {
+      (config as { feohCurrency: string }).feohCurrency = 'GBP';
+      const res = await app.request('/api/v1/household', { headers: authHeaders(child.jwt) });
+      expect((await res.json() as { data: { currency: string } }).data.currency).toBe('GBP');
+
+      // It comes from FEOH_CURRENCY, not from the household row: a PATCH cannot set it.
+      const patch = await app.request('/api/v1/household', {
+        method: 'PATCH', headers: authHeaders(admin.jwt), body: JSON.stringify({ currency: 'USD' }),
+      });
+      expect((await patch.json() as { data: { currency: string } }).data.currency).toBe('GBP');
+    } finally {
+      (config as { feohCurrency: string }).feohCurrency = original;
+    }
   });
 
   it('only an admin can switch the household theme, and only to a listed one', async () => {

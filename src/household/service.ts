@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { household } from '@wyrhta/core/household';
 import type { Role } from '@wyrhta/core/identity';
 import { db } from '../db/index.js';
+import { config } from '../config/env.js';
 import { identity, householdCore } from '../wiring.js';
 import { householdAppearance } from './schema.js';
 import { DEFAULT_THEME } from './options.js';
@@ -13,10 +14,18 @@ async function readTheme(): Promise<string> {
   return row?.theme ?? DEFAULT_THEME;
 }
 
-/** The core household row plus Heorth's own display settings (`schema.ts`). */
+/**
+ * The core household row plus Heorth's own display settings (`schema.ts`) and
+ * the one Feoh currency (`FEOH_CURRENCY`), which the web formats money in.
+ * The currency is deployment config, so it is read-only here.
+ */
+async function withDisplay<T extends object>(row: T) {
+  return { ...row, theme: await readTheme(), currency: config.feohCurrency };
+}
+
 export async function getHousehold() {
   const h = await householdCore.getHousehold();
-  return h ? { ...h, theme: await readTheme() } : null;
+  return h ? withDisplay(h) : null;
 }
 
 export async function updateHousehold(input: UpdateHouseholdInput) {
@@ -30,7 +39,7 @@ export async function updateHousehold(input: UpdateHouseholdInput) {
   if (input.locale !== undefined) patch['locale'] = input.locale;
   if (Object.keys(patch).length === 0) return getHousehold();
   const [row] = await db.update(household).set(patch).returning();
-  return row ? { ...row, theme: await readTheme() } : null;
+  return row ? withDisplay(row) : null;
 }
 
 export function listMembers() {

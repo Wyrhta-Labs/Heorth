@@ -26,6 +26,8 @@ export interface Household {
   locale: string;
   /** Household-wide UI theme (`hearth` | `slate`), see lib/theme.ts. */
   theme: string;
+  /** The one Feoh currency (ISO 4217, from `FEOH_CURRENCY`); read-only. */
+  currency: string;
   createdAt: string;
 }
 

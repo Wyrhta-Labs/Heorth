@@ -4,7 +4,7 @@ import HouseholdSettings from './household-settings';
 import type { Household } from '@/lib/types';
 
 const household = (over: Partial<Household>): Household => ({
-  id: 'h1', name: 'The Smiths', timezone: 'Europe/London', locale: 'en-GB', theme: 'hearth', createdAt: '', ...over,
+  id: 'h1', name: 'The Smiths', timezone: 'Europe/London', locale: 'en-GB', theme: 'hearth', currency: 'GBP', createdAt: '', ...over,
 });
 
 const OPTIONS = {

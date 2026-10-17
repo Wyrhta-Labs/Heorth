@@ -11,10 +11,13 @@ import { applyTheme } from '@/lib/theme';
 // Safe default (enUS): components rendered outside the provider — most tests —
 // format in English instead of throwing.
 const DateFnsLocaleContext = createContext<Locale>(DEFAULT_RESOLVED.dateFnsLocale);
+// Same reasoning: USD pairs with the enUS default until the household says otherwise.
+const DEFAULT_CURRENCY = 'USD';
+const CurrencyContext = createContext<string>(DEFAULT_CURRENCY);
 
 /**
- * Applies household.locale and household.theme app-wide: i18next language (en/de catalogs) and the
- * date-fns locale for useFormatters(). The household query is GATED ON AUTH —
+ * Applies household.locale, household.currency and household.theme app-wide: i18next language
+ * (en/de catalogs), plus the date-fns locale and money currency for useFormatters(). The household query is GATED ON AUTH —
  * the API client clears the stored token on 401, so an ungated query on /login
  * would log people out as a side effect. Logout hard-navigates (full reload),
  * which resets everything to the en/enUS defaults.
@@ -28,6 +31,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   });
 
   const resolved = isAuthenticated && data ? resolveLocale(data.data.locale) : DEFAULT_RESOLVED;
+  const currency = isAuthenticated && data ? data.data.currency : DEFAULT_CURRENCY;
 
   useEffect(() => {
     if (i18n.language !== resolved.language) void i18n.changeLanguage(resolved.language);
@@ -42,11 +46,18 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <DateFnsLocaleContext.Provider value={resolved.dateFnsLocale}>
-      {children}
+      <CurrencyContext.Provider value={currency}>
+        {children}
+      </CurrencyContext.Provider>
     </DateFnsLocaleContext.Provider>
   );
 }
 
 export function useDateFnsLocale(): Locale {
   return useContext(DateFnsLocaleContext);
+}
+
+/** The household's one currency (ISO 4217) for money formatting. */
+export function useHouseholdCurrency(): string {
+  return useContext(CurrencyContext);
 }

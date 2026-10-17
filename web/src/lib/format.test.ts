@@ -10,6 +10,11 @@ describe('formatMoney', () => {
   it('formats a number as USD', () => {
     expect(formatMoney(120)).toBe('$120.00');
   });
+  it('formats in the given currency, with the locale driving symbol placement', () => {
+    expect(formatMoney('383.83', enGB, 'EUR')).toBe('€383.83');
+    expect(formatMoney('1680', de, 'EUR')).toBe('1.680,00 €');
+    expect(formatMoney(5, enGB, 'GBP')).toBe('£5.00');
+  });
   it('renders an em dash for empty/nullish', () => {
     expect(formatMoney(null)).toBe('—');
     expect(formatMoney('')).toBe('—');

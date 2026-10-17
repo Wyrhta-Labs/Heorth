@@ -1,12 +1,17 @@
 import { format, parseISO, addDays, startOfWeek, type Locale } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 
-/** Format a money value as currency. Locale drives separators; currency stays USD (follow-up). */
-export function formatMoney(v: string | number | null | undefined, locale: Locale = enUS): string {
+/**
+ * Format a money value as currency. Locale drives separators and symbol
+ * placement; `currency` is the household's one ISO 4217 code (`FEOH_CURRENCY`),
+ * which `useFormatters()` supplies. The USD default only serves callers outside
+ * the household context, like the enUS locale default.
+ */
+export function formatMoney(v: string | number | null | undefined, locale: Locale = enUS, currency = 'USD'): string {
   if (v === null || v === undefined || v === '') return '—';
   const n = typeof v === 'number' ? v : Number(v);
   if (Number.isNaN(n)) return String(v);
-  return n.toLocaleString(locale.code, { style: 'currency', currency: 'USD' });
+  return n.toLocaleString(locale.code, { style: 'currency', currency });
 }
 
 /** Clamp spent/budget to a 0..100 progress percentage. Budget 0 => 0%. */

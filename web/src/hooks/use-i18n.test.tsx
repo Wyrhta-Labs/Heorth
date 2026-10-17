@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/hooks/use-auth';
 import { I18nProvider, useDateFnsLocale } from '@/hooks/use-i18n';
+import { useFormatters } from '@/hooks/use-formatters';
 import { TOKEN_KEY } from '@/api/client';
 import i18n from '@/i18n';
 import * as householdApi from '@/api/household';
@@ -12,6 +13,11 @@ vi.mock('@/api/household', { spy: true });
 function Probe() {
   const locale = useDateFnsLocale();
   return <div data-testid="code">{locale.code}</div>;
+}
+
+function MoneyProbe() {
+  const { formatMoney } = useFormatters();
+  return <div data-testid="money">{formatMoney(383.83)}</div>;
 }
 
 function renderWithProviders(ui: React.ReactNode) {
@@ -26,10 +32,10 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 // Adjust this helper to the ACTUAL return shape of getHousehold() (ok envelope).
-function householdResponse(locale: string, theme = 'hearth') {
+function householdResponse(locale: string, theme = 'hearth', currency = 'EUR') {
   return {
     data: {
-      id: 'h1', name: 'Home', timezone: 'Europe/Berlin', locale, theme, createdAt: '2026-01-01T00:00:00Z',
+      id: 'h1', name: 'Home', timezone: 'Europe/Berlin', locale, theme, currency, createdAt: '2026-01-01T00:00:00Z',
     },
   } as Awaited<ReturnType<typeof householdApi.getHousehold>>;
 }
@@ -61,6 +67,13 @@ describe('I18nProvider', () => {
     vi.mocked(householdApi.getHousehold).mockResolvedValue(householdResponse('en-GB', 'slate'));
     renderWithProviders(<Probe />);
     await waitFor(() => expect(document.documentElement.dataset['theme']).toBe('slate'));
+  });
+
+  it('formats money in the household currency once the household loads (Heorth#10)', async () => {
+    localStorage.setItem(TOKEN_KEY, 'jwt');
+    vi.mocked(householdApi.getHousehold).mockResolvedValue(householdResponse('en-GB', 'slate', 'EUR'));
+    renderWithProviders(<MoneyProbe />);
+    await waitFor(() => expect(screen.getByTestId('money').textContent).toBe('€383.83'));
   });
 
   it('gives useDateFnsLocale a safe enUS default outside the provider', () => {

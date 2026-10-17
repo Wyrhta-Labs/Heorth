@@ -165,7 +165,9 @@ whether or not the group is enabled, `409 ALREADY_RUNNING` if a tick is already
 in flight); the inbox, the rules and confirming pending lines keep working,
 because those are pure Feoh writes. `FEOH_CURRENCY` (ISO 4217, default `EUR`) is
 the household's one currency — a line in any other currency stays in the inbox
-for ever and is never booked, by the tick or by a member.
+for ever and is never booked, by the tick or by a member. It is also the
+currency the web formats every amount in: `GET /api/v1/household` serves it
+read-only as `currency`.
 
 ```
 # Feoh bank import — optional, off unless explicitly enabled

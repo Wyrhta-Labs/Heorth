@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-10-17
+
+### Security
+
+- Dependencies: hono 4.13.13 (five moderate advisories); in the web bundle,
+  seroval 1.6.9 (critical thenable assimilation, high memory exhaustion).
+- Dev tooling: vitest 4 (tinypool prototype pollution, @vitest/mocker path
+  traversal) and a fixed esbuild under drizzle-kit (an npm override, since
+  no drizzle-kit release ships one). `npm audit` is clean in both trees.
+
 ## [0.10.0] - 2026-10-17
 
 ### Added

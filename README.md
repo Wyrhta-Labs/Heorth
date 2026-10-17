@@ -990,9 +990,9 @@ the app.
 
 Integration tests hit a real PostgreSQL database (`tests/setup.ts` runs
 migrations and truncates every table before each test) and run in a single
-fork to avoid parallel DB conflicts. **`DATABASE_URL` must be exported into
-the shell manually before `npm test`** — it is not picked up from `.env`
-automatically by the test run.
+fork to avoid parallel DB conflicts. The test run never reads Heorth's own
+`.env`: export `DATABASE_URL` before `npm test`, or leave it unset to get the
+Wyrhta dev stack default described below.
 
 **The database name must end in `_test`.** The suite `TRUNCATE`s every
 application table between tests, so `tests/setup.ts` enforces an allowlist and
@@ -1018,7 +1018,12 @@ docker rm -f heorth-test-db
 
 Port 55499 is arbitrary — pick anything free that is not your development
 cluster's port. In the Wyrhta dev stack, use its disposable test cluster (`db-test`, port 15433;
-never the dev cluster on 15432) and a separate `heorth_test` database on it:
+never the dev cluster on 15432) and a separate `heorth_test` database on it. With
+`DATABASE_URL` unset, `tests/setup.ts` already targets
+`127.0.0.1:15433/heorth_test` and, when this checkout sits inside the Wyrhta meta
+repo, takes the `heorth` password from `../deploy/.env` (`HEORTH_DB_PASSWORD`), so
+a plain `npm test` works. Outside the meta repo the fallback password is
+`changeme`; export the URL yourself to use anything else:
 
 ```bash
 export DATABASE_URL=postgres://heorth:<password>@127.0.0.1:15433/heorth_test

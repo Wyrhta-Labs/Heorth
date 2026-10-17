@@ -59,7 +59,9 @@ both files are wrong — fix them.
 - **Tests hit a real Postgres and truncate every table per test**, so
   `DATABASE_URL` MUST name a database **ending in `_test`** — `tests/setup.ts`
   enforces this as an allowlist and refuses everything else, including the
-  primary `heorth` database. The fallback is `127.0.0.1:15433/heorth_test` (the Wyrhta dev stack's `db-test`).
+  primary `heorth` database. The fallback is `127.0.0.1:15433/heorth_test` (the Wyrhta dev stack's `db-test`),
+  with the password read from the meta repo's `../deploy/.env`
+  (`HEORTH_DB_PASSWORD`), or `changeme` when that file is absent.
 
 ## Module rules
 

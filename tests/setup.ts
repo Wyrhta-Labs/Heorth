@@ -1,5 +1,20 @@
+import { readFileSync } from 'node:fs';
 import { beforeAll, beforeEach } from 'vitest';
 import { assertTestDatabase } from '@wyrhta/core/testing';
+
+// The Wyrhta dev stack's `db-test` gives the `heorth` role the generated
+// HEORTH_DB_PASSWORD from the meta repo's deploy/.env, so a checkout inside the
+// meta repo reads it from there. Anywhere else there is no such file and the
+// fallback URL below keeps `changeme`.
+function wyrhtaTestDbPassword(): string | undefined {
+  try {
+    const env = readFileSync(new URL('../../deploy/.env', import.meta.url), 'utf8');
+    const value = /^HEORTH_DB_PASSWORD=(.*)$/m.exec(env)?.[1]?.trim().replace(/^(["'])(.*)\1$/, '$2');
+    return value || undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // Set required env BEFORE importing modules that read process.env at load time.
 // The src imports at the bottom are dynamic (`await import`) precisely so these
@@ -8,7 +23,8 @@ import { assertTestDatabase } from '@wyrhta/core/testing';
 // suite sees ONLY what this file (and individual tests) put into process.env —
 // an unexported DATABASE_URL gets the test default below, never the .env dev
 // value, and gating vars a test deletes stay deleted across vi.resetModules().
-process.env['DATABASE_URL'] ??= 'postgres://heorth:changeme@127.0.0.1:15433/heorth_test';
+process.env['DATABASE_URL'] ??=
+  `postgres://heorth:${encodeURIComponent(wyrhtaTestDbPassword() ?? 'changeme')}@127.0.0.1:15433/heorth_test`;
 process.env['JWT_SECRET'] ??= 'test-secret-test-secret-test-secret-123';
 process.env['HOUSEHOLD_NAME'] ??= 'Test Household';
 process.env['ADMIN_EMAIL'] ??= 'admin@test.local';

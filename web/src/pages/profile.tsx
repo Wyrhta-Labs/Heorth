@@ -4,6 +4,7 @@ import { ShieldAlert } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import ProviderCard from '@/components/profile/provider-card';
+import ApiKeysPanel from '@/components/household/api-keys-panel';
 import { CalendarSyncSettings } from '@/components/settings/calendar-sync-settings';
 import { PROVIDERS } from '@/lib/providers';
 import { useWhoami } from '@/hooks/use-household';
@@ -45,6 +46,8 @@ export default function ProfilePage() {
   const isMaintenanceAdmin = whoamiQuery.data?.data.handle === MAINTENANCE_ADMIN_HANDLE;
   const role = whoamiQuery.data?.data.role;
   const canDesignate = role === 'admin' || role === 'adult';
+  // Same gate as the API: children get no programmatic credential.
+  const canMintKeys = role === 'admin' || role === 'adult';
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -94,6 +97,12 @@ export default function ProfilePage() {
             <ProviderCard key={provider.id} provider={provider} />
           ))}
           <CalendarSyncSettings canDesignate={canDesignate} />
+          {canMintKeys && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">{t('settings.apiKeys.title')}</CardTitle></CardHeader>
+              <CardContent><ApiKeysPanel /></CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>

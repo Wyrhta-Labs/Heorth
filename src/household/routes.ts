@@ -35,6 +35,25 @@ householdRouter.patch('/', requireRole('admin'), async (c) => {
   return ok(c, h);
 });
 
+// Admin overview of every member's API keys — for spotting forgotten keys and
+// cutting one off. Display fields only: the secret is never retrievable, and
+// minting stays self-service on `/auth/keys`. JWT-only like key management.
+householdRouter.get('/keys', requireJwt, requireRole('admin'), async (c) => {
+  const keys = await identity.listAllApiKeys();
+  return ok(c, keys, { total: keys.length });
+});
+
+householdRouter.delete('/keys/:id', requireJwt, requireRole('admin'), async (c) => {
+  const id = c.req.param('id');
+  const ownerId = await identity.revokeAnyApiKey(id);
+  if (!ownerId) return err(c, 'NOT_FOUND', 'API key not found', 404);
+  logEvent({
+    event: 'auth.key.revoked', key_id: id, member_id: ownerId,
+    revoked_by: c.get('auth').userId, request_id: c.get('requestId'),
+  });
+  return ok(c, { id });
+});
+
 export const membersRouter = new Hono();
 membersRouter.use('*', requireAuth);
 

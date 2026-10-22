@@ -484,7 +484,19 @@
       "cancel": "Cancel",
       "create": "Create",
       "copyWarning": "Copy this key now — you won’t see it again.",
-      "done": "Done"
+      "done": "Done",
+      "title": "Your API keys"
+    },
+    "householdKeys": {
+      "intro": "Every member’s API keys. Members create their own keys on their profile; here you can spot forgotten keys and revoke them.",
+      "none": "No member has an API key.",
+      "keyCount_one": "{{count}} key",
+      "keyCount_other": "{{count}} keys",
+      "stale": "stale",
+      "staleHint": "Unused for 90 days, or never used 30 days after creation.",
+      "headerCreated": "Created",
+      "revokeConfirm": "Revoke {{member}}’s API key “{{name}}”? Whatever uses it stops working.",
+      "revokeLabel": "Revoke {{name}}"
     },
     "connectionsPanel": {
       "title": "Connections",

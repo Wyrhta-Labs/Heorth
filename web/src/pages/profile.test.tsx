@@ -34,6 +34,7 @@ vi.mock('@/api/calendar-allowlist', () => ({
 }));
 
 vi.mock('@/hooks/use-household', () => ({ useWhoami: () => useWhoamiMock() }));
+vi.mock('@/components/household/api-keys-panel', () => ({ default: () => <div>api-keys-panel</div> }));
 
 const ordinaryMember = { data: { data: { id: 'm1', handle: 'anna', role: 'adult', displayName: 'Anna' } } };
 const maintenanceAdmin = { data: { data: { id: 'a1', handle: 'admin', role: 'admin', displayName: 'Admin' } } };
@@ -46,6 +47,24 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
     expect(screen.getByText('card:m365')).toBeInTheDocument();
     expect(screen.getByText('calendar-sync-settings:true')).toBeInTheDocument();
+  });
+
+  it('gives an adult their own API keys', () => {
+    render(<ProfilePage />);
+    expect(screen.getByText('Your API keys')).toBeInTheDocument();
+    expect(screen.getByText('api-keys-panel')).toBeInTheDocument();
+  });
+
+  it('gives a promoted (non-maintenance) admin their own API keys', () => {
+    useWhoamiMock.mockReturnValue({ data: { data: { id: 'm2', handle: 'ben', role: 'admin', displayName: 'Ben' } } });
+    render(<ProfilePage />);
+    expect(screen.getByText('api-keys-panel')).toBeInTheDocument();
+  });
+
+  it('gives a child no API keys', () => {
+    useWhoamiMock.mockReturnValue({ data: { data: { id: 'm3', handle: 'kid', role: 'child', displayName: 'Kid' } } });
+    render(<ProfilePage />);
+    expect(screen.queryByText('api-keys-panel')).not.toBeInTheDocument();
   });
 
   it('does not let a child designate the household calendar', () => {
@@ -78,6 +97,7 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
     expect(screen.queryByText('card:m365')).not.toBeInTheDocument();
     expect(screen.getByText('This is the maintenance account')).toBeInTheDocument();
+    expect(screen.queryByText('api-keys-panel')).not.toBeInTheDocument();
   });
 
   it('does not render the maintenance-admin card for an ordinary member, even one with a promoted admin role', () => {

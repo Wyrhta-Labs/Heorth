@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import type { ParseKeys } from 'i18next';
 import type { Member, Role } from '@/lib/types';
 import MembersPanel from '@/components/household/members-panel';
-import ApiKeysPanel from '@/components/household/api-keys-panel';
+import HouseholdKeysPanel from '@/components/household/household-keys-panel';
 import HouseholdSettings from '@/components/household/household-settings';
 import ConnectionsPanel from '@/components/household/connections-panel';
 
@@ -57,11 +57,12 @@ export const SETTINGS_TABS = [
     Panel: MembersPanel,
   },
   {
+    // Admin overview of every member's keys. Minting is self-service on /profile.
     id: 'keys',
     labelKey: 'settings.tabs.apiKeys',
-    access: byRole({ roles: ['admin', 'adult'] }),
+    access: byRole({ roles: ['admin'] }),
     card: { titleKey: 'settings.tabs.apiKeys' },
-    Panel: ApiKeysPanel,
+    Panel: HouseholdKeysPanel,
   },
   {
     id: 'settings',

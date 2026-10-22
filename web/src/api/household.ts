@@ -1,5 +1,5 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from './client';
-import type { SingleResponse, ListResponse, Household, Member, Role, MemberRole, AvatarColor } from '@/lib/types';
+import type { SingleResponse, ListResponse, Household, HouseholdApiKey, Member, Role, MemberRole, AvatarColor } from '@/lib/types';
 
 export interface CreateMemberInput {
   email: string; password: string; displayName: string;
@@ -39,4 +39,12 @@ export function setMemberRole(id: string, role: Role): Promise<SingleResponse<Me
 }
 export function deleteMember(id: string): Promise<SingleResponse<{ id: string }>> {
   return apiDelete(`/members/${id}`);
+}
+/** Admin only: every member's API keys, without the secrets. */
+export function listHouseholdKeys(): Promise<ListResponse<HouseholdApiKey>> {
+  return apiGet('/household/keys');
+}
+/** Admin only: revoke any member's API key. */
+export function revokeHouseholdKey(id: string): Promise<SingleResponse<{ id: string }>> {
+  return apiDelete(`/household/keys/${id}`);
 }

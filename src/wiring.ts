@@ -66,6 +66,35 @@ export const identity = {
   revokeApiKey: (userId: string, keyId: string) => coreRevokeApiKey(db, userId, keyId),
   validateApiKey: resolveApiKey,
 
+  // Core's key functions are owner-scoped. The admin overview reads across all
+  // members, so it goes to the table directly — and selects only display
+  // columns: never `keyHash`, and the raw key is not stored at all.
+  async listAllApiKeys() {
+    const rows = await db
+      .select({
+        id: apiKeys.id,
+        name: apiKeys.name,
+        prefix: apiKeys.prefix,
+        lastUsedAt: apiKeys.lastUsedAt,
+        createdAt: apiKeys.createdAt,
+        memberId: users.id,
+        displayName: users.displayName,
+        avatarColor: users.avatarColor,
+      })
+      .from(apiKeys)
+      .innerJoin(users, eq(apiKeys.userId, users.id))
+      .orderBy(users.displayName, apiKeys.createdAt);
+    return rows.map(({ memberId, displayName, avatarColor, ...key }) => ({
+      ...key,
+      member: { id: memberId, displayName, avatarColor },
+    }));
+  },
+  /** Revoke any member's key; returns the owner's id, or null if no such key. */
+  async revokeAnyApiKey(keyId: string): Promise<string | null> {
+    const [row] = await db.delete(apiKeys).where(eq(apiKeys.id, keyId)).returning({ userId: apiKeys.userId });
+    return row?.userId ?? null;
+  },
+
   // Core has no getUser/updateUser/deleteUser — implement directly on the users
   // table. All three strip passwordHash so routes never leak it (core's own
   // createUser/listMembers already return password-free shapes).

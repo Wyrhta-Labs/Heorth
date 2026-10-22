@@ -12,9 +12,8 @@ import { useFormatters } from '@/hooks/use-formatters';
 
 interface Props {
   /**
-   * Never set by the registry today — adults get full self-service on their OWN
-   * keys (the endpoint is self-scoped). Honoured anyway so the SettingsTab
-   * contract holds for any future contributor.
+   * Never set today — the profile page gives admins and adults full
+   * self-service on their OWN keys (the endpoint is self-scoped). Honoured anyway.
    */
   readOnly?: boolean;
 }

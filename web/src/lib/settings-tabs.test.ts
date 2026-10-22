@@ -35,7 +35,7 @@ describe('SETTINGS_TABS', () => {
       SETTINGS_TABS.filter((tab) => tab.access(memberWith(role)).visible).map((tab) => tab.id);
 
     expect(visibleTo('admin')).toEqual(['members', 'keys', 'settings', 'connections']);
-    expect(visibleTo('adult')).toEqual(['members', 'keys', 'settings', 'connections']);
+    expect(visibleTo('adult')).toEqual(['members', 'settings', 'connections']);
     expect(visibleTo('child')).toEqual(['members']);
   });
 

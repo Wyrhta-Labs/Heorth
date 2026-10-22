@@ -215,6 +215,67 @@ describe('household & members routes', () => {
   });
 });
 
+describe('household key overview (admin)', () => {
+  async function mint(jwt: string, name: string): Promise<string> {
+    const res = await app.request('/api/v1/auth/keys', {
+      method: 'POST', headers: authHeaders(jwt), body: JSON.stringify({ name }),
+    });
+    return ((await res.json()) as { data: { id: string } }).data.id;
+  }
+
+  it('lists the keys of every member with their owner, never the secret', async () => {
+    const { admin, adult } = await seedTestHousehold();
+    await mint(admin.jwt, 'admin-agent');
+    await mint(adult.jwt, 'adult-agent');
+
+    const res = await app.request('/api/v1/household/keys', { headers: authHeaders(admin.jwt) });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: Array<Record<string, unknown>> };
+    const byName = Object.fromEntries(body.data.map((k) => [k['name'], k]));
+    expect(Object.keys(byName).sort()).toEqual(['admin-agent', 'adult-agent']);
+    expect(byName['adult-agent']).toMatchObject({
+      prefix: expect.stringMatching(/^he_/),
+      lastUsedAt: null,
+      member: { id: adult.user.id, displayName: 'Adult', avatarColor: 'sage' },
+    });
+    for (const k of body.data) {
+      expect(k).not.toHaveProperty('key');
+      expect(k).not.toHaveProperty('keyHash');
+    }
+  });
+
+  it('lets an admin revoke the key of another member', async () => {
+    const { admin, adult } = await seedTestHousehold();
+    const id = await mint(adult.jwt, 'adult-agent');
+
+    const res = await app.request(`/api/v1/household/keys/${id}`, { method: 'DELETE', headers: authHeaders(admin.jwt) });
+    expect(res.status).toBe(200);
+    const own = await app.request('/api/v1/auth/keys', { headers: authHeaders(adult.jwt) });
+    expect(((await own.json()) as { data: unknown[] }).data).toHaveLength(0);
+
+    const again = await app.request(`/api/v1/household/keys/${id}`, { method: 'DELETE', headers: authHeaders(admin.jwt) });
+    expect(again.status).toBe(404);
+  });
+
+  it('is admin only, and JWT only', async () => {
+    const { admin, adult, child } = await seedTestHousehold();
+    const id = await mint(admin.jwt, 'admin-agent');
+    for (const who of [adult, child]) {
+      const list = await app.request('/api/v1/household/keys', { headers: authHeaders(who.jwt) });
+      expect(list.status).toBe(403);
+      const del = await app.request(`/api/v1/household/keys/${id}`, { method: 'DELETE', headers: authHeaders(who.jwt) });
+      expect(del.status).toBe(403);
+    }
+
+    const created = await app.request('/api/v1/auth/keys', {
+      method: 'POST', headers: authHeaders(admin.jwt), body: JSON.stringify({ name: 'raw' }),
+    });
+    const { data } = await created.json() as { data: { key: string } };
+    const withKey = await app.request('/api/v1/household/keys', { headers: { Authorization: `Bearer ${data.key}` } });
+    expect(withKey.status).toBe(401);
+  });
+});
+
 describe('maintenance admin protection', () => {
   it('refuses to delete the maintenance admin', async () => {
     const { admin } = await seedTestHousehold();

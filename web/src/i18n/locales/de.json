@@ -484,7 +484,19 @@
       "cancel": "Abbrechen",
       "create": "Erstellen",
       "copyWarning": "Kopiere diesen Schlüssel jetzt — du siehst ihn nicht noch einmal.",
-      "done": "Fertig"
+      "done": "Fertig",
+      "title": "Deine API-Schlüssel"
+    },
+    "householdKeys": {
+      "intro": "Die API-Schlüssel aller Mitglieder. Mitglieder erstellen ihre Schlüssel selbst in ihrem Profil; hier findest du vergessene Schlüssel und kannst sie widerrufen.",
+      "none": "Kein Mitglied hat einen API-Schlüssel.",
+      "keyCount_one": "{{count}} Schlüssel",
+      "keyCount_other": "{{count}} Schlüssel",
+      "stale": "veraltet",
+      "staleHint": "90 Tage nicht verwendet, oder 30 Tage nach dem Erstellen nie verwendet.",
+      "headerCreated": "Erstellt",
+      "revokeConfirm": "API-Schlüssel „{{name}}“ von {{member}} widerrufen? Was ihn nutzt, funktioniert dann nicht mehr.",
+      "revokeLabel": "{{name}} widerrufen"
     },
     "connectionsPanel": {
       "title": "Verbindungen",

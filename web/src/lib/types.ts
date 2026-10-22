@@ -448,6 +448,11 @@ export interface ApiKey {
   lastUsedAt: string | null;
   createdAt: string;
 }
+// A key in the admin overview (GET /household/keys): display fields plus its
+// owner. Never carries the secret.
+export interface HouseholdApiKey extends ApiKey {
+  member: { id: string; displayName: string; avatarColor: AvatarColor };
+}
 // Returned once at creation; the raw key field is `key` (core createApiKey).
 export interface ApiKeyCreated {
   id: string;

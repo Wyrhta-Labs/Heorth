@@ -18,6 +18,7 @@ export const QUERY_KEYS = {
   members: ['members'] as const,
   whoami: ['whoami'] as const,
   apiKeys: ['apiKeys'] as const,
+  householdKeys: ['householdKeys'] as const,
   events: ['events'] as const,
   recipes: ['recipes'] as const,
   mealPlan: ['mealPlan'] as const,

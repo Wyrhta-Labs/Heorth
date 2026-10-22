@@ -24,8 +24,8 @@ vi.mock('@/hooks/use-household', () => ({
 vi.mock('@/components/household/connections-panel', () => ({
   default: ({ readOnly }: { readOnly?: boolean }) => <div>connections-panel-stub:{String(!!readOnly)}</div>,
 }));
-vi.mock('@/components/household/api-keys-panel', () => ({
-  default: ({ readOnly }: { readOnly?: boolean }) => <div>api-keys-panel-stub:{String(!!readOnly)}</div>,
+vi.mock('@/components/household/household-keys-panel', () => ({
+  default: ({ readOnly }: { readOnly?: boolean }) => <div>household-keys-panel-stub:{String(!!readOnly)}</div>,
 }));
 vi.mock('@/components/household/household-settings', () => ({
   default: ({ readOnly }: { readOnly?: boolean }) => <div>household-settings-stub:{String(!!readOnly)}</div>,
@@ -101,12 +101,12 @@ describe('HouseholdPage tab gating', () => {
     expect(screen.getByRole('button', { name: 'Connections' })).toBeInTheDocument();
   });
 
-  it('shows all four tabs to an adult too', async () => {
+  it('shows an adult every tab but the admin key overview', async () => {
     setRole('adult');
     renderAt('/household/members');
 
     expect(await screen.findByRole('button', { name: 'Members' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'API keys' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'API keys' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Connections' })).toBeInTheDocument();
   });
@@ -149,10 +149,10 @@ describe('HouseholdPage read-only propagation', () => {
     expect(await screen.findByText('connections-panel-stub:true')).toBeInTheDocument();
   });
 
-  it('leaves the API keys panel writable for an adult', async () => {
-    setRole('adult');
+  it('shows an admin the writable household key overview', async () => {
+    setRole('admin');
     renderAt('/household/keys');
-    expect(await screen.findByText('api-keys-panel-stub:false')).toBeInTheDocument();
+    expect(await screen.findByText('household-keys-panel-stub:false')).toBeInTheDocument();
   });
 });
 

@@ -440,19 +440,20 @@ export interface ImportStatus {
 
 // ---- Auth / keys ----
 export interface AuthToken { token: string; expires_in: number; }
+// Shapes come from @wyrhta/core identity (listApiKeys / createApiKey).
 export interface ApiKey {
   id: string;
   name: string;
-  keyPrefix: string;
+  prefix: string;
   lastUsedAt: string | null;
   createdAt: string;
 }
-// Returned once at creation; the raw key field is `raw` (backend createApiKey).
+// Returned once at creation; the raw key field is `key` (core createApiKey).
 export interface ApiKeyCreated {
   id: string;
   name: string;
-  keyPrefix: string;
-  raw: string;
+  prefix: string;
+  key: string;
   createdAt: string;
 }
 

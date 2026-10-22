@@ -38,7 +38,7 @@ export default function ApiKeysPanel({ readOnly = false }: Props) {
   const handleCreate = async () => {
     if (!name.trim()) return;
     const res = await create.mutateAsync(name.trim());
-    setCreatedKey(res.data.raw); // raw key returned once
+    setCreatedKey(res.data.key); // raw key returned once
     setName('');
     setShowCreate(false);
     toast(t('settings.apiKeys.created'), 'success');
@@ -74,7 +74,7 @@ export default function ApiKeysPanel({ readOnly = false }: Props) {
             {keys.map((k) => (
               <TableRow key={k.id}>
                 <TableCell className="font-medium">{k.name}</TableCell>
-                <TableCell><code className="text-xs bg-linen px-1.5 py-0.5 rounded">{k.keyPrefix}…</code></TableCell>
+                <TableCell><code className="text-xs bg-linen px-1.5 py-0.5 rounded">{k.prefix}…</code></TableCell>
                 <TableCell className="text-sm text-ash">{k.lastUsedAt ? formatDate(k.lastUsedAt) : t('settings.apiKeys.never')}</TableCell>
                 <TableCell>
                   {!readOnly && (

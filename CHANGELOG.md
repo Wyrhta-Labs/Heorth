@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-22
+
+### Added
+
+- **Personal API keys on the profile.** Admins and adults mint, copy (once)
+  and revoke their own `he_` keys on `/profile`. Children still get none; the
+  maintenance account stays quarantined there.
+- **Admin key overview** on `/household/keys`: every member's keys grouped by
+  member, with name, prefix, created and last used, and a "stale" badge
+  (unused for 90 days, or never used 30 days after creation). The admin can
+  revoke any key; the secret is never shown and nothing is minted there.
+  Backed by `GET` and `DELETE /api/v1/household/keys` (admin-only, JWT-only);
+  a revoke is logged with the owner and who revoked it.
+
+### Changed
+
+- `/household/keys` is admin-only. Adults manage their own keys on `/profile`.
+
+### Fixed
+
+- Web: a newly minted API key is shown again (the copy-once dialog never
+  opened), and the key list shows the real prefix instead of `undefined…`.
+  The web types read `raw`/`keyPrefix`, but the API returns `key`/`prefix`.
+
 ## [0.10.1] - 2026-10-17
 
 ### Security

@@ -1,6 +1,6 @@
 {
   "name": "heorth",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "license": "MIT",
   "description": "The flagship self-hosted household system",
   "type": "module",
